@@ -1,6 +1,0 @@
-googleProject: eno-dsp-devops-test
-secretData:
-  - secretName: diskmanager-gcp-sa
-    namespace: default
-    secretDataKey: application_default_credentials.json
-    gcpSaName: projects/eno-dsp-devops-test/serviceAccounts/example@eno-dsp-devops-test.iam.gserviceaccount.com
