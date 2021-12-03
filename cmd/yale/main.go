@@ -55,4 +55,3 @@ func parseArgs() *args {
 	flag.Parse()
 	return &args{*local, *kubeconfig, *configFile}
 }
-
