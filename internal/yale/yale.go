@@ -63,7 +63,7 @@ func ( m *Yale) CreateSecret(SecretName string, SecretKey string, namespace stri
 //m.k8s.CoreV1().Secrets("default").Update(context.TODO(), secrets, metav1.UpdateOptions{})
 }*/
 func (m *Yale)CreateSAKey(GcpSaName string) string {
-	logs.Info.Printf("Creating new SA key for ...", GcpSaName)
+	logs.Info.Printf("Creating new SA key for %s", GcpSaName)
 	ctx := context.Background()
 	rb := &iam.CreateServiceAccountKeyRequest{KeyAlgorithm: "KEY_ALG_RSA_1024",
 		PrivateKeyType: "TYPE_GOOGLE_CREDENTIALS_FILE"}
