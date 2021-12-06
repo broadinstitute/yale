@@ -2,39 +2,47 @@ package yale
 
 import (
 	"context"
+	"fmt"
 	"github.com/broadinstitute/yale/internal/yale/client"
-	"github.com/broadinstitute/yale/internal/yale/config"
 	"github.com/broadinstitute/yale/internal/yale/logs"
+	v1crd "github.com/broadinstitute/yale/internal/yale/v1"
 	"google.golang.org/api/iam/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 	"log"
 )
 
-type Yale struct {
-	config *config.Config       // Yale config
+type Yale struct {      // Yale config
 	gcp    *iam.Service    // GCP Compute API client
 	k8s    kubernetes.Interface // K8s API client
+	crd restclient.Interface
 }
 
-type sakeyInfo struct {
-	privateID string
-}
 
 // NewYale /* Construct a new Yale Manager */
-func NewYale(cfg *config.Config, clients *client.Clients) (*Yale, error) {
+func NewYale(clients *client.Clients) (*Yale, error) {
 	k8s := clients.GetK8s()
 	gcp := clients.GetGCP()
+	crd := clients.GetCRDs()
 
-	return &Yale{cfg, gcp, k8s}, nil
+	return &Yale{ gcp, k8s, crd, }, nil
 }
 
 func (m *Yale) Run(){
-	for _, secret := range m.config.SecretData{
-		privateID := m.CreateSAKey(secret.GcpSaName)
-		m.CreateSecret(secret.SecretName, secret.SecretDataKey, secret.Namespace, privateID)
+	//privateID := m.CreateSAKey("hello")
+	result := v1crd.GCPSaKeyList{}
+	err := m.crd.Get().Resource("gcpsakey").Do(context.TODO()).Into(&result)
+	if err != nil {
+		panic(err)
 	}
+	for _, secretCRD := range result.Items{
+		fmt.Printf("SecretDefinition: %s\n", secretCRD.Name)
+		fmt.Printf("Namespace: %s\n", secretCRD.Namespace)
+		fmt.Printf("Mappings:\n")
+	}
+		/*m.CreateSecret(secret.SecretName, secret.SecretDataKey, secret.Namespace, privateID)*/
 }
 
 func ( m *Yale) CreateSecret(SecretName string, SecretKey string, namespace string, privateID string){

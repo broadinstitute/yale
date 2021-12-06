@@ -6,10 +6,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-const GroupName = "yale.broadinstitute.org"
+
 const GroupVersion = "v1"
+const GroupName = "yale.broadinstitute.org"
 
 var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: GroupVersion}
+
 
 var (
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
@@ -18,10 +20,9 @@ var (
 
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&GcpSaKey{},
-		&GcpSaKeyList{},
+		&GCPSaKeyDefinition{},
+		&GCPSaKeyList{},
 	)
-
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
 }
