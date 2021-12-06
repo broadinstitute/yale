@@ -7,7 +7,8 @@ import (
 
 type GCPSaKeySpec struct {
 	GcpSaName string `json:"gcpSaName"`
-	SercretName string `json:"sercretName"`
+	SecretName string `json:"secretName"`
+	Namespace string `json:"namespace"`
 	SecretDataKey string `json:"secretDataKey"`
 	OlderThanDays int `json:"olderThanDays"`
 	GoogleProject string `json:"googleProject"`
@@ -35,7 +36,7 @@ func (in *GCPSaKeyDefinition) DeepCopyInto(out *GCPSaKeyDefinition) {
 	out.ObjectMeta = in.ObjectMeta
 	out.Spec = GCPSaKeySpec{
 		GcpSaName: in.Spec.GcpSaName,
-		SercretName: in.Spec.SercretName,
+		SecretName: in.Spec.SecretName,
 		SecretDataKey: in.Spec.SecretDataKey,
 		OlderThanDays: in.Spec.OlderThanDays,
 		GoogleProject: in.Spec.GoogleProject,
@@ -50,19 +51,16 @@ func (in *GCPSaKeyDefinition) DeepCopyObject() runtime.Object {
 	return &out
 }
 
-
 // DeepCopyObject returns a generically typed copy of an object
 func (in *GCPSaKeyList) DeepCopyObject() runtime.Object {
 	out := GCPSaKeyList{}
 	out.TypeMeta = in.TypeMeta
 	out.ListMeta = in.ListMeta
-
 	if in.Items != nil {
 		out.Items = make([]GCPSaKeyDefinition, len(in.Items))
 		for i := range in.Items {
 			in.Items[i].DeepCopyInto(&out.Items[i])
 		}
 	}
-
 	return &out
 }

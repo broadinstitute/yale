@@ -4,7 +4,6 @@ import (
 	"flag"
 	"github.com/broadinstitute/yale/internal/yale"
 	"github.com/broadinstitute/yale/internal/yale/client"
-	"github.com/broadinstitute/yale/internal/yale/config"
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	"k8s.io/client-go/util/homedir"
 	"path/filepath"
@@ -20,10 +19,10 @@ type args struct {
 func main() {
 	args := parseArgs()
 
-	cfg, err := config.Read(args.configFile)
-	if err != nil {
+/*	cfg, err := config.Read(args.configFile)*/
+/*	if err != nil {
 		logs.Error.Fatal(err)
-	}
+	}*/
 
 	logs.Info.Printf("Building clients...")
 	clients, err := client.Build(args.local, args.kubeconfig)
@@ -32,7 +31,7 @@ func main() {
 		logs.Error.Fatalf("Error building clients: %v, exiting\n", err)
 	}
 
-	m, err := yale.NewYale(cfg, clients)
+	m, err := yale.NewYale(clients)
 	if err != nil {
 		logs.Error.Fatal(err)
 	}
