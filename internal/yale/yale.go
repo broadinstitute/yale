@@ -92,7 +92,7 @@ func (m *Yale) isExpiring(officialGcpSaName string,DaysAuthorized int)bool {
 	ctx := context.Background()
 	resp, err := m.gcp.Projects.ServiceAccounts.Keys.List(officialGcpSaName).KeyTypes("USER_MANAGED").Context(ctx).Do()
 	if resp == nil{
-		logs.Error.Fatal("Keys returned: %#v resp", resp)
+		logs.Error.Printf("Keys returned: %#v resp", resp)
 	}
 	saKeys := resp.Keys
 	if len(saKeys) == 0 {
