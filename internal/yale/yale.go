@@ -90,9 +90,11 @@ func (m *Yale)CreateSAKey(officialGcpSaName string) string {
 
 func (m *Yale) isExpiring(officialGcpSaName string,DaysAuthorized int)bool {
 	ctx := context.Background()
+	logs.Info.Printf("Checking to see if keys associated with %s are expiring", officialGcpSaName )
 	resp, err := m.gcp.Projects.ServiceAccounts.Keys.List(officialGcpSaName).KeyTypes("USER_MANAGED").Context(ctx).Do()
 	if resp == nil{
-		logs.Error.Printf("Keys returned: %#v resp", resp)
+		logs.Error.Printf("response is nill: %#v resp", resp)
+		logs.Error.Fatal(err)
 	}
 	saKeys := resp.Keys
 	if len(saKeys) == 0 {
