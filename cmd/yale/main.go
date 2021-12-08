@@ -14,7 +14,6 @@ type args struct {
 	// use local kube config
 	local      bool
 	kubeconfig string
-	configFile string
 }
 func main() {
 	args := parseArgs()
@@ -50,7 +49,6 @@ func parseArgs() *args {
 		kubeconfig = flag.String("kubeconfig", "", "absolute path to kubeconfig file")
 	}
 	local := flag.Bool("local", false, "use this flag when running locally (outside of cluster to use local kube config")
-	configFile := flag.String("config-file", "./etc/yale/config.yaml", "path to yaml file with yale config")
 	flag.Parse()
-	return &args{*local, *kubeconfig, *configFile}
+	return &args{*local, *kubeconfig}
 }

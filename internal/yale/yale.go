@@ -92,6 +92,7 @@ func (m *Yale) isExpiring(officialGcpSaName string,DaysAuthorized int)bool {
 	ctx := context.Background()
 	resp, err := m.gcp.Projects.ServiceAccounts.Keys.List(officialGcpSaName).KeyTypes("USER_MANAGED").Context(ctx).Do()
 	saKeys := resp.Keys
+	logs.Info.Printf("Checking if %s is expiring", saKeys)
 	if err != nil {
 		logs.Error.Fatal(err)
 	}
