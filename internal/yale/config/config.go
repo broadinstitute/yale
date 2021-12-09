@@ -4,7 +4,7 @@ package config
 type Config struct {
 	SecretData [] struct {
 		SecretName string    `yaml:"secretName"`
-		Namespace string `yaml:"namespace""`
+		Namespace string `yaml:"namespace"`
 		SecretDataKey string `yaml:"secretDataKey"`
 		GcpSaName   string `yaml:"gcpSaName"`
 	} `yaml:"secretData"`

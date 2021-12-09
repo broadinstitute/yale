@@ -101,11 +101,11 @@ func (m *Yale) isExpiring(officialGcpSaName string,DaysAuthorized int)bool {
 		logs.Info.Printf("Service account does not have keys associated with it %s",officialGcpSaName )
 		return false
 	}
-	logs.Info.Printf("Creating checking to see if %#v is expiring", resp.Keys[0].Name)
 	if err != nil {
 		logs.Error.Fatal(err)
 	}
 	for _, sa := range saKeys {
+		logs.Info.Printf("Checking to see if key, %#v is expiring", sa.Name)
 		// Parse date from string to date
 		dateAuthorized, err := time.Parse("2006-01-02T15:04:05Z0700",sa.ValidAfterTime)
 		if err != nil {
@@ -113,6 +113,7 @@ func (m *Yale) isExpiring(officialGcpSaName string,DaysAuthorized int)bool {
 		}
 		expireDate := dateAuthorized.AddDate(0, 0, DaysAuthorized)
 		if time.Now().After(expireDate) {
+			logs.Info.Printf("%#v is expiring", sa.Name)
 			return true
 		}
 	}
