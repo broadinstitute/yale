@@ -30,7 +30,7 @@ func main() {
 		logs.Error.Fatalf("Error building clients: %v, exiting\n", err)
 	}
 
-	m, _ := yale.NewYale(clients)
+	m, err := yale.NewYale(clients)
 	if err != nil {
 		logs.Error.Fatal(err)
 	}
