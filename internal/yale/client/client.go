@@ -46,20 +46,20 @@ func (c *Clients) GetCRDs() *restclient.RESTClient{
 func Build(local bool, kubeconfig string) (*Clients, error) {
 	conf, err := buildKubeConfig(local, kubeconfig)
 	if err != nil {
-		return nil, fmt.Errorf("Error building kube client: %v", err)
+		return nil, fmt.Errorf("error building kube client: %v", err)
 	}
 	k8s, err := buildKubeClient(conf)
 	if err != nil {
-		return nil, fmt.Errorf("Error building kube client: %v", err)
+		return nil, fmt.Errorf("error building kube client: %v", err)
 	}
 
 	gcp, err := buildGCPClient()
 	if err != nil {
-		return nil, fmt.Errorf("Error building GCP client: %v", err)
+		return nil, fmt.Errorf("error building GCP client: %v", err)
 	}
 	crd, err := buildCrdClient(conf)
 	if err != nil {
-		return nil, fmt.Errorf("Error building GCP client: %v", err)
+		return nil, fmt.Errorf("error building GCP client: %v", err)
 	}
 	return &Clients{
 		gcp,
@@ -72,13 +72,13 @@ func buildKubeConfig(local bool, kubeconfig string) (*restclient.Config, error) 
 	if local {
 		config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
-			return nil, fmt.Errorf("Error building local k8s config: %v", err)
+			return nil, fmt.Errorf("error building local k8s config: %v", err)
 		}
 		return config, nil
 	}
 	config, err := restclient.InClusterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("Error building in cluster k8s config: %v", err)
+		return nil, fmt.Errorf("error building in cluster k8s config: %v", err)
 	}
 	return config, nil
 }
@@ -107,4 +107,4 @@ func buildCrdClient(kubeconfig *restclient.Config) (*restclient.RESTClient, erro
 
 	return restclient.UnversionedRESTClientFor(&crdConfig)
 
-	}
+}

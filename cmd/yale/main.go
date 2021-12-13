@@ -34,11 +34,8 @@ func main() {
 	if err != nil {
 		logs.Error.Fatal(err)
 	}
+	m.GenerateKeys()
 
-	m.Run()
-	if err != nil {
-		logs.Error.Fatal(err)
-	}
 }
 
 func parseArgs() *args {
