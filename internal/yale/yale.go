@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/broadinstitute/yale/internal/yale/client"
-	logs "github.com/broadinstitute/yale/internal/yale/logs"
+	"github.com/broadinstitute/yale/internal/yale/logs"
 	v1crd "github.com/broadinstitute/yale/internal/yale/v1"
 	"google.golang.org/api/iam/v1"
 	v1 "k8s.io/api/core/v1"
@@ -17,13 +17,14 @@ import (
 type Yale struct {      // Yale config
 	gcp    *iam.Service    // GCP Compute API client
 	k8s    kubernetes.Interface // K8s API client
-	crd restclient.Interface
+	crd	   restclient.Interface
 }
 
-type GCPSaKeyDefinition struct{
+type SaKey struct{
 	privateKeyData string
 	serviceAccountKeyName string
 	serviceAccountName string
+	validAfterTime string
 }
 // NewYale /* Construct a new Yale Manager */
 func NewYale(clients *client.Clients) (*Yale, error) {
@@ -31,12 +32,16 @@ func NewYale(clients *client.Clients) (*Yale, error) {
 	gcp := clients.GetGCP()
 	crd := clients.GetCRDs()
 
-	return &Yale{ gcp, k8s, crd, }, nil
+	return &Yale{ gcp, k8s, crd }, nil
 }
 
-func (m *Yale) Run(){
-	result := v1crd.GCPSaKeyList{}
-	err := m.crd.Get().Resource("gcpsakeys").Do(context.TODO()).Into(&result)
+type Annotations struct {
+	Planet map[string]string
+}
+
+func (m *Yale) GenerateKeys(){
+	// Get all GCPSaKey resources
+	result, err := m.getGCPSaKeyList()
 	if err != nil {
 		panic(err)
 	}
@@ -45,10 +50,9 @@ func (m *Yale) Run(){
 
 		secret, err := m.getSecret(gcpsakey.Spec)
 		if err != nil {
-			secretNotFoundErrorMsg := fmt.Sprintf("secrets \"%s\" not found", gcpsakey.Spec.SecretName)
-
 			// Secret does not exist for GCPSaKey Crd
-			if err.Error() == secretNotFoundErrorMsg{
+			if !secretExists(err, gcpsakey.Spec.SecretName){
+				logs.Info.Printf("Secret for %s does not exist. Creating secret", gcpsakey.Name)
 				// Create sa key
 				newGCPSaKey := m.CreateSAKey(gcpsakey.Spec)
 				m.CreateSecret(gcpsakey.Spec, *newGCPSaKey)
@@ -59,8 +63,7 @@ func (m *Yale) Run(){
 			continue
 		}
 		// A secret exists for the GCPSaKey Crd
-		// Check if the sa key is expiring
-		if m.isExpiring(*secret, gcpsakey.Spec){
+		if m.isExpired(secret, gcpsakey.Spec){
 			//Create sa key
 			newGCPSaKey := m.CreateSAKey(gcpsakey.Spec)
 			// Update secret with new SA key
@@ -70,57 +73,95 @@ func (m *Yale) Run(){
 	}
 }
 
-func CreateAnnotations(GcpSakey GCPSaKeyDefinition)map[string]string{
-	annotations := make(map[string]string)
+func (m *Yale) getGCPSaKeyList()(result v1crd.GCPSaKeyList, err error){
+	result = v1crd.GCPSaKeyList{}
+
+	// Get all GCPSaKey resources
+	err = m.crd.Get().Resource("gcpsakeys").Do(context.TODO()).Into(&result)
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
+	return
+}
+
+// Checks if secret exists
+func secretExists(err error, secretName string) bool{
+	secretNotFoundErrorMsg := fmt.Sprintf("secrets \"%s\" not found", secretName)
+	return err.Error() != secretNotFoundErrorMsg
+}
+
+// CreateAnnotations Creates basic annotations based on Sa key
+func CreateAnnotations(GcpSakey SaKey)map[string]string{
+	var annotations = make(map[string]string)
 	annotations["serviceAccountKeyName"] = GcpSakey.serviceAccountKeyName
 	annotations["serviceAccountName"] = GcpSakey.serviceAccountName
+	annotations["validAfterDate"] = GcpSakey.validAfterTime
 	return annotations
 }
 
-func ( m *Yale, ) CreateSecret(SaKeySpec v1crd.GCPSaKeySpec, GcpSakey GCPSaKeyDefinition){
-	logs.Info.Printf("Creating secret %s ...", SaKeySpec.SecretName)
+func ( m *Yale ) CreateSecret(GCPSaKeySpec v1crd.GCPSaKeySpec, GcpSakey SaKey){
+	logs.Info.Printf("Creating secret %s ...", GCPSaKeySpec.SecretName)
 	saKey :=  []byte(GcpSakey.privateKeyData)
 
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: SaKeySpec.Namespace,
-			Name:      SaKeySpec.SecretName,
+			Namespace: GCPSaKeySpec.Namespace,
+			Name:      GCPSaKeySpec.SecretName,
 			Annotations: CreateAnnotations(GcpSakey),
 		},
 		StringData: map[string]string{
-			SaKeySpec.SecretDataKey : string(saKey),
+			GCPSaKeySpec.SecretDataKey : string(saKey),
 		},
 		Type: v1.SecretTypeOpaque,
 	}
-	secrets, err := m.k8s.CoreV1().Secrets(secret.Namespace).Create(context.TODO(),secret, metav1.CreateOptions{})
+	_, err := m.k8s.CoreV1().Secrets(secret.Namespace).Create(context.TODO(),secret, metav1.CreateOptions{})
 
-	if err != nil {
-		logs.Error.Fatal(secrets)
-	}
-}
-
-func(m *Yale) updateSecret(K8Secret *v1.Secret, SaKeySpec v1crd.GCPSaKeySpec, NewSakey GCPSaKeyDefinition, ){
-	K8Secret.Annotations = CreateAnnotations(NewSakey)
-
-	K8Secret.Data[SaKeySpec.SecretDataKey] = []byte(NewSakey.privateKeyData)
-	m.k8s.CoreV1().Secrets("default").Update(context.TODO(), K8Secret, metav1.UpdateOptions{})
-}
-
-func (m *Yale)CreateSAKey(SaKeySpec v1crd.GCPSaKeySpec) *GCPSaKeyDefinition {
-	// Expected naming convention for GCP i.am API
-	name := fmt.Sprintf("projects/%s/serviceAccounts/%s", SaKeySpec.GoogleProject, SaKeySpec.GcpSaName)
-	logs.Info.Printf("Creating new SA key for %s", SaKeySpec.GcpSaName)
-	ctx := context.Background()
-	rb := &iam.CreateServiceAccountKeyRequest{KeyAlgorithm: "KEY_ALG_RSA_1024",
-		PrivateKeyType: "TYPE_GOOGLE_CREDENTIALS_FILE"}
-	newSAKey, err := m.gcp.Projects.ServiceAccounts.Keys.Create(name, rb).Context(ctx).Do()
 	if err != nil {
 		logs.Error.Fatal(err)
 	}
-	return &GCPSaKeyDefinition{ privateKeyData: newSAKey.PrivateKeyData, serviceAccountKeyName: newSAKey.Name, serviceAccountName: name}
 }
 
-func (m *Yale) isExpiring(K8Secret v1.Secret, SaKeySpec v1crd.GCPSaKeySpec)bool {
+func(m *Yale) updateSecret(K8Secret *v1.Secret, GCPSaKeySpec v1crd.GCPSaKeySpec, Key SaKey ){
+	// Create annotations for new secret
+	newAnnotations := CreateAnnotations(Key)
+
+	// Add expired service account name to new secret for tracking
+	oldAnnotations := K8Secret.GetAnnotations()
+	oldSaKeyName := oldAnnotations["serviceAccountKeyName"]
+	newAnnotations["oldServiceAccountKeyName"] = oldSaKeyName
+	K8Secret.Annotations = newAnnotations
+
+
+	K8Secret.Data[GCPSaKeySpec.SecretDataKey] = []byte(Key.privateKeyData)
+	_, err := m.k8s.CoreV1().Secrets(GCPSaKeySpec.Namespace).Update(context.TODO(), K8Secret, metav1.UpdateOptions{})
+	if err != nil {
+		logs.Error.Fatal(oldAnnotations)
+	}
+}
+
+func (m *Yale)CreateSAKey(SaKeySpec v1crd.GCPSaKeySpec) *SaKey {
+	logs.Info.Printf("Creating new SA key for %s", SaKeySpec.GcpSaName)
+	// Expected naming convention for GCP i.am API
+	name := fmt.Sprintf("projects/%s/serviceAccounts/%s", SaKeySpec.GoogleProject, SaKeySpec.GcpSaName)
+
+	ctx := context.Background()
+	rb := &iam.CreateServiceAccountKeyRequest{KeyAlgorithm: "KEY_ALG_RSA_1024",
+		PrivateKeyType: "TYPE_GOOGLE_CREDENTIALS_FILE"}
+	newKey, err := m.gcp.Projects.ServiceAccounts.Keys.Create(name, rb).Context(ctx).Do()
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
+
+	return &SaKey{
+		newKey.PrivateKeyData,
+		newKey.Name,
+		name,
+		newKey.ValidAfterTime,
+	}
+}
+
+// Checks if key is expired
+func (m *Yale) isExpired(K8Secret *v1.Secret, GCPSaKeySpec v1crd.GCPSaKeySpec)bool {
 	ctx := context.Background()
 	annotations := K8Secret.GetAnnotations()
 	saKeyName := annotations["serviceAccountKeyName"]
@@ -136,14 +177,15 @@ func (m *Yale) isExpiring(K8Secret v1.Secret, SaKeySpec v1crd.GCPSaKeySpec)bool 
 		logs.Error.Fatal(err)
 	}
 	// Date sa key expected to expire
-	expireDate := dateAuthorized.AddDate(0, 0, SaKeySpec.OlderThanDays)
+	expireDate := dateAuthorized.AddDate(0, 0, GCPSaKeySpec.OlderThanDays)
 	if time.Now().After(expireDate) {
-		logs.Info.Printf("%s is expiring", saKeyName)
+		logs.Info.Printf("%s had expired", saKeyName)
 		return true
 	}
+	logs.Info.Printf("%s has not expired", saKeyName)
 	return false
 }
 
-func (m *Yale) getSecret(SaKeySpec v1crd.GCPSaKeySpec )(*v1.Secret, error){
-	return m.k8s.CoreV1().Secrets(SaKeySpec.Namespace).Get(context.TODO(), SaKeySpec.SecretName, metav1.GetOptions{})
+func (m *Yale) getSecret(GCPSaKeySpec v1crd.GCPSaKeySpec )(*v1.Secret, error){
+	return m.k8s.CoreV1().Secrets(GCPSaKeySpec.Namespace).Get(context.TODO(), GCPSaKeySpec.SecretName, metav1.GetOptions{})
 }

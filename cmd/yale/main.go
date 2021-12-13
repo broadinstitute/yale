@@ -30,15 +30,12 @@ func main() {
 		logs.Error.Fatalf("Error building clients: %v, exiting\n", err)
 	}
 
-	m, err := yale.NewYale(clients)
+	m, _ := yale.NewYale(clients)
 	if err != nil {
 		logs.Error.Fatal(err)
 	}
+	m.GenerateKeys()
 
-	m.Run()
-	if err != nil {
-		logs.Error.Fatal(err)
-	}
 }
 
 func parseArgs() *args {
