@@ -109,7 +109,10 @@ func ( m *Yale ) CreateSecret(GCPSaKeySpec v1crd.GCPSaKeySpec, GcpSakey SaKey){
 		logs.Error.Fatal(err)
 	}
 	saData := saKeyData{}
-	json.Unmarshal([]byte(saKey), &saData)
+	err = json.Unmarshal([]byte(saKey), &saData)
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
 
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
