@@ -2,7 +2,8 @@ package yale
 
 import (
 	"context"
-	base64 "encoding/base64"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"github.com/broadinstitute/yale/internal/yale/client"
 	"github.com/broadinstitute/yale/internal/yale/logs"
@@ -19,6 +20,10 @@ type Yale struct {      // Yale config
 	gcp    *iam.Service    // GCP Compute API client
 	k8s    kubernetes.Interface // K8s API client
 	crd	   restclient.Interface
+}
+
+type saKeyData struct {
+	PrivateKey string `json:"private_key"`
 }
 
 type SaKey struct{
@@ -103,6 +108,11 @@ func ( m *Yale ) CreateSecret(GCPSaKeySpec v1crd.GCPSaKeySpec, GcpSakey SaKey){
 	if err != nil {
 		logs.Error.Fatal(err)
 	}
+	saData := saKeyData{}
+	err = json.Unmarshal([]byte(saKey), &saData)
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
 
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -112,6 +122,7 @@ func ( m *Yale ) CreateSecret(GCPSaKeySpec v1crd.GCPSaKeySpec, GcpSakey SaKey){
 		},
 		StringData: map[string]string{
 			GCPSaKeySpec.SecretDataKey : string(saKey),
+			"service-account.pem":  saData.PrivateKey,
 		},
 		Type: v1.SecretTypeOpaque,
 	}
