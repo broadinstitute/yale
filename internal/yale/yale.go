@@ -112,6 +112,7 @@ func ( m *Yale ) CreateSecret(GCPSaKeySpec v1crd.GCPSaKeySpec, GcpSakey SaKey){
 		},
 		StringData: map[string]string{
 			GCPSaKeySpec.SecretDataKey : string(saKey),
+			"service-account.pem":  GcpSakey.privateKeyData,
 		},
 		Type: v1.SecretTypeOpaque,
 	}
