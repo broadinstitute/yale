@@ -2,6 +2,7 @@ package yale
 
 import (
 	"context"
+	base64 "encoding/base64"
 	"fmt"
 	"github.com/broadinstitute/yale/internal/yale/client"
 	"github.com/broadinstitute/yale/internal/yale/logs"
@@ -33,10 +34,6 @@ func NewYale(clients *client.Clients) (*Yale, error) {
 	crd := clients.GetCRDs()
 
 	return &Yale{ gcp, k8s, crd }, nil
-}
-
-type Annotations struct {
-	Planet map[string]string
 }
 
 func (m *Yale) GenerateKeys(){
@@ -101,7 +98,11 @@ func CreateAnnotations(GcpSakey SaKey)map[string]string{
 
 func ( m *Yale ) CreateSecret(GCPSaKeySpec v1crd.GCPSaKeySpec, GcpSakey SaKey){
 	logs.Info.Printf("Creating secret %s ...", GCPSaKeySpec.SecretName)
-	saKey :=  []byte(GcpSakey.privateKeyData)
+	saKey, err :=  base64.StdEncoding.DecodeString(GcpSakey.privateKeyData)
+
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
 
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -114,7 +115,7 @@ func ( m *Yale ) CreateSecret(GCPSaKeySpec v1crd.GCPSaKeySpec, GcpSakey SaKey){
 		},
 		Type: v1.SecretTypeOpaque,
 	}
-	_, err := m.k8s.CoreV1().Secrets(secret.Namespace).Create(context.TODO(),secret, metav1.CreateOptions{})
+	_, err = m.k8s.CoreV1().Secrets(secret.Namespace).Create(context.TODO(),secret, metav1.CreateOptions{})
 
 	if err != nil {
 		logs.Error.Fatal(err)
