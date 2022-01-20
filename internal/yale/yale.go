@@ -118,9 +118,7 @@ func ( m *Yale ) CreateSecret(GCPSaKeySpec v1crd.GCPSaKeySpec, GcpSakey SaKey){
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: GCPSaKeySpec.Namespace,
 			Name:      GCPSaKeySpec.SecretName,
-			Labels: map[string]string{
-				"app.kubernetes.io/instance": "yale",
-			},
+			Labels: GCPSaKeySpec.Labels,
 			Annotations: CreateAnnotations(GcpSakey),
 		},
 		StringData: map[string]string{
