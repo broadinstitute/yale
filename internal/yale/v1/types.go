@@ -6,6 +6,7 @@ import (
 )
 
 type GCPSaKeySpec struct {
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 	GcpSaName string `json:"gcpSaName"`
 	SecretName string `json:"secretName"`
 	Namespace string `json:"namespace"`
