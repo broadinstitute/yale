@@ -123,7 +123,7 @@ func ( m *Yale ) CreateSecret(GCPSaKeySpec v1crd.GCPSaKeySpec, GcpSakey SaKey){
 		},
 		StringData: map[string]string{
 			GCPSaKeySpec.SecretDataKey : string(saKey),
-			"service-account.pem":  saData.PrivateKey,
+			GCPSaKeySpec.PemDataFieldName:  saData.PrivateKey,
 		},
 		Type: v1.SecretTypeOpaque,
 	}
@@ -146,6 +146,7 @@ func(m *Yale) updateSecret(K8Secret *v1.Secret, GCPSaKeySpec v1crd.GCPSaKeySpec,
 
 
 	K8Secret.Data[GCPSaKeySpec.SecretDataKey] = []byte(Key.privateKeyData)
+	K8Secret.Data[GCPSaKeySpec.PemDataFieldName] = []byte(GCPSaKeySpec.PemDataFieldName)
 	_, err := m.k8s.CoreV1().Secrets(GCPSaKeySpec.Namespace).Update(context.TODO(), K8Secret, metav1.UpdateOptions{})
 	if err != nil {
 		logs.Error.Fatal(oldAnnotations)
