@@ -10,6 +10,7 @@ type GCPSaKeySpec struct {
 	GcpSaName string `json:"gcpSaName"`
 	SecretName string `json:"secretName"`
 	Namespace string `json:"namespace"`
+	PemDataFieldName string `json:"pemDataFieldName"`
 	SecretDataKey string `json:"secretDataKey"`
 	OlderThanDays int `json:"olderThanDays"`
 	GoogleProject string `json:"googleProject"`
