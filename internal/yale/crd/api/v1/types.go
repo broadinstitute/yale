@@ -7,38 +7,37 @@ import (
 
 type GCPSaKeySpec struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	GcpSaName string `json:"gcpSaName"`
-	SecretName string `json:"secretName"`
-	Namespace string `json:"namespace"`
-	PemDataFieldName string `json:"pemDataFieldName"`
-	SecretDataKey string `json:"secretDataKey"`
-	OlderThanDays int `json:"olderThanDays"`
-	GoogleProject string `json:"googleProject"`
+	GcpSaName         string `json:"gcpSaName"`
+	SecretName        string `json:"secretName"`
+	Namespace         string `json:"namespace"`
+	PemDataFieldName  string `json:"pemDataFieldName"`
+	SecretDataKey     string `json:"secretDataKey"`
+	OlderThanDays     int    `json:"olderThanDays"`
+	GoogleProject     string `json:"googleProject"`
 }
 
-type GCPSaKeyDefinition struct {
+type GCPSaKey struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec GCPSaKeySpec `json:"spec"`
 }
 
-
 type GCPSaKeyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 
-	Items []GCPSaKeyDefinition `json:"items"`
+	Items []GCPSaKey `json:"items"`
 }
 
 // DeepCopyInto copies all properties of this object into another object of the
 // same type that is provided as a pointer.
-func (in *GCPSaKeyDefinition) DeepCopyInto(out *GCPSaKeyDefinition) {
+func (in *GCPSaKey) DeepCopyInto(out *GCPSaKey) {
 	out.TypeMeta = in.TypeMeta
 	out.ObjectMeta = in.ObjectMeta
 	out.Spec = GCPSaKeySpec{
-		GcpSaName: in.Spec.GcpSaName,
-		SecretName: in.Spec.SecretName,
+		GcpSaName:     in.Spec.GcpSaName,
+		SecretName:    in.Spec.SecretName,
 		SecretDataKey: in.Spec.SecretDataKey,
 		OlderThanDays: in.Spec.OlderThanDays,
 		GoogleProject: in.Spec.GoogleProject,
@@ -46,8 +45,8 @@ func (in *GCPSaKeyDefinition) DeepCopyInto(out *GCPSaKeyDefinition) {
 }
 
 // DeepCopyObject returns a generically typed copy of an object
-func (in *GCPSaKeyDefinition) DeepCopyObject() runtime.Object {
-	out := GCPSaKeyDefinition{}
+func (in *GCPSaKey) DeepCopyObject() runtime.Object {
+	out := GCPSaKey{}
 	in.DeepCopyInto(&out)
 
 	return &out
@@ -59,7 +58,7 @@ func (in *GCPSaKeyList) DeepCopyObject() runtime.Object {
 	out.TypeMeta = in.TypeMeta
 	out.ListMeta = in.ListMeta
 	if in.Items != nil {
-		out.Items = make([]GCPSaKeyDefinition, len(in.Items))
+		out.Items = make([]GCPSaKey, len(in.Items))
 		for i := range in.Items {
 			in.Items[i].DeepCopyInto(&out.Items[i])
 		}
