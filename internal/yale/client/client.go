@@ -8,8 +8,6 @@ import (
 	v1 "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1"
 	"golang.org/x/net/context"
 	"google.golang.org/api/iam/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -106,19 +104,4 @@ func buildCrdClient(kubeconfig *restclient.Config) (*v1.YaleCRDClient, error) {
 	}
 
 	return v1.NewForConfig(kubeconfig)
-}
-
-func buildCrdClientOld(kubeconfig *restclient.Config) (*restclient.RESTClient, error) {
-	if err := v1crd.AddToScheme(scheme.Scheme); err != nil {
-		return nil, err
-	}
-
-	crdConfig := *kubeconfig
-	crdConfig.ContentConfig.GroupVersion = &schema.GroupVersion{Group: v1crd.GroupName, Version: v1crd.GroupVersion}
-	crdConfig.APIPath = "/apis"
-	crdConfig.NegotiatedSerializer = serializer.NewCodecFactory(scheme.Scheme)
-	crdConfig.UserAgent = restclient.DefaultKubernetesUserAgent()
-
-	return restclient.UnversionedRESTClientFor(&crdConfig)
-
 }
