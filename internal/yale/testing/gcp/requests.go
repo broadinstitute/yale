@@ -24,6 +24,7 @@ func (r *createServiceAccountKeyRequest) With(keyRequest iam.CreateServiceAccoun
 	return r
 }
 
+// Assumes request was succesfull
 func (r *createServiceAccountKeyRequest) Returns(key iam.ServiceAccountKey) CreateServiceAccountKeyRequest {
 	r.ResponseBody(key)
 	return r

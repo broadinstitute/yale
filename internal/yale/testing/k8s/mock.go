@@ -6,6 +6,7 @@ import (
 	v1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1"
 	clientv1 "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1"
 	"github.com/broadinstitute/yale/internal/yale/crd/clientset/v1/mocks"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	tmock "github.com/stretchr/testify/mock"
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +30,7 @@ type Mock interface {
 func NewMock(setupFn func(Setup), expectFn func(Expect)) Mock {
 	s := newSetup()
 	e := newExpect()
+
 	setupFn(s)
 	expectFn(e)
 
@@ -82,7 +84,11 @@ func buildK8sClient(s *setup) kubernetes.Interface {
 		objects = append(objects, &secret)
 	}
 	k8s := k8sfake.NewSimpleClientset(objects...)
+	if s.error != nil {
+		k8s.PrependReactor("get", "secrets", BuildSecretErrorReactor(s.error))
+	}
 	k8s.PrependReactor("create", "secrets", secretDataReactor)
+
 	return k8s
 }
 
@@ -106,6 +112,23 @@ func secretDataReactor(action ktesting.Action) (bool, runtime.Object, error) {
 
 	return false, nil, nil
 }
+
+func secretErrorReactor(action ktesting.Action) (handled bool, ret runtime.Object, err error) {
+	action, ok := action.(ktesting.GetAction)
+	if !ok {
+		panic("Action is")
+	}
+	return true, &corev1.Secret{}, errors.New("Error creating secret")
+}
+
+func BuildSecretErrorReactor(err error) ktesting.ReactionFunc {
+	// TODO: match on namespace
+	return func(action ktesting.Action) (handled bool, ret runtime.Object, err error) {
+
+		return true, &corev1.Secret{}, err
+	}
+}
+
 
 func buildCRDClient(s *setup) clientv1.YaleCRDInterface {
 	keysEndpoint := new(mocks.GcpSaKeyInterface)

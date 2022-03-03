@@ -20,3 +20,4 @@ type expect struct {
 func (e *expect) HasSecret(secret corev1.Secret) {
 	e.secrets = append(e.secrets, secret)
 }
+

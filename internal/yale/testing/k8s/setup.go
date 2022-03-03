@@ -7,10 +7,13 @@ import (
 
 // Setup is used to populate the fake cluster with useful data before a test run
 type Setup interface {
+
 	// AddYaleCRD adds a Yale CRD to the fake cluster
 	AddYaleCRD(crd apiv1.GCPSaKey)
 	// AddSecret add a Secret to the fake cluster
 	AddSecret(corev1.Secret)
+	// ReturnsError adds error to secret
+	ReturnsError(err error)
 }
 
 func newSetup() *setup {
@@ -21,6 +24,7 @@ func newSetup() *setup {
 type setup struct {
 	yaleCrds []apiv1.GCPSaKey
 	secrets  []corev1.Secret
+	error error
 }
 
 func (s *setup) AddYaleCRD(yaleCrd apiv1.GCPSaKey) {
@@ -30,3 +34,8 @@ func (s *setup) AddYaleCRD(yaleCrd apiv1.GCPSaKey) {
 func (s *setup) AddSecret(secret corev1.Secret) {
 	s.secrets = append(s.secrets, secret)
 }
+
+func (s *setup) ReturnsError(err error){
+	s.error = err
+}
+
