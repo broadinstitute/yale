@@ -58,7 +58,7 @@ func ( m *Yale) IsTimeToDisable (beginDate string, duration int , keyName string
 		logs.Info.Printf("Time for %s to be disabled", keyName )
 		return true, nil
 	}
-	logs.Info.Printf(" not time for key to be disabled", keyName )
+	logs.Info.Printf("Not time for %s to be disabled", keyName )
 	return false, nil
 }
 
