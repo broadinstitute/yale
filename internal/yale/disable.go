@@ -55,10 +55,10 @@ func ( m *Yale) IsTimeToDisable (beginDate string, duration int , keyName string
 	// Date sa key expected to be expire
 	expireDate := dateAuthorized.AddDate(0, 0, duration)
 	if time.Now().After(expireDate) {
-		logs.Info.Printf("Time for %s to be disabled", keyName )
+		logs.Info.Printf("Time for %v to be disabled", keyName )
 		return true, nil
 	}
-	logs.Info.Printf("Not time for %s to be disabled", keyName )
+	logs.Info.Printf("Not time for %v to be disabled", keyName )
 	return false, nil
 }
 
