@@ -22,9 +22,9 @@ import (
 // Clients struct containing the GCP and k8s clients used in this tool
 type Clients struct {
 	gcpIAM *iam.Service
-	gcpPA *policyanalyzer.Service
-	k8s kubernetes.Interface
-	crd v1.YaleCRDInterface
+	gcpPA  *policyanalyzer.Service
+	k8s    kubernetes.Interface
+	crd    v1.YaleCRDInterface
 }
 
 func NewClients(gcpIAM *iam.Service, gcpPA *policyanalyzer.Service, k8s kubernetes.Interface, crd v1.YaleCRDInterface) *Clients {
@@ -33,8 +33,8 @@ func NewClients(gcpIAM *iam.Service, gcpPA *policyanalyzer.Service, k8s kubernet
 		gcpIAM: gcpIAM,
 		// Service for Google policy analyzer
 		gcpPA: gcpPA,
-		k8s: k8s,
-		crd: crd,
+		k8s:   k8s,
+		crd:   crd,
 	}
 }
 
@@ -113,8 +113,7 @@ func buildGCPIAMClient() (*iam.Service, error) {
 }
 func buildGCPPolicyAnalyzerClient() (*policyanalyzer.Service, error) {
 	ctx := context.Background()
-	c, err :=  policyanalyzer.NewService(ctx)
-
+	c, err := policyanalyzer.NewService(ctx)
 
 	if err != nil {
 		return nil, fmt.Errorf("error creating iam api client: %v", err)

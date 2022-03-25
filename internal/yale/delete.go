@@ -37,7 +37,7 @@ func (m *Yale) DeleteKeys() error {
 }
 
 // Removes 'oldServiceAccountKeyName' annotation
-func (m *Yale)removeOldKeyName(K8Secret *corev1.Secret, GCPSaKeySpec apiv1.GCPSaKeySpec, Key SaKey) error {
+func (m *Yale) removeOldKeyName(K8Secret *corev1.Secret, GCPSaKeySpec apiv1.GCPSaKeySpec, Key SaKey) error {
 	// Restores annotations for secret
 	newAnnotations := createAnnotations(Key)
 	K8Secret.Annotations = newAnnotations
@@ -49,9 +49,9 @@ func (m *Yale)removeOldKeyName(K8Secret *corev1.Secret, GCPSaKeySpec apiv1.GCPSa
 }
 
 // CanDelete Determines if key can be deleted
-func (m *Yale)CanDelete( GCPSaKeySpec apiv1.GCPSaKeySpec, name string ) (bool, error){
-	totalTime := GCPSaKeySpec.DaysDisabled+ GCPSaKeySpec.DaysDeauthenticated
-	return m.isAuthenticated(totalTime, name, GCPSaKeySpec )
+func (m *Yale) CanDelete(GCPSaKeySpec apiv1.GCPSaKeySpec, name string) (bool, error) {
+	totalTime := GCPSaKeySpec.DaysDisabled + GCPSaKeySpec.DaysDeauthenticated
+	return m.isAuthenticated(totalTime, name, GCPSaKeySpec)
 }
 
 // DeleteKey Deletes key
@@ -62,7 +62,7 @@ func (m *Yale) DeleteKey(name string) error {
 }
 
 // GetSAKey Returns SA key
-func (m *Yale) GetSAKey(name string, googleProject string)(*SaKey, error) {
+func (m *Yale) GetSAKey(name string, googleProject string) (*SaKey, error) {
 	ctx := context.Background()
 	saKey, err := m.gcp.Projects.ServiceAccounts.Keys.Get(name).Context(ctx).Do()
 	if err != nil {

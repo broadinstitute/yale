@@ -9,12 +9,10 @@ import (
 	"path/filepath"
 )
 
-
 type args struct {
 	// use local kube config
 	local      bool
 	kubeconfig string
-
 }
 
 func main() {

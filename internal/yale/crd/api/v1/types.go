@@ -6,16 +6,16 @@ import (
 )
 
 type GCPSaKeySpec struct {
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-	GcpSaName         string `json:"gcpSaName"`
-	SecretName        string `json:"secretName"`
-	Namespace         string `json:"namespace"`
-	PemDataFieldName  string `json:"pemDataFieldName"`
-	PrivateKeyDataFieldName     string `json:"privateKeyDataFieldName"`
-	OlderThanDays     int    `json:"olderThanDays"`
-	GoogleProject     string `json:"googleProject"`
-	DaysDisabled     int `json:"daysDisabled"`
-	DaysDeauthenticated     int `json:"daysDeauthenticated"`
+	metav1.ObjectMeta       `json:"metadata,omitempty"`
+	GcpSaName               string `json:"gcpSaName"`
+	SecretName              string `json:"secretName"`
+	Namespace               string `json:"namespace"`
+	PemDataFieldName        string `json:"pemDataFieldName"`
+	PrivateKeyDataFieldName string `json:"privateKeyDataFieldName"`
+	OlderThanDays           int    `json:"olderThanDays"`
+	GoogleProject           string `json:"googleProject"`
+	DaysDisabled            int    `json:"daysDisabled"`
+	DaysDeauthenticated     int    `json:"daysDeauthenticated"`
 }
 
 type GCPSaKey struct {
@@ -38,15 +38,15 @@ func (in *GCPSaKey) DeepCopyInto(out *GCPSaKey) {
 	out.TypeMeta = in.TypeMeta
 	out.ObjectMeta = in.ObjectMeta
 	out.Spec = GCPSaKeySpec{
-		GcpSaName:     in.Spec.GcpSaName,
-		SecretName:    in.Spec.SecretName,
+		GcpSaName:               in.Spec.GcpSaName,
+		SecretName:              in.Spec.SecretName,
 		PrivateKeyDataFieldName: in.Spec.PrivateKeyDataFieldName,
-		OlderThanDays: in.Spec.OlderThanDays,
-		GoogleProject: in.Spec.GoogleProject,
-		PemDataFieldName: in.Spec.PemDataFieldName,
-		DaysDeauthenticated: in.Spec.DaysDeauthenticated,
-		DaysDisabled: in.Spec.DaysDisabled,
-		Namespace: in.Spec.Namespace,
+		OlderThanDays:           in.Spec.OlderThanDays,
+		GoogleProject:           in.Spec.GoogleProject,
+		PemDataFieldName:        in.Spec.PemDataFieldName,
+		DaysDeauthenticated:     in.Spec.DaysDeauthenticated,
+		DaysDisabled:            in.Spec.DaysDisabled,
+		Namespace:               in.Spec.Namespace,
 	}
 }
 
