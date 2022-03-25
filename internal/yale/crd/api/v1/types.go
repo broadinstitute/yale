@@ -43,6 +43,10 @@ func (in *GCPSaKey) DeepCopyInto(out *GCPSaKey) {
 		PrivateKeyDataFieldName: in.Spec.PrivateKeyDataFieldName,
 		OlderThanDays: in.Spec.OlderThanDays,
 		GoogleProject: in.Spec.GoogleProject,
+		PemDataFieldName: in.Spec.PemDataFieldName,
+		DaysDeauthenticated: in.Spec.DaysDeauthenticated,
+		DaysDisabled: in.Spec.DaysDisabled,
+		Namespace: in.Spec.Namespace,
 	}
 }
 
