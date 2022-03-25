@@ -17,9 +17,6 @@ type args struct {
 
 }
 
-// Method yale executes
-type Command func() error
-
 func main() {
 	args := parseArgs()
 
@@ -30,6 +27,9 @@ func main() {
 		logs.Error.Fatalf("Error building clients: %v, exiting\n", err)
 	}
 	m, err := yale.NewYale(clients)
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
 	err = m.RotateKeys()
 	if err != nil {
 		logs.Error.Fatal(err)
