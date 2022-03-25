@@ -23,11 +23,6 @@ type Command func() error
 func main() {
 	args := parseArgs()
 
-/*	cfg, err := config.Read(args.configFile)*/
-/*	if err != nil {
-		logs.Error.Fatal(err)
-	}*/
-
 	logs.Info.Printf("Building clients...")
 	clients, err := client.Build(args.local, args.kubeconfig)
 
@@ -35,10 +30,10 @@ func main() {
 		logs.Error.Fatalf("Error building clients: %v, exiting\n", err)
 	}
 	m, err := yale.NewYale(clients)
-/*	err = m.RotateKeys()
+	err = m.RotateKeys()
 	if err != nil {
 		logs.Error.Fatal(err)
-	}*/
+	}
 	err = m.DisableKeys()
 	if err != nil {
 		logs.Error.Fatal(err)
