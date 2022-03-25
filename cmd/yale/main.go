@@ -14,7 +14,12 @@ type args struct {
 	// use local kube config
 	local      bool
 	kubeconfig string
+
 }
+
+// Method yale executes
+type Command func() error
+
 func main() {
 	args := parseArgs()
 
@@ -29,12 +34,23 @@ func main() {
 	if err != nil {
 		logs.Error.Fatalf("Error building clients: %v, exiting\n", err)
 	}
-
 	m, err := yale.NewYale(clients)
+/*	err = m.RotateKeys()
+	if err != nil {
+		logs.Error.Fatal(err)
+	}*/
+	err = m.DisableKeys()
 	if err != nil {
 		logs.Error.Fatal(err)
 	}
-	m.GenerateKeys()
+	err = m.DeleteKeys()
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
+
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
 
 }
 

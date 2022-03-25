@@ -11,9 +11,11 @@ type GCPSaKeySpec struct {
 	SecretName        string `json:"secretName"`
 	Namespace         string `json:"namespace"`
 	PemDataFieldName  string `json:"pemDataFieldName"`
-	SecretDataKey     string `json:"secretDataKey"`
+	PrivateKeyDataFieldName     string `json:"privateKeyDataFieldName"`
 	OlderThanDays     int    `json:"olderThanDays"`
 	GoogleProject     string `json:"googleProject"`
+	DaysDisabled     int `json:"daysDisabled"`
+	DaysDeauthenticated     int `json:"daysDeauthenticated"`
 }
 
 type GCPSaKey struct {
@@ -38,7 +40,7 @@ func (in *GCPSaKey) DeepCopyInto(out *GCPSaKey) {
 	out.Spec = GCPSaKeySpec{
 		GcpSaName:     in.Spec.GcpSaName,
 		SecretName:    in.Spec.SecretName,
-		SecretDataKey: in.Spec.SecretDataKey,
+		PrivateKeyDataFieldName: in.Spec.PrivateKeyDataFieldName,
 		OlderThanDays: in.Spec.OlderThanDays,
 		GoogleProject: in.Spec.GoogleProject,
 	}
