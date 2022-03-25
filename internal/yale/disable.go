@@ -7,10 +7,8 @@ import (
 	apiv1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1"
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	"google.golang.org/api/iam/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	//"google.golang.org/api/iam/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
 )
 
@@ -34,7 +32,11 @@ func (m *Yale) DisableKeys() error {
 					return err
 				}
 				if canDisableKey{
-					m.disableKey(keyName)}
+					err = m.disableKey(keyName)
+					if err != nil {
+						return err
+					}
+				}
 			}
 			if err != nil {
 				return err
