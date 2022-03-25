@@ -9,19 +9,14 @@ import (
 	"path/filepath"
 )
 
-
 type args struct {
 	// use local kube config
 	local      bool
 	kubeconfig string
 }
+
 func main() {
 	args := parseArgs()
-
-/*	cfg, err := config.Read(args.configFile)*/
-/*	if err != nil {
-		logs.Error.Fatal(err)
-	}*/
 
 	logs.Info.Printf("Building clients...")
 	clients, err := client.Build(args.local, args.kubeconfig)
@@ -29,12 +24,26 @@ func main() {
 	if err != nil {
 		logs.Error.Fatalf("Error building clients: %v, exiting\n", err)
 	}
-
 	m, err := yale.NewYale(clients)
 	if err != nil {
 		logs.Error.Fatal(err)
 	}
-	m.GenerateKeys()
+	err = m.RotateKeys()
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
+	err = m.DisableKeys()
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
+	err = m.DeleteKeys()
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
+
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
 
 }
 
