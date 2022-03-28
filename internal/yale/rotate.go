@@ -57,8 +57,9 @@ func NewYale(clients *client.Clients) (*Yale, error) {
 }
 
 func (m *Yale) RotateKeys() error {
-	// Get all GCPSaKey resources
+	// Get all GCPSaKey resource
 	result, err := m.GetGCPSaKeyList()
+
 	if err != nil {
 		return err
 	} else {
