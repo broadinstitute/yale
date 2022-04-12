@@ -2,6 +2,7 @@ package yale
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"github.com/broadinstitute/yale/internal/yale/client"
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/testing/gcp"
@@ -13,7 +14,24 @@ import (
 	"testing"
 )
 
+const FAKE_JSON_KEY = `{"private_key":"fake-sakey"}`
+var FAKE_PEM =  "fake-sakey"
+const NEW_JSON_KEY = `{"private_key": "newPrivateKeyData"}`
+var NEW_FAKE_PEM = "newPrivateKeyData"
+
+
+func getPem(key string) string{
+	saData := saKeyData{}
+	err := json.Unmarshal([]byte(key), &saData)
+	if err != nil {
+		panic(err)
+	}
+	return saData.PrivateKey
+
+}
 func TestCreateGcpSaKeys(t *testing.T) {
+	keyName := "projects/my-fake-project/my-sa@blah.com/e0b1b971487ffff7f725b124d"
+
 	testCases := []struct {
 		name      string                  // set name of test case
 		setupK8s  func(setup k8s.Setup)   // add some fake objects to the cluster before test starts
@@ -39,16 +57,14 @@ func TestCreateGcpSaKeys(t *testing.T) {
 						},
 						Secret:               v1beta1.Secret{
 							Name:     "my-fake-secret",
-							PemKeyName:     "pem",
-							JsonKeyName: "keyName",
+							PemKeyName:     "agora.pem",
+							JsonKeyName: "agora.json",
 						},
 						KeyRotation: v1beta1.KeyRotation{},
 					},
 
 				})
 			},
-
-
 			setupGcp: func(expect gcp.Expect) {
 				// set up a mock for a GCP api call to create a service account
 				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com").
@@ -57,7 +73,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 						PrivateKeyType: KEY_FORMAT,
 					}).
 					Returns(iam.ServiceAccountKey{
-						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(`{"private_key":"fake-sa-key"}`)),
+						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
 					})
 			},
 
@@ -70,8 +86,93 @@ func TestCreateGcpSaKeys(t *testing.T) {
 						Namespace: "my-fake-namespace",
 					},
 					Data: map[string][]byte{
-						"pem":  []byte("fake-sa-key"),
-						"keyName": []byte("fake-sa-key"),
+						"agora.json": []byte(FAKE_JSON_KEY),
+						"agora.pem":  []byte(FAKE_PEM),
+					},
+				})
+			},
+			expectError : false,
+		},
+		{
+			name: "should rotate key if original key is expired",
+
+			setupK8s: func(setup k8s.Setup) {
+				// Add a yale CRD to the fake cluster!
+				// If we wanted, we could add some secrets here too with setup.AddSecret()
+				setup.AddYaleCRD(v1beta1.GCPSaKey{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-gcp-sa-key",
+						Namespace: "my-fake-namespace",
+						UID: "FakeUId",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						GoogleServiceAccount: v1beta1.GoogleServiceAccount{
+							Name:    "my-sa@blah.com",
+							Project: "my-fake-project",
+						},
+						Secret: v1beta1.Secret{
+							Name:        "my-fake-secret",
+							PemKeyName:  "agora.pem",
+							JsonKeyName: "agora.json",
+						},
+						KeyRotation: v1beta1.KeyRotation{},
+					},
+				})
+				setup.AddSecret(corev1.Secret{
+					TypeMeta: metav1.TypeMeta{},
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-fake-secret",
+						Namespace: "my-fake-namespace",
+						UID: "FakeUId",
+						Annotations: map[string]string{
+							"validAfterDate": "2022-04-08T14:21:44Z",
+							"serviceAccountName": "my-sa@blah.com",
+							"serviceAccountKeyName": keyName,
+						},
+					},
+					Data: map[string][]byte{
+						"agora.pem": []byte(FAKE_PEM),
+						"agora.json": []byte(FAKE_JSON_KEY),
+					},
+				})
+			},
+			setupGcp: func(expect gcp.Expect) {
+				expect.GetServiceAccountKey("my-fake-project", "my-sa@blah.com", keyName).
+					Returns(iam.ServiceAccountKey{
+					Disabled:        false,
+					Name:            keyName,
+					PrivateKeyData:  base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
+					ValidAfterTime:  "2014-10-02T15:01:23Z",
+				})
+			expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com").
+				With(iam.CreateServiceAccountKeyRequest{
+					KeyAlgorithm:   KEY_ALGORITHM,
+					PrivateKeyType: KEY_FORMAT,
+				}).
+				Returns(iam.ServiceAccountKey{
+					Name: keyName,
+					PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(NEW_JSON_KEY)),
+					ValidAfterTime: "2022-04-08T14:21:44Z",
+				})
+			},
+			verifyK8s: func(expect k8s.Expect) {
+				// newKeyName := "projects/my-fake-project/my-sa@blah.com/" + string(base64.StdEncoding.EncodeToString([]byte("newPrivateKeyData")))
+				// set an expectation that a secret matching this one will exist in the cluster
+				// once the test completes
+				expect.HasSecret(corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "my-fake-secret",
+						Namespace: "my-fake-namespace",
+						UID: "FakeUId",
+						Annotations: map[string]string{
+							"serviceAccountKeyName": keyName,
+							"oldKeyName" : keyName,
+							"validAfterTime" : "2022-04-08T14:21:44Z",
+						},
+					},
+					Data: map[string][]byte{
+						"agora.pem":  []byte(NEW_FAKE_PEM),
+						"agora.json": []byte(NEW_JSON_KEY),
 					},
 				})
 			},

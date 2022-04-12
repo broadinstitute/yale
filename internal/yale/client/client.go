@@ -4,8 +4,8 @@ package client
 // https://github.com/broadinstitute/disk-manager/
 import (
 	"fmt"
-	v1crd "github.com/broadinstitute/yale/internal/yale/crd/api/v1"
-	v1 "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1"
+	v1crd "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
+	v1 "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1"
 	"golang.org/x/net/context"
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/api/policyanalyzer/v1"
