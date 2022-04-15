@@ -49,3 +49,35 @@ func (r *getServiceAccountKeyRequest) Returns(key iam.ServiceAccountKey) GetServ
 	r.ResponseBody(key)
 	return r
 }
+
+
+//Disable key
+type DisableServiceAccountKeyRequest interface {
+	With(key iam.ServiceAccountKey) DisableServiceAccountKeyRequest
+	Returns(err error) error
+	Request
+}
+
+type disableServiceAccountKeyRequest struct {
+	request
+}
+
+func (r *disableServiceAccountKeyRequest) Error() string {
+	panic("implement me")
+}
+
+func (r *disableServiceAccountKeyRequest) With(key iam.ServiceAccountKey) DisableServiceAccountKeyRequest {
+	r.RequestBody(key)
+	return r
+}
+
+func (r *disableServiceAccountKeyRequest) Returns(err error) error {
+	r.ResponseBody(err)
+	return r
+}
+
+func createDisableServiceAccountKeyRequest(method string, url string) DisableServiceAccountKeyRequest {
+	return &disableServiceAccountKeyRequest{
+		request: *newRequest(method, url),
+	}
+}

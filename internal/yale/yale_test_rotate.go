@@ -64,7 +64,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 	testCases := []struct {
 		name        string                  // set name of test case
 		setupK8s    func(setup k8s.Setup)   // add some fake objects to the cluster before test starts
-		setupGcp    func(expect gcp.Expect) // set up some mocked GCP api requests for the test
+		setupGcp    func(expect gcp.ExpectIam) // set up some mocked GCP api requests for the test
 		verifyK8s   func(expect k8s.Expect) // verify that the secrets we expect exist in the cluster after test completes
 		expectError bool
 	}{
@@ -75,7 +75,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 				// Add a yale CRD to the fake cluster!
 				setup.AddYaleCRD(CRD)
 			},
-			setupGcp: func(expect gcp.Expect) {
+			setupGcp: func(expect gcp.ExpectIam) {
 				// set up a mock for a GCP api call to create a service account
 				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com", false).
 					With(iam.CreateServiceAccountKeyRequest{
@@ -115,7 +115,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 					},
 				})
 			},
-			setupGcp: func(expect gcp.Expect) {
+			setupGcp: func(expect gcp.ExpectIam) {
 				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com", false).
 					With(iam.CreateServiceAccountKeyRequest{
 						KeyAlgorithm:   KEY_ALGORITHM,
@@ -127,7 +127,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 						ValidAfterTime: "2022-04-08T14:21:44Z",
 					})
 			},
-			verifyK8s: func(expect k8s.Expect) {
+			verifyK8s: func(expect k8s.) {
 				// set an expectation that a secret matching this one will exist in the cluster
 				// once the test completes
 				expect.HasSecret(corev1.Secret{
@@ -197,7 +197,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 				})
 				setup.AddSecret(OLD_SECRET)
 			},
-			setupGcp: func(expect gcp.Expect) {},
+			setupGcp: func(expect gcp.ExpectIam) {},
 			verifyK8s: func(expect k8s.Expect) {
 				expect.HasSecret(OLD_SECRET)
 			},

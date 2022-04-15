@@ -13,17 +13,14 @@ import (
 	"google.golang.org/api/policyanalyzer/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-
-	//"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	//"time"
 )
 
-// keyAlgorithm what key algorithm to use when creating new Google SA keys
+// KEY_ALGORITHM what key algorithm to use when creating new Google SA keys
 const KEY_ALGORITHM string = "KEY_ALG_RSA_2048"
 
-// keyFormat format to use when creating new Google SA keys
+// KEY_FORMAT format to use when creating new Google SA keys
 const KEY_FORMAT string = "TYPE_GOOGLE_CREDENTIALS_FILE"
 
 type Yale struct { // Yale config
@@ -31,9 +28,6 @@ type Yale struct { // Yale config
 	gcpPA *policyanalyzer.Service        // GCP Policy API client
 	k8s   kubernetes.Interface           // K8s API client
 	crd   v1beta1client.YaleCRDInterface // K8s CRD API client
-
-	//Function yale will execute
-
 }
 
 type saKeyData struct {
@@ -102,7 +96,7 @@ func (m *Yale) GetGCPSaKeyList() (result *apiv1b1.GCPSaKeyList, err error) {
 	return m.crd.GcpSaKeys().List(context.Background(), metav1.ListOptions{})
 }
 
-// Creates basic annotations for Secret
+// createAnnotations Creates basic annotations for Secret
 func createAnnotations(key SaKey) map[string]string {
 	return map[string]string{
 		"serviceAccountKeyName":       key.serviceAccountKeyName,
@@ -163,12 +157,10 @@ func (m *Yale) CreateSecret(gsk apiv1b1.GCPSaKey) error {
 	return nil
 }
 
+
 //UpdateKey Updates pem data and private key data fields in Secret with new key
 func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	K8Secret, err := m.GetSecret(gskSpec.Secret, namespace)
-	if err != nil {
-		return err
-	}
 	// Annotations are not queryable
 	originalAnnotations := K8Secret.GetAnnotations()
 	keyIsExpired, err := IsExpired(originalAnnotations["validAfterDate"], gskSpec.KeyRotation.RotateAfter, originalAnnotations["serviceAccountKeyName"])
@@ -185,9 +177,11 @@ func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	}
 	// Create annotations for new key
 	newAnnotations := createAnnotations(*Key)
-	// Add expired service account name to new annotation for tracking
 	newAnnotations["oldServiceAccountKeyName"] = originalAnnotations["serviceAccountKeyName"]
-	K8Secret.Annotations = originalAnnotations // Set the secret's annotations
+	K8Secret.ObjectMeta.SetAnnotations(newAnnotations)
+	// Add expired service account name to new annotation for tracking
+	//newAnnotations["oldServiceAccountKeyName"] = originalAnnotations["serviceAccountKeyName"]
+	//K8Secret.Annotations = originalAnnotations // Set the secret's annotations
 
 	saKey, err := base64.StdEncoding.DecodeString(Key.privateKeyData)
 	if err != nil {
@@ -242,3 +236,4 @@ func (m *Yale) UpdateSecret(k8Secret *corev1.Secret) error {
 	logs.Info.Printf("%s secret has been updated:", k8Secret.Name)
 	return nil
 }
+

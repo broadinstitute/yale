@@ -2,14 +2,14 @@ package yale
 
 import (
 	"context"
-	"time"
 	"encoding/json"
 	"fmt"
-	"github.com/broadinstitute/yale/internal/yale/logs"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
+	"github.com/broadinstitute/yale/internal/yale/logs"
 	"google.golang.org/api/iam/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"time"
 )
 
 type Activity struct {
@@ -35,7 +35,6 @@ func (m *Yale) DisableKeys() error {
 	}
 	return nil
 }
-
 func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySpec)error{
 	secretAnnotations := Secret.GetAnnotations()
 	key, err := m.GetSAKey(GCPSaKeySpec.GoogleServiceAccount.Project, secretAnnotations["oldServiceAccountKeyName"])
@@ -58,6 +57,7 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 }
 
 func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey)(bool, error){
+
 	keyIsInUse, err := m.IsAuthenticated( GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project )
 	if err != nil {
 		return false, err
@@ -69,7 +69,6 @@ func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey)(bool
 	return !keyIsInUse && isTimeToDisable, err
 }
 
-// Disable key
 func (m *Yale) Disable(googleProject string, keyName string) error {
 	name := fmt.Sprintf("projects/%s/serviceAccounts/%s", googleProject, keyName)
 	request := &iam.DisableServiceAccountKeyRequest{}
