@@ -24,8 +24,8 @@ type Mock interface {
 	Cleanup()
 }
 
-func NewMock(expectFn func(expect Expect)) Mock {
-	e := newExpect()
+func NewMock(expectFn func(expect ExpectIam)) Mock {
+	e := newExpectIam()
 	expectFn(e)
 
 	httpClient := &http.Client{}

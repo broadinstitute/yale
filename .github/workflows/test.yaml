@@ -25,7 +25,7 @@ jobs:
     - name: run tests
       run: go test -v -coverprofile=cover.out -covermode=count ./...
     - name: Upload Coverage Report
-      uses: codecov/codecov-action@v1
+      uses: codecov/codecov-action@v1beta1
       with:
         files: ./cover.out
         flags: unittests

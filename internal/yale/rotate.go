@@ -13,17 +13,16 @@ import (
 	"google.golang.org/api/policyanalyzer/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"time"
 
-	//"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	//"time"
 )
 
-// keyAlgorithm what key algorithm to use when creating new Google SA keys
+// KEY_ALGORITHM what key algorithm to use when creating new Google SA keys
 const KEY_ALGORITHM string = "KEY_ALG_RSA_2048"
 
-// keyFormat format to use when creating new Google SA keys
+// KEY_FORMAT format to use when creating new Google SA keys
 const KEY_FORMAT string = "TYPE_GOOGLE_CREDENTIALS_FILE"
 
 type Yale struct { // Yale config
@@ -31,9 +30,6 @@ type Yale struct { // Yale config
 	gcpPA *policyanalyzer.Service   // GCP Policy API client
 	k8s   kubernetes.Interface      // K8s API client
 	crd   clientv1.YaleCRDInterface // K8s CRD API client
-
-	//Function yale will execute
-
 }
 
 
@@ -84,7 +80,7 @@ func (m *Yale) rotateKey(Gsk apiv1b1.GCPSaKey)error{
 	}else {
 		return m.UpdateKey(Gsk.Spec, Gsk.Namespace)
 	}
-	}
+}
 
 func (m *Yale) secretExists(secret apiv1b1.Secret, namespace string ) (bool, error) {
 	_, err := m.GetSecret(secret, namespace)
@@ -102,7 +98,7 @@ func (m *Yale) GetGCPSaKeyList() (result *apiv1b1.GCPSaKeyList, err error) {
 	return m.crd.GcpSaKeys().List(context.Background(), metav1.ListOptions{})
 }
 
-// Creates basic annotations for Secret
+// createAnnotations Creates basic annotations for Secret
 func createAnnotations(key SaKey) map[string]string {
 	return map[string]string{
 		"serviceAccountKeyName" : key.serviceAccountKeyName,
@@ -135,6 +131,10 @@ func (m *Yale) CreateSecret(Gsk apiv1b1.GCPSaKey) error {
 			Kind:       Gsk.Kind,
 			Name:       Gsk.Name,
 			UID:        Gsk.UID,
+			// BlockOwnerDeletion expects *bool input
+			// Use anonymous function to set bool pointer to true
+			// https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1@v0.22.4#OwnerReference.BlockOwnerDeletion
+			BlockOwnerDeletion:  func() *bool { b := true; return &b }(),
 				},
 	}
 
@@ -160,7 +160,7 @@ func (m *Yale) CreateSecret(Gsk apiv1b1.GCPSaKey) error {
 	return nil
 }
 
-//UpdateKey Updates pem data and private key data fields in Secret with new key
+//UpdateKey Updates secret with new key if key needs to rotate
 func (m *Yale) UpdateKey(GskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	K8Secret, err := m.GetSecret(GskSpec.Secret, namespace)
 	if err != nil {
@@ -168,7 +168,7 @@ func (m *Yale) UpdateKey(GskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	}
 	// Annotations are not queryable
 	originalAnnotations := K8Secret.GetAnnotations()
-	keyIsExpired, err := m.IsExpired(originalAnnotations["validAfterDate"], GskSpec.KeyRotation.RotateAfter, originalAnnotations["serviceAccountKeyName"])
+	keyIsExpired, err := IsExpired(originalAnnotations["validAfterDate"], GskSpec.KeyRotation.RotateAfter, originalAnnotations["serviceAccountKeyName"])
 	if !keyIsExpired {
 		return nil
 	}
@@ -176,9 +176,11 @@ func (m *Yale) UpdateKey(GskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	Key , err := m.CreateSAKey(GskSpec.GoogleServiceAccount.Project, GskSpec.GoogleServiceAccount.Name)
 	// Create annotations for new key
 	newAnnotations := createAnnotations(*Key)
-	// Add expired service account name to new annotation for tracking
 	newAnnotations["oldServiceAccountKeyName"] = originalAnnotations["serviceAccountKeyName"]
-	K8Secret.Annotations = originalAnnotations // Set the secret's annotations
+	K8Secret.ObjectMeta.SetAnnotations(newAnnotations)
+	// Add expired service account name to new annotation for tracking
+	//newAnnotations["oldServiceAccountKeyName"] = originalAnnotations["serviceAccountKeyName"]
+	//K8Secret.Annotations = originalAnnotations // Set the secret's annotations
 
 	saKey, err := base64.StdEncoding.DecodeString(Key.privateKeyData)
 	if err != nil {
@@ -191,8 +193,7 @@ func (m *Yale) UpdateKey(GskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	}
 	K8Secret.Data[GskSpec.Secret.JsonKeyName] = saKey
 	K8Secret.Data[GskSpec.Secret.PemKeyName] = []byte(saData.PrivateKey)
-	err = m.UpdateSecret(K8Secret)
-	return err
+	return m.UpdateSecret(K8Secret)
 }
 
 // CreateSAKey Creates a new GCP SA key
@@ -233,4 +234,20 @@ func (m *Yale) UpdateSecret(K8Secret *corev1.Secret) error {
 	}
 	logs.Info.Printf("%s secret has been updated:", K8Secret.Name)
 	return nil
+}
+
+// IsExpired Determines if key expired
+func IsExpired(beginDate string, duration int, keyName string) (bool, error) {
+	dateAuthorized, err := time.Parse("2006-01-02T15:04:05Z0700", beginDate)
+	if err != nil {
+		return false, err
+	}
+	// Date sa key expired
+	expireDate := dateAuthorized.AddDate(0, 0, duration)
+	if time.Now().After(expireDate) {
+		logs.Info.Printf("Time for %v to be disabled", keyName)
+		return true, nil
+	}
+	logs.Info.Printf("Not time for %v to be disabled", keyName)
+	return false, nil
 }
