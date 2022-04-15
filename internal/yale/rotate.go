@@ -180,6 +180,9 @@ func (m *Yale) UpdateKey(GskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	}
 
 	Key , err := m.CreateSAKey(GskSpec.GoogleServiceAccount.Project, GskSpec.GoogleServiceAccount.Name)
+	if err != nil {
+		return err
+	}
 	// Create annotations for new key
 	newAnnotations := createAnnotations(*Key)
 	// Add expired service account name to new annotation for tracking
