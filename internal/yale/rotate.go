@@ -126,6 +126,9 @@ func (m *Yale) CreateSecret(Gsk apiv1b1.GCPSaKey) error {
 	}
 	saData := saKeyData{}
 	err = json.Unmarshal(jsonKey, &saData)
+	if err != nil {
+		return err
+	}
 
 	// Create ownership reference
 	// https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents
@@ -169,6 +172,9 @@ func (m *Yale) UpdateKey(GskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	// Annotations are not queryable
 	originalAnnotations := K8Secret.GetAnnotations()
 	keyIsExpired, err := m.IsExpired(originalAnnotations["validAfterDate"], GskSpec.KeyRotation.RotateAfter, originalAnnotations["serviceAccountKeyName"])
+	if err != nil {
+		return err
+	}
 	if !keyIsExpired {
 		return nil
 	}

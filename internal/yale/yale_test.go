@@ -2,7 +2,6 @@ package yale
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"github.com/broadinstitute/yale/internal/yale/client"
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/testing/gcp"
@@ -20,15 +19,6 @@ const NEW_JSON_KEY = `{"private_key": "newPrivateKeyData"}`
 var NEW_FAKE_PEM = "newPrivateKeyData"
 
 
-func getPem(key string) string{
-	saData := saKeyData{}
-	err := json.Unmarshal([]byte(key), &saData)
-	if err != nil {
-		panic(err)
-	}
-	return saData.PrivateKey
-
-}
 func TestCreateGcpSaKeys(t *testing.T) {
 	keyName := "projects/my-fake-project/my-sa@blah.com/e0b1b971487ffff7f725b124d"
 
