@@ -4,8 +4,8 @@ package client
 // https://github.com/broadinstitute/disk-manager/
 import (
 	"fmt"
-	v1crd "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
-	v1 "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1"
+	v1beta1crd "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
+	v1beta1 "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1"
 	"golang.org/x/net/context"
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/api/policyanalyzer/v1"
@@ -24,10 +24,10 @@ type Clients struct {
 	gcpIAM *iam.Service
 	gcpPA  *policyanalyzer.Service
 	k8s    kubernetes.Interface
-	crd    v1.YaleCRDInterface
+	crd    v1beta1.YaleCRDInterface
 }
 
-func NewClients(gcpIAM *iam.Service, gcpPA *policyanalyzer.Service, k8s kubernetes.Interface, crd v1.YaleCRDInterface) *Clients {
+func NewClients(gcpIAM *iam.Service, gcpPA *policyanalyzer.Service, k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface) *Clients {
 	return &Clients{
 		// Service for Google IAM
 		gcpIAM: gcpIAM,
@@ -121,10 +121,10 @@ func buildGCPPolicyAnalyzerClient() (*policyanalyzer.Service, error) {
 	return c, nil
 }
 
-func buildCrdClient(kubeconfig *restclient.Config) (*v1.YaleCRDClient, error) {
-	if err := v1crd.AddToScheme(scheme.Scheme); err != nil {
+func buildCrdClient(kubeconfig *restclient.Config) (*v1beta1.YaleCRDClient, error) {
+	if err := v1beta1crd.AddToScheme(scheme.Scheme); err != nil {
 		return nil, err
 	}
 
-	return v1.NewForConfig(kubeconfig)
+	return v1beta1.NewForConfig(kubeconfig)
 }
