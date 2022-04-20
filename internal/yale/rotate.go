@@ -73,15 +73,15 @@ func (m *Yale) RotateKeys() error {
 	return nil
 }
 
-func (m *Yale) rotateKey(Gsk apiv1b1.GCPSaKey) error {
-	exists, err := m.secretExists(Gsk.Spec.Secret, Gsk.Namespace)
+func (m *Yale) rotateKey(gsk apiv1b1.GCPSaKey) error {
+	exists, err := m.secretExists(gsk.Spec.Secret, gsk.Namespace)
 	if err != nil {
 		return err
 	}
 	if !exists {
-		return m.CreateSecret(Gsk)
+		return m.CreateSecret(gsk)
 	} else {
-		return m.UpdateKey(Gsk.Spec, Gsk.Namespace)
+		return m.UpdateKey(gsk.Spec, gsk.Namespace)
 	}
 }
 
@@ -112,9 +112,9 @@ func createAnnotations(key SaKey) map[string]string {
 }
 
 // CreateSecret Creates a secret for a new GSK resource
-func (m *Yale) CreateSecret(Gsk apiv1b1.GCPSaKey) error {
-	logs.Info.Printf("Creating secret %s ...", Gsk.Spec.Secret.Name)
-	saKey, err := m.CreateSAKey(Gsk.Spec.GoogleServiceAccount.Project, Gsk.Spec.GoogleServiceAccount.Name)
+func (m *Yale) CreateSecret(gsk apiv1b1.GCPSaKey) error {
+	logs.Info.Printf("Creating secret %s ...", gsk.Spec.Secret.Name)
+	saKey, err := m.CreateSAKey(gsk.Spec.GoogleServiceAccount.Project, gsk.Spec.GoogleServiceAccount.Name)
 
 	if err != nil {
 		return err
@@ -133,28 +133,28 @@ func (m *Yale) CreateSecret(Gsk apiv1b1.GCPSaKey) error {
 	// https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents
 	var ownerRef = []metav1.OwnerReference{
 		{
-			APIVersion: Gsk.APIVersion,
-			Kind:       Gsk.Kind,
-			Name:       Gsk.Name,
-			UID:        Gsk.UID,
+			APIVersion: gsk.APIVersion,
+			Kind:       gsk.Kind,
+			Name:       gsk.Name,
+			UID:        gsk.UID,
 		},
 	}
 
 	newSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       Gsk.Namespace,
-			Name:            Gsk.Spec.Secret.Name,
-			Labels:          Gsk.Labels,
+			Namespace:       gsk.Namespace,
+			Name:            gsk.Spec.Secret.Name,
+			Labels:          gsk.Labels,
 			Annotations:     createAnnotations(*saKey),
 			OwnerReferences: ownerRef,
 		},
 		StringData: map[string]string{
-			Gsk.Spec.Secret.JsonKeyName: string(jsonKey),
-			Gsk.Spec.Secret.PemKeyName:  saData.PrivateKey,
+			gsk.Spec.Secret.JsonKeyName: string(jsonKey),
+			gsk.Spec.Secret.PemKeyName:  saData.PrivateKey,
 		},
 		Type: corev1.SecretTypeOpaque,
 	}
-	_, err = m.k8s.CoreV1().Secrets(Gsk.Namespace).Create(context.TODO(), newSecret, metav1.CreateOptions{})
+	_, err = m.k8s.CoreV1().Secrets(gsk.Namespace).Create(context.TODO(), newSecret, metav1.CreateOptions{})
 
 	if err != nil {
 		return err
@@ -163,14 +163,14 @@ func (m *Yale) CreateSecret(Gsk apiv1b1.GCPSaKey) error {
 }
 
 //UpdateKey Updates pem data and private key data fields in Secret with new key
-func (m *Yale) UpdateKey(GskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
-	K8Secret, err := m.GetSecret(GskSpec.Secret, namespace)
+func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
+	K8Secret, err := m.GetSecret(gskSpec.Secret, namespace)
 	if err != nil {
 		return err
 	}
 	// Annotations are not queryable
 	originalAnnotations := K8Secret.GetAnnotations()
-	keyIsExpired, err := IsExpired(originalAnnotations["validAfterDate"], GskSpec.KeyRotation.RotateAfter, originalAnnotations["serviceAccountKeyName"])
+	keyIsExpired, err := IsExpired(originalAnnotations["validAfterDate"], gskSpec.KeyRotation.RotateAfter, originalAnnotations["serviceAccountKeyName"])
 	if err != nil {
 		return err
 	}
@@ -178,7 +178,7 @@ func (m *Yale) UpdateKey(GskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 		return nil
 	}
 
-	Key, err := m.CreateSAKey(GskSpec.GoogleServiceAccount.Project, GskSpec.GoogleServiceAccount.Name)
+	Key, err := m.CreateSAKey(gskSpec.GoogleServiceAccount.Project, gskSpec.GoogleServiceAccount.Name)
 	if err != nil {
 		return err
 	}
@@ -197,8 +197,8 @@ func (m *Yale) UpdateKey(GskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	if err != nil {
 		return err
 	}
-	K8Secret.Data[GskSpec.Secret.JsonKeyName] = saKey
-	K8Secret.Data[GskSpec.Secret.PemKeyName] = []byte(saData.PrivateKey)
+	K8Secret.Data[gskSpec.Secret.JsonKeyName] = saKey
+	K8Secret.Data[gskSpec.Secret.PemKeyName] = []byte(saData.PrivateKey)
 	err = m.UpdateSecret(K8Secret)
 	return err
 }
@@ -230,15 +230,15 @@ func (m *Yale) CreateSAKey(project string, saName string) (*SaKey, error) {
 }
 
 // GetSecret Returns a secret
-func (m *Yale) GetSecret(Secret apiv1b1.Secret, namespace string) (*corev1.Secret, error) {
-	return m.k8s.CoreV1().Secrets(namespace).Get(context.TODO(), Secret.Name, metav1.GetOptions{})
+func (m *Yale) GetSecret(secret apiv1b1.Secret, namespace string) (*corev1.Secret, error) {
+	return m.k8s.CoreV1().Secrets(namespace).Get(context.TODO(), secret.Name, metav1.GetOptions{})
 }
 
-func (m *Yale) UpdateSecret(K8Secret *corev1.Secret) error {
-	_, err := m.k8s.CoreV1().Secrets(K8Secret.Namespace).Update(context.TODO(), K8Secret, metav1.UpdateOptions{})
+func (m *Yale) UpdateSecret(k8Secret *corev1.Secret) error {
+	_, err := m.k8s.CoreV1().Secrets(k8Secret.Namespace).Update(context.TODO(), k8Secret, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
-	logs.Info.Printf("%s secret has been updated:", K8Secret.Name)
+	logs.Info.Printf("%s secret has been updated:", k8Secret.Name)
 	return nil
 }
