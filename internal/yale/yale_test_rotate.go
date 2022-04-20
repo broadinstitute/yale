@@ -65,12 +65,13 @@ func TestCreateGcpSaKeys(t *testing.T) {
 		name        string                  // set name of test case
 		setupK8s    func(setup k8s.Setup)   // add some fake objects to the cluster before test starts
 		setupGcp    func(expect gcp.ExpectIam) // set up some mocked GCP api requests for the test
+		setupPA	  func(analyzer gcp.ExpectPolicyAnalyzer)
 		verifyK8s   func(expect k8s.Expect) // verify that the secrets we expect exist in the cluster after test completes
 		expectError bool
 	}{
 		{
 			name: "should issue a new key if there is no existing secret for the CRD",
-
+			setupPA: nil,
 			setupK8s: func(setup k8s.Setup) {
 				// Add a yale CRD to the fake cluster!
 				setup.AddYaleCRD(CRD)
@@ -94,7 +95,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 		},
 		{
 			name: "should rotate key if original key is expired",
-
+			setupPA: nil,
 			setupK8s: func(setup k8s.Setup) {
 				setup.AddYaleCRD(CRD)
 				setup.AddSecret(corev1.Secret{
@@ -127,7 +128,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 						ValidAfterTime: "2022-04-08T14:21:44Z",
 					})
 			},
-			verifyK8s: func(expect k8s.) {
+			verifyK8s: func(expect k8s.Expect) {
 				// set an expectation that a secret matching this one will exist in the cluster
 				// once the test completes
 				expect.HasSecret(corev1.Secret{
@@ -156,7 +157,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 				setup.AddYaleCRD(CRD)
 				setup.AddSecret(OLD_SECRET)
 			},
-			setupGcp: func(expect gcp.Expect) {
+			setupGcp: func(expect gcp.ExpectIam) {
 				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com", true).
 					With(iam.CreateServiceAccountKeyRequest{
 						KeyAlgorithm:   KEY_ALGORITHM,
@@ -172,7 +173,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 		},
 		{
 			name: "Secret should remain the same when key is not rotated",
-
+			setupPA: nil,
 			setupK8s: func(setup k8s.Setup) {
 				setup.AddYaleCRD(v1beta1.GCPSaKey{
 					ObjectMeta: metav1.ObjectMeta{
@@ -208,7 +209,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			k8sMock := k8s.NewMock(tc.setupK8s, tc.verifyK8s)
-			gcpMock := gcp.NewMock(tc.setupGcp)
+			gcpMock := gcp.NewMock(tc.setupGcp, tc.setupPA)
 
 			gcpMock.Setup()
 			t.Cleanup(gcpMock.Cleanup)

@@ -57,7 +57,6 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 }
 
 func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey)(bool, error){
-
 	keyIsInUse, err := m.IsAuthenticated( GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project )
 	if err != nil {
 		return false, err
@@ -80,7 +79,7 @@ func (m *Yale) Disable(googleProject string, keyName string) error {
 // IsAuthenticated Determines if key has been authenticated in x amount of days
 func (m *Yale) IsAuthenticated(timeSinceAuth int, keyName string, googleProject string) (bool, error) {
 	query := fmt.Sprintf("projects/%s/locations/us-central1-a/activityTypes/serviceAccountKeyLastAuthentication", googleProject)
-	queryFilter := fmt.Sprintf("activities.fullResourceName = \"//iam.googleapis.com/%s\"", keyName)
+	queryFilter := fmt.Sprintf("activities.fullResourceName = \"//iam.googleapis.com/%s\"", "projects/broad-dsde-perf/serviceAccounts/agora-perf-service-account@broad-dsde-perf.iam.gserviceaccount.com/keys/e0b1b971487ffff7f725b124d3b729191f76b4cc")
 	ctx := context.Background()
 	activityResp, err := m.gcpPA.Projects.Locations.ActivityTypes.Activities.Query(query).Filter(queryFilter).Context(ctx).Do()
 	// There are no activities to report or key has not been authenticated against in the past 2 days

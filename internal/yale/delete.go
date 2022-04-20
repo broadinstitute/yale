@@ -1,10 +1,19 @@
 package yale
+<<<<<<< HEAD
 
 import (
 	"context"
 //	apiv1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1"
 	//corev1 "k8s.io/api/core/v1"
 )
+=======
+//
+//import (
+//	"context"
+//	apiv1 "github.com/broadinstitute/yale/internal/yale/crzd/api/v1"
+//	corev1 "k8s.io/api/core/v1"
+//)
+>>>>>>> 47f2e6d (Save work)
 //
 //func (m *Yale) DeleteKeys() error {
 //	// Get all GCPSaKey resources
@@ -12,7 +21,11 @@ import (
 //	if err != nil {
 //		return err
 //	} else {
+<<<<<<< HEAD
 //		secrets, gcpSaKeys := m.FilterRotatedKeys(result)
+=======
+//		secrets, gcpSaKeys := m.Filter(result)
+>>>>>>> 47f2e6d (Save work)
 //		for i, secret := range secrets {
 //			keyName := secret.Annotations["oldServiceAccountKeyName"]
 //			saKey, err := m.GetSAKey(keyName, gcpSaKeys[i].Spec.GoogleProject)
@@ -60,6 +73,7 @@ import (
 //	_, err := m.gcp.Projects.ServiceAccounts.Keys.Delete(name).Context(ctx).Do()
 //	return err
 //}
+<<<<<<< HEAD
 
 // GetSAKey Returns SA key
 func (m *Yale) GetSAKey(name string, googleProject string) (*SaKey, error) {
@@ -70,3 +84,22 @@ func (m *Yale) GetSAKey(name string, googleProject string) (*SaKey, error) {
 	}
 	return &SaKey{saKey.PrivateKeyData, saKey.Name, name, saKey.ValidAfterTime, saKey.Disabled}, nil
 }
+=======
+//
+//// GetSAKey Returns SA key
+//func (m *Yale) GetSAKey(name string, googleProject string) (*SaKey, error) {
+//	ctx := context.Background()
+//	saKey, err := m.gcp.Projects.ServiceAccounts.Keys.Get(name).Context(ctx).Do()
+//	if err != nil {
+//		return nil, err
+//	}
+//	return &SaKey{
+//		googleProject,
+//		saKey.PrivateKeyData,
+//		saKey.Name,
+//		name,
+//		saKey.ValidAfterTime,
+//		saKey.Disabled,
+//	}, nil
+//}
+>>>>>>> 47f2e6d (Save work)
