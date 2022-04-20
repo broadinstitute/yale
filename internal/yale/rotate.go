@@ -199,8 +199,7 @@ func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	}
 	K8Secret.Data[gskSpec.Secret.JsonKeyName] = saKey
 	K8Secret.Data[gskSpec.Secret.PemKeyName] = []byte(saData.PrivateKey)
-	err = m.UpdateSecret(K8Secret)
-	return err
+	return m.UpdateSecret(K8Secret)
 }
 
 // CreateSAKey Creates a new GCP SA key
