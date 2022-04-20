@@ -11,7 +11,7 @@ type Expect interface {
 	// CreateServiceAccountKey configures the mock to expect a request to create a service account key
 	CreateServiceAccountKey(project string, serviceAccountEmail string, hasError bool) CreateServiceAccountKeyRequest
 	// GetServiceAccountKey configures the mock to expect a request to get a service account key
-	GetServiceAccountKey(project string, serviceAccountEmail string, keyName string, hasError bool) GetServiceAccountKeyRequest
+	GetServiceAccountKey(project string, keyName string, hasError bool) GetServiceAccountKeyRequest
 }
 
 func newExpect() *expect {
@@ -37,12 +37,13 @@ func (e *expect) CreateServiceAccountKey(project string, serviceAccountEmail str
 
 // GetServiceAccountKey
 // see https://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys/get
-func (e *expect) GetServiceAccountKey(project string, serviceAccountEmail string, keyName string, hasError bool) GetServiceAccountKeyRequest {
-	url := fmt.Sprintf("%s/projects/%s/serviceAccounts/%s/keys/%s", gcpIamURL, project, serviceAccountEmail, keyName)
+func (e *expect) GetServiceAccountKey(project string,  keyName string, hasError bool) GetServiceAccountKeyRequest {
+	url := fmt.Sprintf("%s/projects/%s/serviceAccounts/%s", gcpIamURL, project, keyName)
 	r := newGetServiceAccountKeyRequest(methodGet, url)
 	if hasError {
 		r.Status(400)
 	}
+	e.addNewRequest(r)
 	return r
 }
 

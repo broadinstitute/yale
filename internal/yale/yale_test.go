@@ -73,7 +73,6 @@ func TestCreateGcpSaKeys(t *testing.T) {
 
 			setupK8s: func(setup k8s.Setup) {
 				// Add a yale CRD to the fake cluster!
-				// If we wanted, we could add some secrets here too with setup.AddSecret()
 				setup.AddYaleCRD(CRD)
 			},
 			setupGcp: func(expect gcp.Expect) {
@@ -89,18 +88,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 			},
 
 			verifyK8s: func(expect k8s.Expect) {
-				// set an expectation that a secret matching this one will exist in the cluster
-				// once the test completes
-				expect.HasSecret(corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-fake-secret",
-						Namespace: "my-fake-namespace",
-					},
-					Data: map[string][]byte{
-						"agora.json": []byte(FAKE_JSON_KEY),
-						"agora.pem":  []byte(FAKE_PEM),
-					},
-				})
+				expect.HasSecret(OLD_SECRET)
 			},
 			expectError: false,
 		},
@@ -108,8 +96,6 @@ func TestCreateGcpSaKeys(t *testing.T) {
 			name: "should rotate key if original key is expired",
 
 			setupK8s: func(setup k8s.Setup) {
-				// Add a yale CRD to the fake cluster!
-				// If we wanted, we could add some secrets here too with setup.AddSecret()
 				setup.AddYaleCRD(CRD)
 				setup.AddSecret(corev1.Secret{
 					TypeMeta: metav1.TypeMeta{},
@@ -130,13 +116,6 @@ func TestCreateGcpSaKeys(t *testing.T) {
 				})
 			},
 			setupGcp: func(expect gcp.Expect) {
-				expect.GetServiceAccountKey("my-fake-project", "my-sa@blah.com", OLD_KEY_NAME, false).
-					Returns(iam.ServiceAccountKey{
-						Disabled:       false,
-						Name:           OLD_KEY_NAME,
-						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
-						ValidAfterTime: "2014-10-02T15:01:23Z",
-					})
 				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com", false).
 					With(iam.CreateServiceAccountKeyRequest{
 						KeyAlgorithm:   KEY_ALGORITHM,
@@ -149,7 +128,6 @@ func TestCreateGcpSaKeys(t *testing.T) {
 					})
 			},
 			verifyK8s: func(expect k8s.Expect) {
-				// newKeyName := "projects/my-fake-project/my-sa@blah.com/" + string(base64.StdEncoding.EncodeToString([]byte("newPrivateKeyData")))
 				// set an expectation that a secret matching this one will exist in the cluster
 				// once the test completes
 				expect.HasSecret(corev1.Secret{
@@ -175,8 +153,27 @@ func TestCreateGcpSaKeys(t *testing.T) {
 			name: "Yale should gracefully throw error with bad request",
 
 			setupK8s: func(setup k8s.Setup) {
-				// Add a yale CRD to the fake cluster!
-				// If we wanted, we could add some secrets here too with setup.AddSecret()
+				setup.AddYaleCRD(CRD)
+				setup.AddSecret(OLD_SECRET)
+			},
+			setupGcp: func(expect gcp.Expect) {
+				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com", true).
+					With(iam.CreateServiceAccountKeyRequest{
+						KeyAlgorithm:   KEY_ALGORITHM,
+						PrivateKeyType: KEY_FORMAT,
+					}).
+					Returns(iam.ServiceAccountKey{})
+
+			},
+			verifyK8s: func(expect k8s.Expect) {
+				expect.HasSecret(OLD_SECRET)
+			},
+			expectError: true,
+		},
+		{
+			name: "Secret should remain the same when key is not rotated",
+
+			setupK8s: func(setup k8s.Setup) {
 				setup.AddYaleCRD(v1beta1.GCPSaKey{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "my-gcp-sa-key",
@@ -200,40 +197,11 @@ func TestCreateGcpSaKeys(t *testing.T) {
 				})
 				setup.AddSecret(OLD_SECRET)
 			},
-			setupGcp: func(expect gcp.Expect) {
-				expect.GetServiceAccountKey("my-fake-project", "my-sa@blah.com", OLD_KEY_NAME, false).
-					Returns(iam.ServiceAccountKey{
-						Disabled:       false,
-						Name:           OLD_KEY_NAME,
-						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
-						ValidAfterTime: "2022-04-08T14:21:44Z",
-					})
-			},
+			setupGcp: func(expect gcp.Expect) {},
 			verifyK8s: func(expect k8s.Expect) {
-				// newKeyName := "projects/my-fake-project/my-sa@blah.com/" + string(base64.StdEncoding.EncodeToString([]byte("newPrivateKeyData")))
-				// set an expectation that a secret matching this one will exist in the cluster
-				// once the test completes
 				expect.HasSecret(OLD_SECRET)
 			},
 			expectError: false,
-		},
-		{
-			name: "Secret should remain the same when key is not rotated",
-
-			setupK8s: func(setup k8s.Setup) {
-				// Add a yale CRD to the fake cluster!
-				// If we wanted, we could add some secrets here too with setup.AddSecret()
-				setup.AddYaleCRD(CRD)
-				setup.AddSecret(OLD_SECRET)
-			},
-			setupGcp: func(expect gcp.Expect) {
-				expect.GetServiceAccountKey("my-fake-project", "my-sa@blah.com", OLD_KEY_NAME, true).
-					Returns(iam.ServiceAccountKey{})
-			},
-			verifyK8s: func(expect k8s.Expect) {
-				expect.HasSecret(OLD_SECRET)
-			},
-			expectError: true,
 		},
 	}
 
