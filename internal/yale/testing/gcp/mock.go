@@ -42,7 +42,7 @@ func NewMock(expectFn func(expect Expect)) Mock {
 		requests:   e.requests,
 		httpClient: httpClient,
 		iamClient:  iamClient,
-		paClient: paClient,
+		paClient:   paClient,
 	}
 }
 
@@ -50,7 +50,7 @@ type mock struct {
 	requests   []Request
 	httpClient *http.Client
 	iamClient  *iam.Service
-	paClient *policyanalyzer.Service
+	paClient   *policyanalyzer.Service
 }
 
 func (m *mock) Setup() {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/jarcoal/httpmock"
+	"github.com/pkg/errors"
 	"io/ioutil"
 	"net/http"
 )
@@ -144,7 +145,9 @@ func buildPostResponder(r *request) httpmock.Responder {
 		if diff := cmp.Diff(expected, actual); diff != "" {
 			return nil, fmt.Errorf("POST %s\n\t%T differ (-got, +want):\n%s", r.url, r.requestBody, diff)
 		}
-
+		if status != defaultPostStatus {
+			return nil, errors.New("I'm an error")
+		}
 		return httpmock.NewJsonResponse(status, r.responseBody)
 	}
 }

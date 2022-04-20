@@ -24,7 +24,7 @@ type Secret struct {
 
 type KeyRotation struct {
 	RotateAfter  int `json:"rotateAfter"`
-	DeleteAfter  int`json:"deleteAfter"`
+	DeleteAfter  int `json:"deleteAfter"`
 	DisableAfter int `json:"disableAfter"`
 }
 type GCPSaKey struct {
