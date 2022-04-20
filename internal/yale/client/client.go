@@ -126,5 +126,5 @@ func buildCrdClient(kubeconfig *restclient.Config) (*v1beta1client.YaleCRDClient
 		return nil, err
 	}
 
-	return v1beta1.NewForConfig(kubeconfig)
+	return v1beta1client.NewForConfig(kubeconfig)
 }
