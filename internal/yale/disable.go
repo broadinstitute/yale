@@ -96,7 +96,8 @@ import (
 //}
 // IsTimeToDisable Determines if it's time to disable a key
 func IsExpired(beginDate string, duration int, keyName string) (bool, error) {
-	dateAuthorized, err := time.Parse("2006-01-02T15:04:05Z0700", beginDate)
+	time.Parse(time.RFC3339, beginDate)
+	dateAuthorized, err := time.Parse(time.RFC3339, beginDate)
 	if err != nil {
 		return false, err
 	}
