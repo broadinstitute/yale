@@ -249,7 +249,7 @@ func TestCreateGcpSaKeys(t *testing.T) {
 
 			yale, err := NewYale(clients)
 			require.NoError(t, err, "unexpected error constructing Yale")
-			err = yale.RotateKeys() // TODO this should return errors so we can check for them :)
+			err = yale.RotateKeys()
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error for %q, but err was nil", tc.name)
