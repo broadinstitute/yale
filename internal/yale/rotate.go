@@ -36,7 +36,6 @@ type Yale struct { // Yale config
 
 }
 
-
 type saKeyData struct {
 	PrivateKey string `json:"private_key"`
 }
@@ -74,19 +73,19 @@ func (m *Yale) RotateKeys() error {
 	return nil
 }
 
-func (m *Yale) rotateKey(Gsk apiv1b1.GCPSaKey)error{
+func (m *Yale) rotateKey(Gsk apiv1b1.GCPSaKey) error {
 	exists, err := m.secretExists(Gsk.Spec.Secret, Gsk.Namespace)
 	if err != nil {
 		return err
 	}
-	if !exists{
+	if !exists {
 		return m.CreateSecret(Gsk)
-	}else {
+	} else {
 		return m.UpdateKey(Gsk.Spec, Gsk.Namespace)
 	}
-	}
+}
 
-func (m *Yale) secretExists(secret apiv1b1.Secret, namespace string ) (bool, error) {
+func (m *Yale) secretExists(secret apiv1b1.Secret, namespace string) (bool, error) {
 	_, err := m.GetSecret(secret, namespace)
 	if err == nil {
 		return true, nil
@@ -105,10 +104,10 @@ func (m *Yale) GetGCPSaKeyList() (result *apiv1b1.GCPSaKeyList, err error) {
 // Creates basic annotations for Secret
 func createAnnotations(key SaKey) map[string]string {
 	return map[string]string{
-		"serviceAccountKeyName" : key.serviceAccountKeyName,
-		"serviceAccountName" : key.serviceAccountName,
-		"validAfterDate" : key.validAfterTime,
-		"reloader.stakater.com/match" : "true",
+		"serviceAccountKeyName":       key.serviceAccountKeyName,
+		"serviceAccountName":          key.serviceAccountName,
+		"validAfterDate":              key.validAfterTime,
+		"reloader.stakater.com/match": "true",
 	}
 }
 
@@ -138,20 +137,20 @@ func (m *Yale) CreateSecret(Gsk apiv1b1.GCPSaKey) error {
 			Kind:       Gsk.Kind,
 			Name:       Gsk.Name,
 			UID:        Gsk.UID,
-				},
+		},
 	}
 
 	newSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace:   Gsk.Namespace,
-			Name:        Gsk.Spec.Secret.Name,
-			Labels:      Gsk.Labels,
-			Annotations: createAnnotations(*saKey),
+			Namespace:       Gsk.Namespace,
+			Name:            Gsk.Spec.Secret.Name,
+			Labels:          Gsk.Labels,
+			Annotations:     createAnnotations(*saKey),
 			OwnerReferences: ownerRef,
 		},
 		StringData: map[string]string{
 			Gsk.Spec.Secret.JsonKeyName: string(jsonKey),
-			Gsk.Spec.Secret.PemKeyName: saData.PrivateKey,
+			Gsk.Spec.Secret.PemKeyName:  saData.PrivateKey,
 		},
 		Type: corev1.SecretTypeOpaque,
 	}
@@ -171,7 +170,7 @@ func (m *Yale) UpdateKey(GskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	}
 	// Annotations are not queryable
 	originalAnnotations := K8Secret.GetAnnotations()
-	keyIsExpired, err := m.IsExpired(originalAnnotations["validAfterDate"], GskSpec.KeyRotation.RotateAfter, originalAnnotations["serviceAccountKeyName"])
+	keyIsExpired, err := IsExpired(originalAnnotations["validAfterDate"], GskSpec.KeyRotation.RotateAfter, originalAnnotations["serviceAccountKeyName"])
 	if err != nil {
 		return err
 	}
@@ -179,7 +178,7 @@ func (m *Yale) UpdateKey(GskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 		return nil
 	}
 
-	Key , err := m.CreateSAKey(GskSpec.GoogleServiceAccount.Project, GskSpec.GoogleServiceAccount.Name)
+	Key, err := m.CreateSAKey(GskSpec.GoogleServiceAccount.Project, GskSpec.GoogleServiceAccount.Name)
 	if err != nil {
 		return err
 	}

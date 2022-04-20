@@ -95,7 +95,7 @@ import (
 //	return secrets, gcpSaKeys
 //}
 // IsTimeToDisable Determines if it's time to disable a key
-func (m *Yale) IsExpired(beginDate string, duration int, keyName string) (bool, error) {
+func IsExpired(beginDate string, duration int, keyName string) (bool, error) {
 	dateAuthorized, err := time.Parse("2006-01-02T15:04:05Z0700", beginDate)
 	if err != nil {
 		return false, err
