@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/broadinstitute/yale/internal/yale/client"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
-	clientv1 "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1"
+	v1beta1client "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/api/policyanalyzer/v1"
@@ -27,10 +27,10 @@ const KEY_ALGORITHM string = "KEY_ALG_RSA_2048"
 const KEY_FORMAT string = "TYPE_GOOGLE_CREDENTIALS_FILE"
 
 type Yale struct { // Yale config
-	gcp   *iam.Service              // GCP IAM API client
-	gcpPA *policyanalyzer.Service   // GCP Policy API client
-	k8s   kubernetes.Interface      // K8s API client
-	crd   clientv1.YaleCRDInterface // K8s CRD API client
+	gcp   *iam.Service                   // GCP IAM API client
+	gcpPA *policyanalyzer.Service        // GCP Policy API client
+	k8s   kubernetes.Interface           // K8s API client
+	crd   v1beta1client.YaleCRDInterface // K8s CRD API client
 
 	//Function yale will execute
 
