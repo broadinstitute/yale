@@ -1,4 +1,4 @@
-package v1beta
+package v1beta1
 
 import (
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"

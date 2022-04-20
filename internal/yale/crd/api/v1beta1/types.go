@@ -17,14 +17,14 @@ type GoogleServiceAccount struct {
 }
 
 type Secret struct {
-	Name           string `json:"name"`
-	PemKeyName     string `json:"pemKeyName"`
+	Name        string `json:"name"`
+	PemKeyName  string `json:"pemKeyName"`
 	JsonKeyName string `json:"jsonKeyName"`
 }
 
 type KeyRotation struct {
-	RotateAfter                 int `json:"rotateAfter"`
-	DeleteAfter        int `json:"deleteAfter"`
+	RotateAfter  int `json:"rotateAfter"`
+	DeleteAfter  int`json:"deleteAfter"`
 	DisableAfter int `json:"disableAfter"`
 }
 type GCPSaKey struct {
