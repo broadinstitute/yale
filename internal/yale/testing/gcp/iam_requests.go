@@ -50,7 +50,6 @@ func (r *getServiceAccountKeyRequest) Returns(key iam.ServiceAccountKey) GetServ
 	return r
 }
 
-
 //Disable key
 type DisableServiceAccountKeyRequest interface {
 	With(keyRequest iam.DisableServiceAccountKeyRequest) DisableServiceAccountKeyRequest
@@ -62,7 +61,6 @@ type disableServiceAccountKeyRequest struct {
 	request
 }
 
-
 func (r *disableServiceAccountKeyRequest) With(keyRequest iam.DisableServiceAccountKeyRequest) DisableServiceAccountKeyRequest {
 	r.RequestBody(keyRequest)
 	return r
@@ -71,7 +69,7 @@ func (r *disableServiceAccountKeyRequest) With(keyRequest iam.DisableServiceAcco
 // https://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys/disable#response-bodyhttps://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys/disable#response-body
 func (r *disableServiceAccountKeyRequest) Returns() DisableServiceAccountKeyRequest {
 	r.ResponseBody(struct {
-	}{} )
+	}{})
 	return r
 }
 

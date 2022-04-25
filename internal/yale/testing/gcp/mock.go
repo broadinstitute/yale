@@ -25,8 +25,7 @@ type Mock interface {
 	Cleanup()
 }
 
-func NewMock(iamExpectFn func(expect ExpectIam), paExpectFn  func(expect ExpectPolicyAnalyzer)) Mock {
-
+func NewMock(iamExpectFn func(expect ExpectIam), paExpectFn func(expect ExpectPolicyAnalyzer)) Mock {
 	e := newExpectIam()
 	iamExpectFn(e)
 	pa := newExpectPolicyAnalyzer()
@@ -43,7 +42,7 @@ func NewMock(iamExpectFn func(expect ExpectIam), paExpectFn  func(expect ExpectP
 		requests:   append(e.requests, pa.requests...),
 		httpClient: httpClient,
 		iamClient:  iamClient,
-		paClient: paClient,
+		paClient:   paClient,
 	}
 }
 
@@ -51,7 +50,7 @@ type mock struct {
 	requests   []Request
 	httpClient *http.Client
 	iamClient  *iam.Service
-	paClient *policyanalyzer.Service
+	paClient   *policyanalyzer.Service
 }
 
 func (m *mock) Setup() {

@@ -35,7 +35,7 @@ func (m *Yale) DisableKeys() error {
 	}
 	return nil
 }
-func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySpec)error{
+func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySpec) error {
 	secretAnnotations := Secret.GetAnnotations()
 	key, err := m.GetSAKey(GCPSaKeySpec.GoogleServiceAccount.Project, secretAnnotations["oldServiceAccountKeyName"])
 	if err != nil {
@@ -56,12 +56,12 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 	return nil
 }
 
-func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey)(bool, error){
-	keyIsInUse, err := m.IsAuthenticated( GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project )
+func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey) (bool, error) {
+	keyIsInUse, err := m.IsAuthenticated(GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project)
 	if err != nil {
 		return false, err
 	}
-	isTimeToDisable, err := IsExpired(key.validAfterTime, GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName )
+	isTimeToDisable, err := IsExpired(key.validAfterTime, GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName)
 	if err != nil {
 		return false, err
 	}
@@ -83,8 +83,11 @@ func (m *Yale) IsAuthenticated(timeSinceAuth int, keyName string, googleProject 
 	queryFilter := fmt.Sprintf("activities.fullResourceName = \"//iam.googleapis.com/%s\"", keyName)
 	ctx := context.Background()
 	activityResp, err := m.gcpPA.Projects.Locations.ActivityTypes.Activities.Query(query).Filter(queryFilter).Context(ctx).Do()
+	if err != nil {
+		return false, err
+	}
 	// There are no activities to report or key has not been authenticated against in the past 2 days
-	if activityResp.Activities == nil{
+	if activityResp.Activities == nil {
 		return false, nil
 	}
 	activity := &Activity{}
@@ -112,6 +115,7 @@ func IsExpired(beginDate string, duration int, keyName string) (bool, error) {
 	logs.Info.Printf("Not time for %v to be disabled", keyName)
 	return false, nil
 }
+
 // FilterRotatedKeys Returns secrets that have rotated, which contain annotation 'oldServiceAccountKeyName' and their GSK resource
 func (m *Yale) FilterRotatedKeys(list *apiv1b1.GCPSaKeyList) ([]*corev1.Secret, []apiv1b1.GCPSaKey, error) {
 	var secrets []*corev1.Secret
@@ -121,7 +125,7 @@ func (m *Yale) FilterRotatedKeys(list *apiv1b1.GCPSaKeyList) ([]*corev1.Secret, 
 		if err != nil {
 			return nil, nil, err
 		}
-		if metav1.HasAnnotation(secret.ObjectMeta,"oldServiceAccountKeyName"){
+		if metav1.HasAnnotation(secret.ObjectMeta, "oldServiceAccountKeyName") {
 			secrets = append(secrets, secret)
 			gcpSaKeys = append(gcpSaKeys, gsk)
 		}

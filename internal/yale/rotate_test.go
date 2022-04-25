@@ -54,24 +54,27 @@ var CRD = v1beta1.GCPSaKey{
 			PemKeyName:  "agora.pem",
 			JsonKeyName: "agora.json",
 		},
-		KeyRotation: v1beta1.KeyRotation{},
+		KeyRotation: v1beta1.KeyRotation{
+			DisableAfter: 14,
+			DeleteAfter:  7,
+		},
 	},
 }
 
-func TestCreateGcpSaKeys(t *testing.T) {
+func TestRotateKeys(t *testing.T) {
 	newKeyName := "projects/my-fake-project/my-sa@blah.com/e0b1b971487ffff7f725b124h"
 
 	testCases := []struct {
-		name        string                  // set name of test case
-		setupK8s    func(setup k8s.Setup)   // add some fake objects to the cluster before test starts
+		name        string                     // set name of test case
+		setupK8s    func(setup k8s.Setup)      // add some fake objects to the cluster before test starts
 		setupGcp    func(expect gcp.ExpectIam) // set up some mocked GCP api requests for the test
-		setupPA	  func(analyzer gcp.ExpectPolicyAnalyzer)
+		setupPA     func(analyzer gcp.ExpectPolicyAnalyzer)
 		verifyK8s   func(expect k8s.Expect) // verify that the secrets we expect exist in the cluster after test completes
 		expectError bool
 	}{
 		{
-			name: "should issue a new key if there is no existing secret for the CRD",
-			setupPA: nil,
+			name:    "should issue a new key if there is no existing secret for the CRD",
+			setupPA: func(expect gcp.ExpectPolicyAnalyzer) {},
 			setupK8s: func(setup k8s.Setup) {
 				// Add a yale CRD to the fake cluster!
 				setup.AddYaleCRD(CRD)
@@ -94,8 +97,8 @@ func TestCreateGcpSaKeys(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "should rotate key if original key is expired",
-			setupPA: nil,
+			name:    "should rotate key if original key is expired",
+			setupPA: func(expect gcp.ExpectPolicyAnalyzer) {},
 			setupK8s: func(setup k8s.Setup) {
 				setup.AddYaleCRD(CRD)
 				setup.AddSecret(corev1.Secret{
@@ -172,8 +175,8 @@ func TestCreateGcpSaKeys(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name: "Secret should remain the same when key is not rotated",
-			setupPA: nil,
+			name:    "Secret should remain the same when key is not rotated",
+			setupPA: func(expect gcp.ExpectPolicyAnalyzer) {},
 			setupK8s: func(setup k8s.Setup) {
 				setup.AddYaleCRD(v1beta1.GCPSaKey{
 					ObjectMeta: metav1.ObjectMeta{

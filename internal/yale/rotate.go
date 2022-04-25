@@ -157,7 +157,6 @@ func (m *Yale) CreateSecret(gsk apiv1b1.GCPSaKey) error {
 	return nil
 }
 
-
 //UpdateKey Updates pem data and private key data fields in Secret with new key
 func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	K8Secret, err := m.GetSecret(gskSpec.Secret, namespace)
@@ -236,4 +235,3 @@ func (m *Yale) UpdateSecret(k8Secret *corev1.Secret) error {
 	logs.Info.Printf("%s secret has been updated:", k8Secret.Name)
 	return nil
 }
-

@@ -3,9 +3,11 @@ package gcp
 import (
 	"google.golang.org/api/policyanalyzer/v1"
 )
+
 type ActivityResp struct {
-	Activities   []policyanalyzer.GoogleCloudPolicyanalyzerV1Activity
+	Activities []policyanalyzer.GoogleCloudPolicyanalyzerV1Activity
 }
+
 // Query key
 type CreateQuery interface {
 	Returns(key policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse) CreateQuery
@@ -21,7 +23,6 @@ func newQueryRequest(method string, query string) CreateQuery {
 		request: *newRequest(method, query),
 	}
 }
-
 
 func (r *createQuery) Returns(activitiesResponse policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse) CreateQuery {
 	r.ResponseBody(activitiesResponse)
