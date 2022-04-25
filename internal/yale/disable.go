@@ -35,6 +35,8 @@ func (m *Yale) DisableKeys() error {
 	}
 	return nil
 }
+
+
 func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySpec) error {
 	secretAnnotations := Secret.GetAnnotations()
 	key, err := m.GetSAKey(GCPSaKeySpec.GoogleServiceAccount.Project, secretAnnotations["oldServiceAccountKeyName"])
@@ -56,6 +58,7 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 	return nil
 }
 
+// CanDisableKey Determines if a key can be disabled
 func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey) (bool, error) {
 	keyIsInUse, err := m.IsAuthenticated(GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project)
 	if err != nil {
@@ -109,10 +112,10 @@ func IsExpired(beginDate string, duration int, keyName string) (bool, error) {
 	// Date sa key expected to be expire
 	expireDate := dateAuthorized.AddDate(0, 0, duration)
 	if time.Now().After(expireDate) {
-		logs.Info.Printf("Time for %v to be disabled", keyName)
+		logs.Info.Printf("%v has not expired", keyName)
 		return true, nil
 	}
-	logs.Info.Printf("Not time for %v to be disabled", keyName)
+	logs.Info.Printf("%v has expired", keyName)
 	return false, nil
 }
 
