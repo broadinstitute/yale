@@ -12,6 +12,7 @@ type ExpectIam interface {
 	CreateServiceAccountKey(project string, serviceAccountEmail string, hasError bool) CreateServiceAccountKeyRequest
 	// GetServiceAccountKey configures the mock to expect a request to get a service account key
 	GetServiceAccountKey(project string, keyName string, hasError bool) GetServiceAccountKeyRequest
+	// DisableServiceAccountKey configures the mock to expect a request to disable a service account key
 	DisableServiceAccountKey(project string, keyName string) DisableServiceAccountKeyRequest
 }
 

@@ -109,9 +109,9 @@ func buildPostResponder(r *request) httpmock.Responder {
 		status = defaultPostStatus
 	}
 
-	//if r.responseBody == nil {
-	//	panic(fmt.Errorf("please configure a response body for %v %v", r.method, r.url))
-	//}
+	if r.responseBody == nil {
+		panic(fmt.Errorf("please configure a response body for %v %v", r.method, r.url))
+	}
 
 	return func(req *http.Request) (*http.Response, error) {
 		// We need to compare the _expected_ request body with the _actual_ request body,

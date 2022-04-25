@@ -181,9 +181,6 @@ func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	newAnnotations := createAnnotations(*Key)
 	newAnnotations["oldServiceAccountKeyName"] = originalAnnotations["serviceAccountKeyName"]
 	K8Secret.ObjectMeta.SetAnnotations(newAnnotations)
-	// Add expired service account name to new annotation for tracking
-	//newAnnotations["oldServiceAccountKeyName"] = originalAnnotations["serviceAccountKeyName"]
-	//K8Secret.Annotations = originalAnnotations // Set the secret's annotations
 
 	saKey, err := base64.StdEncoding.DecodeString(Key.privateKeyData)
 	if err != nil {

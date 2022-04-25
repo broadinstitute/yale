@@ -2,6 +2,7 @@ package yale
 
 import (
 	"encoding/base64"
+	yale2 "github.com/broadinstitute/yale/internal/yale"
 	"github.com/broadinstitute/yale/internal/yale/client"
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/testing/gcp"
@@ -200,7 +201,7 @@ func TestDisableKeys(t *testing.T) {
 			t.Cleanup(gcpMock.Cleanup)
 
 			clients := client.NewClients(gcpMock.GetIAMClient(), gcpMock.GetPAClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient())
-			yale, err := NewYale(clients)
+			yale, err := yale2.NewYale(clients)
 			require.NoError(t, err, "unexpected error constructing Yale")
 			err = yale.DisableKeys()
 			if tc.expectError {
