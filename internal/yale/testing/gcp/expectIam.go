@@ -11,8 +11,8 @@ type ExpectIam interface {
 	// CreateServiceAccountKey configures the mock to expect a request to create a service account key
 	CreateServiceAccountKey(project string, serviceAccountEmail string, hasError bool) CreateServiceAccountKeyRequest
 	// GetServiceAccountKey configures the mock to expect a request to get a service account key
-	GetServiceAccountKey(project string, serviceAccountEmail string, keyName string) GetServiceAccountKeyRequest
-	DisableServiceAccountKey(project string, serviceAccountEmail string, keyName string) DisableServiceAccountKeyRequest
+	GetServiceAccountKey(project string, keyName string) GetServiceAccountKeyRequest
+	DisableServiceAccountKey(project string, keyName string) DisableServiceAccountKeyRequest
 }
 
 func newExpectIam() *expectIam {
@@ -48,11 +48,12 @@ func (e *expectIam) GetServiceAccountKey(project string,  keyName string, hasErr
 	return r
 }
 
-// GetServiceAccountKey
+// DisableServiceAccountKey
 // see https://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys/disable
-func (e *expectIam) DisableServiceAccountKey(project string, serviceAccountEmail string, keyName string) DisableServiceAccountKeyRequest {
-	url := fmt.Sprintf("%s/projects/%s/serviceAccounts/%s/keys/%s", gcpIamURL, project, serviceAccountEmail, keyName)
+func (e *expectIam) DisableServiceAccountKey(project string, keyName string) DisableServiceAccountKeyRequest {
+	url := fmt.Sprintf("%s/projects/%s/serviceAccounts/%s:disable", gcpIamURL, project, keyName)
 	r := createDisableServiceAccountKeyRequest(methodPost, url)
+	e.addNewRequest(r)
 	return r
 }
 func (e *expectIam) addNewRequest(r Request) {

@@ -2,37 +2,35 @@ package gcp
 
 import "fmt"
 
-// ExpectIam is an interface for setting expectations on a mock iam.Service
+const gcpPolicyAnalyzerURL = "https://policyanalyzer.googleapis.com/v1"
+
+// ExpectPolicyAnalyzer is an interface for setting expectations on a mock iam.Service
 type ExpectPolicyAnalyzer interface {
 	// CreateQuery configures the mock to expect a request to query policy activities
-	CreateQuery(query string) CreateQuery
-	FilterRequest(filter string) FilterRequest
+	CreateQuery(query string, hasError bool) CreateQuery
 }
 
 func newExpectPolicyAnalyzer() *expectPolicyAnalyzer {
 	return &expectPolicyAnalyzer{}
 }
 
-// implements the ExpectIam interface
+// implements the ExpectPolicyAnalyzer interface
 type expectPolicyAnalyzer struct {
 	requests []Request
 }
 
 // CreateQuery
-// see https://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys/create
-func (e *expectPolicyAnalyzer) CreateQuery(googleProject string) CreateQuery {
-	query := fmt.Sprintf("projects/%s/locations/us-central1-a/activityTypes/serviceAccountKeyLastAuthentication", googleProject)
-	r := newQueryRequest(methodPost, query)
+// see https://cloud.google.com/iam/docs/reference/policyanalyzer/rest/v1/projects.locations.activityTypes.activities/query
+func (e *expectPolicyAnalyzer) CreateQuery(googleProject string, hasError bool) CreateQuery {
+	query := fmt.Sprintf("%s/projects/%s/locations/us-central1-a/activityTypes/serviceAccountKeyLastAuthentication/activities:query", gcpPolicyAnalyzerURL, googleProject)
+	r := newQueryRequest(methodGet, query)
+	if hasError {
+		r.Status(400)
+	}
 	e.addNewRequest(r)
 	return r
 }
 
-func (e *expectPolicyAnalyzer)FilterRequest(keyName string) FilterRequest {
-	filter := fmt.Sprintf("activities.fullResourceName = \"//iam.googleapis.com/%s\"", keyName)
-	r := newFilterRequest(methodPost, filter)
-	e.addNewRequest(r)
-	return r
-}
 func (e *expectPolicyAnalyzer) addNewRequest(r Request) {
 	e.requests = append(e.requests, r)
 }

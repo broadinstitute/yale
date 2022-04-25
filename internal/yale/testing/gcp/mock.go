@@ -26,11 +26,11 @@ type Mock interface {
 }
 
 func NewMock(iamExpectFn func(expect ExpectIam), paExpectFn  func(expect ExpectPolicyAnalyzer)) Mock {
+
 	e := newExpectIam()
 	iamExpectFn(e)
-	if paExpectFn != nil{
 	pa := newExpectPolicyAnalyzer()
-	paExpectFn(pa)}
+	paExpectFn(pa)
 
 	httpClient := &http.Client{}
 	iamClient, err := iam.NewService(context.Background(), option.WithoutAuthentication(), option.WithHTTPClient(httpClient))

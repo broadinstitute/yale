@@ -53,8 +53,8 @@ func (r *getServiceAccountKeyRequest) Returns(key iam.ServiceAccountKey) GetServ
 
 //Disable key
 type DisableServiceAccountKeyRequest interface {
-	With(key iam.ServiceAccountKey) DisableServiceAccountKeyRequest
-	Returns(err error) error
+	With(keyRequest iam.DisableServiceAccountKeyRequest) DisableServiceAccountKeyRequest
+	Returns() DisableServiceAccountKeyRequest
 	Request
 }
 
@@ -62,17 +62,16 @@ type disableServiceAccountKeyRequest struct {
 	request
 }
 
-func (r *disableServiceAccountKeyRequest) Error() string {
-	panic("implement me")
-}
 
-func (r *disableServiceAccountKeyRequest) With(key iam.ServiceAccountKey) DisableServiceAccountKeyRequest {
-	r.RequestBody(key)
+func (r *disableServiceAccountKeyRequest) With(keyRequest iam.DisableServiceAccountKeyRequest) DisableServiceAccountKeyRequest {
+	r.RequestBody(keyRequest)
 	return r
 }
 
-func (r *disableServiceAccountKeyRequest) Returns(err error) error {
-	r.ResponseBody(err)
+// https://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys/disable#response-bodyhttps://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys/disable#response-body
+func (r *disableServiceAccountKeyRequest) Returns() DisableServiceAccountKeyRequest {
+	r.ResponseBody(struct {
+	}{} )
 	return r
 }
 
