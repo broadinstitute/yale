@@ -160,6 +160,9 @@ func (m *Yale) CreateSecret(gsk apiv1b1.GCPSaKey) error {
 //UpdateKey Updates pem data and private key data fields in Secret with new key
 func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	K8Secret, err := m.GetSecret(gskSpec.Secret, namespace)
+	if err != nil {
+		return err
+	}
 	// Annotations are not queryable
 	originalAnnotations := K8Secret.GetAnnotations()
 	keyIsExpired, err := IsExpired(originalAnnotations["validAfterDate"], gskSpec.KeyRotation.RotateAfter, originalAnnotations["serviceAccountKeyName"])
