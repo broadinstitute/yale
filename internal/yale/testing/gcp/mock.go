@@ -33,6 +33,9 @@ func NewMock(iamExpectFn func(expect ExpectIam), paExpectFn func(expect ExpectPo
 
 	httpClient := &http.Client{}
 	iamClient, err := iam.NewService(context.Background(), option.WithoutAuthentication(), option.WithHTTPClient(httpClient))
+	if err != nil {
+		panic(err)
+	}
 	paClient, err := policyanalyzer.NewService(context.Background(), option.WithoutAuthentication(), option.WithHTTPClient(httpClient))
 	if err != nil {
 		panic(err)
