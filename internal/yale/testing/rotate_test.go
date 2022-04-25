@@ -2,6 +2,7 @@ package yale
 
 import (
 	"encoding/base64"
+	"github.com/broadinstitute/yale/internal/yale"
 	"github.com/broadinstitute/yale/internal/yale/client"
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/testing/gcp"
@@ -83,8 +84,8 @@ func TestRotateKeys(t *testing.T) {
 				// set up a mock for a GCP api call to create a service account
 				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com", false).
 					With(iam.CreateServiceAccountKeyRequest{
-						KeyAlgorithm:   KEY_ALGORITHM,
-						PrivateKeyType: KEY_FORMAT,
+						KeyAlgorithm:   yale.KEY_ALGORITHM,
+						PrivateKeyType: yale.KEY_FORMAT,
 					}).
 					Returns(iam.ServiceAccountKey{
 						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
@@ -122,8 +123,8 @@ func TestRotateKeys(t *testing.T) {
 			setupGcp: func(expect gcp.ExpectIam) {
 				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com", false).
 					With(iam.CreateServiceAccountKeyRequest{
-						KeyAlgorithm:   KEY_ALGORITHM,
-						PrivateKeyType: KEY_FORMAT,
+						KeyAlgorithm:   yale.KEY_ALGORITHM,
+						PrivateKeyType: yale.KEY_FORMAT,
 					}).
 					Returns(iam.ServiceAccountKey{
 						Name:           newKeyName,
@@ -160,11 +161,12 @@ func TestRotateKeys(t *testing.T) {
 				setup.AddYaleCRD(CRD)
 				setup.AddSecret(OLD_SECRET)
 			},
+			setupPA: func(expect gcp.ExpectPolicyAnalyzer) {},
 			setupGcp: func(expect gcp.ExpectIam) {
 				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com", true).
 					With(iam.CreateServiceAccountKeyRequest{
-						KeyAlgorithm:   KEY_ALGORITHM,
-						PrivateKeyType: KEY_FORMAT,
+						KeyAlgorithm:   yale.KEY_ALGORITHM,
+						PrivateKeyType: yale.KEY_FORMAT,
 					}).
 					Returns(iam.ServiceAccountKey{})
 
@@ -219,7 +221,7 @@ func TestRotateKeys(t *testing.T) {
 
 			clients := client.NewClients(gcpMock.GetIAMClient(), gcpMock.GetPAClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient())
 
-			yale, err := NewYale(clients)
+			yale, err := yale.NewYale(clients)
 			require.NoError(t, err, "unexpected error constructing Yale")
 			err = yale.RotateKeys()
 			if tc.expectError {
