@@ -1,8 +1,8 @@
-package v1
+package v1beta1
 
 import (
 	"context"
-	v1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1"
+	v1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"

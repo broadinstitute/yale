@@ -1,7 +1,7 @@
-package v1
+package v1beta1
 
 import (
-	"github.com/broadinstitute/yale/internal/yale/crd/api/v1"
+	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -17,7 +17,7 @@ type YaleCRDClient struct {
 
 func NewForConfig(c *rest.Config) (*YaleCRDClient, error) {
 	config := *c
-	config.ContentConfig.GroupVersion = &schema.GroupVersion{Group: v1.GroupName, Version: v1.GroupVersion}
+	config.ContentConfig.GroupVersion = &schema.GroupVersion{Group: v1beta1.GroupName, Version: v1beta1.GroupVersion}
 	config.APIPath = "/apis"
 	config.NegotiatedSerializer = scheme.Codecs.WithoutConversion()
 	config.UserAgent = rest.DefaultKubernetesUserAgent()

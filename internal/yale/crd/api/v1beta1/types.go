@@ -1,4 +1,4 @@
-package v1
+package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -6,18 +6,27 @@ import (
 )
 
 type GCPSaKeySpec struct {
-	metav1.ObjectMeta       `json:"metadata,omitempty"`
-	GcpSaName               string `json:"gcpSaName"`
-	SecretName              string `json:"secretName"`
-	Namespace               string `json:"namespace"`
-	PemDataFieldName        string `json:"pemDataFieldName"`
-	PrivateKeyDataFieldName string `json:"privateKeyDataFieldName"`
-	OlderThanDays           int    `json:"olderThanDays"`
-	GoogleProject           string `json:"googleProject"`
-	DaysDisabled            int    `json:"daysDisabled"`
-	DaysDeauthenticated     int    `json:"daysDeauthenticated"`
+	GoogleServiceAccount GoogleServiceAccount `json:"googleServiceAccount"`
+	Secret               Secret               `json:"secret"`
+	KeyRotation          KeyRotation          `json:"keyRotation"`
 }
 
+type GoogleServiceAccount struct {
+	Name    string `json:"name"`
+	Project string `json:"project"`
+}
+
+type Secret struct {
+	Name        string `json:"name"`
+	PemKeyName  string `json:"pemKeyName"`
+	JsonKeyName string `json:"jsonKeyName"`
+}
+
+type KeyRotation struct {
+	RotateAfter  int `json:"rotateAfter"`
+	DeleteAfter  int `json:"deleteAfter"`
+	DisableAfter int `json:"disableAfter"`
+}
 type GCPSaKey struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -38,15 +47,9 @@ func (in *GCPSaKey) DeepCopyInto(out *GCPSaKey) {
 	out.TypeMeta = in.TypeMeta
 	out.ObjectMeta = in.ObjectMeta
 	out.Spec = GCPSaKeySpec{
-		GcpSaName:               in.Spec.GcpSaName,
-		SecretName:              in.Spec.SecretName,
-		PrivateKeyDataFieldName: in.Spec.PrivateKeyDataFieldName,
-		OlderThanDays:           in.Spec.OlderThanDays,
-		GoogleProject:           in.Spec.GoogleProject,
-		PemDataFieldName:        in.Spec.PemDataFieldName,
-		DaysDeauthenticated:     in.Spec.DaysDeauthenticated,
-		DaysDisabled:            in.Spec.DaysDisabled,
-		Namespace:               in.Spec.Namespace,
+		GoogleServiceAccount: in.Spec.GoogleServiceAccount,
+		Secret:               in.Spec.Secret,
+		KeyRotation:          in.Spec.KeyRotation,
 	}
 }
 
