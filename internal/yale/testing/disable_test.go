@@ -42,7 +42,7 @@ func TestDisableKeys(t *testing.T) {
 			},
 			setupIam: func(expect gcp.ExpectIam) {
 				// set up a mock for a GCP api call to disable a service account
-				expect.DisableServiceAccountKey("my-fake-project", OLD_KEY_NAME).
+				expect.DisableServiceAccountKey(OLD_KEY_NAME).
 					With(iam.DisableServiceAccountKeyRequest{}).
 					Returns()
 
