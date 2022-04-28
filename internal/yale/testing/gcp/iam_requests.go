@@ -88,6 +88,7 @@ type DeleteServiceAccountKeyRequest interface {
 type deleteServiceAccountKeyRequest struct {
 	request
 }
+
 func createDeleteServiceAccountKeyRequest(method string, url string) DeleteServiceAccountKeyRequest {
 	return &deleteServiceAccountKeyRequest{
 		request: *newRequest(method, url),

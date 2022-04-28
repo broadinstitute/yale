@@ -25,7 +25,7 @@ func TestDeleteKeys(t *testing.T) {
 			setupK8s: func(setup k8s.Setup) {
 				CRD.Spec.KeyRotation =
 					v1beta1.KeyRotation{
-						DeleteAfter: 3,
+						DeleteAfter:  3,
 						DisableAfter: 14,
 					}
 				setup.AddYaleCRD(CRD)
@@ -54,7 +54,7 @@ func TestDeleteKeys(t *testing.T) {
 			setupK8s: func(setup k8s.Setup) {
 				CRD.Spec.KeyRotation =
 					v1beta1.KeyRotation{
-						DeleteAfter: 3,
+						DeleteAfter:  3,
 						DisableAfter: 14,
 					}
 				setup.AddYaleCRD(CRD)
@@ -75,8 +75,8 @@ func TestDeleteKeys(t *testing.T) {
 			},
 			verifyK8s: func(expect k8s.Expect) {
 				newSecret.SetAnnotations(map[string]string{
-					"validAfterDate":        "2022-04-08T14:21:44Z",
-					"serviceAccountName":    "my-sa@blah.com",
+					"validAfterDate":     "2022-04-08T14:21:44Z",
+					"serviceAccountName": "my-sa@blah.com",
 				})
 				expect.HasSecret(newSecret)
 			},

@@ -6,7 +6,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-
 func (m *Yale) DeleteKeys() error {
 	// Get all GCPSaKey resources
 	result, err := m.GetGCPSaKeyList()
@@ -39,7 +38,7 @@ func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeyS
 		return err
 	}
 	totalTime := gcpSaKeySpec.KeyRotation.DisableAfter + gcpSaKeySpec.KeyRotation.DeleteAfter
-	isInUse, err :=  m.IsAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
+	isInUse, err := m.IsAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
 	if saKey.disabled && !isInUse {
 		err = m.Delete(keyName)
 		if err != nil {
@@ -56,6 +55,7 @@ func (m *Yale) Delete(name string) error {
 	_, err := m.gcp.Projects.ServiceAccounts.Keys.Delete(name).Context(ctx).Do()
 	return err
 }
+
 // GetSAKey Returns SA key
 func (m *Yale) GetSAKey(keyName string) (*SaKey, error) {
 	ctx := context.Background()

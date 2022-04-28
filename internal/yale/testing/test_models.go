@@ -10,7 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-
 const FAKE_JSON_KEY = `{"private_key":"fake-sakey"}`
 const OLD_KEY_NAME = "projects/my-fake-project/serviceAccounts/my-sa@blah.com/e0b1b971487ffff7f725b124d"
 
@@ -95,4 +94,3 @@ var newSecret = corev1.Secret{
 		"agora.json": []byte(NEW_JSON_KEY),
 	},
 }
-

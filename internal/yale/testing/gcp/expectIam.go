@@ -63,7 +63,7 @@ func (e *expectIam) DisableServiceAccountKey(project string, keyName string) Dis
 
 // DeleteServiceAccountKey
 // see https://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys/delete
-func (e *expectIam) DeleteServiceAccountKey( keyName string, hasError bool)  DeleteServiceAccountKeyRequest {
+func (e *expectIam) DeleteServiceAccountKey(keyName string, hasError bool) DeleteServiceAccountKeyRequest {
 	url := fmt.Sprintf("%s/%s", gcpIamURL, keyName)
 	r := createDeleteServiceAccountKeyRequest(http.MethodDelete, url)
 	if hasError {
