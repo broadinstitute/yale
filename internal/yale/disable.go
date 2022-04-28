@@ -39,7 +39,7 @@ func (m *Yale) DisableKeys() error {
 
 func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySpec) error {
 	secretAnnotations := Secret.GetAnnotations()
-	key, err := m.GetSAKey(GCPSaKeySpec.GoogleServiceAccount.Project, secretAnnotations["oldServiceAccountKeyName"])
+	key, err := m.GetSAKey(secretAnnotations["oldServiceAccountKeyName"])
 	if err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 			return err
 		}
 		if canDisableKey {
-			err = m.Disable(GCPSaKeySpec.GoogleServiceAccount.Project, secretAnnotations["oldServiceAccountKeyName"])
+			err = m.Disable(secretAnnotations["oldServiceAccountKeyName"])
 			if err != nil {
 				return err
 			}
@@ -72,11 +72,10 @@ func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey) (boo
 }
 
 // Disable key
-func (m *Yale) Disable(googleProject string, keyName string) error {
-	name := fmt.Sprintf("projects/%s/serviceAccounts/%s", googleProject, keyName)
+func (m *Yale) Disable(keyName string) error {
 	request := &iam.DisableServiceAccountKeyRequest{}
 	ctx := context.Background()
-	_, err := m.gcp.Projects.ServiceAccounts.Keys.Disable(name, request).Context(ctx).Do()
+	_, err := m.gcp.Projects.ServiceAccounts.Keys.Disable(keyName, request).Context(ctx).Do()
 	return err
 }
 

@@ -2,6 +2,7 @@ package gcp
 
 import (
 	"fmt"
+	"net/http"
 )
 
 const gcpIamURL = "https://iam.googleapis.com/v1"
@@ -11,9 +12,11 @@ type ExpectIam interface {
 	// CreateServiceAccountKey configures the mock to expect a request to create a service account key
 	CreateServiceAccountKey(project string, serviceAccountEmail string, hasError bool) CreateServiceAccountKeyRequest
 	// GetServiceAccountKey configures the mock to expect a request to get a service account key
-	GetServiceAccountKey(project string, keyName string, hasError bool) GetServiceAccountKeyRequest
+	GetServiceAccountKey(keyName string, hasError bool) GetServiceAccountKeyRequest
 	// DisableServiceAccountKey configures the mock to expect a request to disable a service account key
 	DisableServiceAccountKey(project string, keyName string) DisableServiceAccountKeyRequest
+	// DeleteServiceAccountKey configures the mock to expect a request that deletes a service account key
+	DeleteServiceAccountKey(keyName string, hasError bool) DeleteServiceAccountKeyRequest
 }
 
 func newExpectIam() *expectIam {
@@ -39,8 +42,8 @@ func (e *expectIam) CreateServiceAccountKey(project string, serviceAccountEmail 
 
 // GetServiceAccountKey
 // see https://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys/get
-func (e *expectIam) GetServiceAccountKey(project string, keyName string, hasError bool) GetServiceAccountKeyRequest {
-	url := fmt.Sprintf("%s/projects/%s/serviceAccounts/%s", gcpIamURL, project, keyName)
+func (e *expectIam) GetServiceAccountKey(keyName string, hasError bool) GetServiceAccountKeyRequest {
+	url := fmt.Sprintf("%s/%s", gcpIamURL, keyName)
 	r := newGetServiceAccountKeyRequest(methodGet, url)
 	if hasError {
 		r.Status(400)
@@ -54,6 +57,18 @@ func (e *expectIam) GetServiceAccountKey(project string, keyName string, hasErro
 func (e *expectIam) DisableServiceAccountKey(project string, keyName string) DisableServiceAccountKeyRequest {
 	url := fmt.Sprintf("%s/projects/%s/serviceAccounts/%s:disable", gcpIamURL, project, keyName)
 	r := createDisableServiceAccountKeyRequest(methodPost, url)
+	e.addNewRequest(r)
+	return r
+}
+
+// DeleteServiceAccountKey
+// see https://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys/delete
+func (e *expectIam) DeleteServiceAccountKey( keyName string, hasError bool)  DeleteServiceAccountKeyRequest {
+	url := fmt.Sprintf("%s/%s", gcpIamURL, keyName)
+	r := createDeleteServiceAccountKeyRequest(http.MethodDelete, url)
+	if hasError {
+		r.Status(400)
+	}
 	e.addNewRequest(r)
 	return r
 }

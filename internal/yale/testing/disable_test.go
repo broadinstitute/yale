@@ -10,39 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iam/v1"
-	"google.golang.org/api/policyanalyzer/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
-
-var activityResponse = policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse{
-	Activities: []*policyanalyzer.GoogleCloudPolicyanalyzerV1Activity{
-		{
-			Activity:     googleapi.RawMessage(activity),
-			ActivityType: "serviceAccountKeyLastAuthentication",
-		}},
-}
-var activity = `{"lastAuthenticatedTime":"2021-04-18T07:00:00Z","serviceAccountKey":{"serviceAccountId":"108004111716625043518","projectNumber":"635957978953","fullResourceName":"//iam.googleapis.com/projects/my-fake-project/serviceAccounts/my-sa@blah.com/keys/e0b1b971487ffff7f725b124d"}}`
-
-const keyName = "my-sa@blah.com/keys/e0b1b971487ffff7f725b124d"
-
-var secret = corev1.Secret{
-	ObjectMeta: metav1.ObjectMeta{
-		Name:      "my-fake-secret",
-		Namespace: "my-fake-namespace",
-		UID:       "FakeUId",
-		Annotations: map[string]string{
-			"serviceAccountKeyName":    keyName,
-			"validAfterTime":           "2021-04-08T14:21:44Z",
-			"oldServiceAccountKeyName": OLD_KEY_NAME,
-		},
-	},
-	Data: map[string][]byte{
-		"agora.pem":  []byte(NEW_FAKE_PEM),
-		"agora.json": []byte(NEW_JSON_KEY),
-	},
-}
 
 func TestDisableKeys(t *testing.T) {
 
@@ -65,7 +34,7 @@ func TestDisableKeys(t *testing.T) {
 				// Add a yale CRD to the fake cluster!
 				// If we wanted, we could add some secrets here too with setup.AddSecret()
 				setup.AddYaleCRD(CRD)
-				setup.AddSecret(secret)
+				setup.AddSecret(newSecret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 				expect.CreateQuery("my-fake-project", false).
@@ -77,7 +46,7 @@ func TestDisableKeys(t *testing.T) {
 					With(iam.DisableServiceAccountKeyRequest{}).
 					Returns()
 
-				expect.GetServiceAccountKey("my-fake-project", OLD_KEY_NAME, false).
+				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
 						Disabled:       false,
 						Name:           OLD_KEY_NAME,
@@ -90,7 +59,7 @@ func TestDisableKeys(t *testing.T) {
 			verifyK8s: func(expect k8s.Expect) {
 				// set an expectation that a secret matching this one will exist in the cluster
 				// once the test completes
-				expect.HasSecret(secret)
+				expect.HasSecret(newSecret)
 			},
 			expectError: false,
 		},
@@ -104,14 +73,14 @@ func TestDisableKeys(t *testing.T) {
 						DeleteAfter:  7,
 					}
 				setup.AddYaleCRD(CRD)
-				setup.AddSecret(secret)
+				setup.AddSecret(newSecret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 				expect.CreateQuery("my-fake-project", false).
 					Returns(activityResponse)
 			},
 			setupIam: func(expect gcp.ExpectIam) {
-				expect.GetServiceAccountKey("my-fake-project", OLD_KEY_NAME, false).
+				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
 						Disabled:       false,
 						Name:           OLD_KEY_NAME,
@@ -124,7 +93,7 @@ func TestDisableKeys(t *testing.T) {
 			verifyK8s: func(expect k8s.Expect) {
 				// set an expectation that a secret matching this one will exist in the cluster
 				// once the test completes
-				expect.HasSecret(secret)
+				expect.HasSecret(newSecret)
 			},
 			expectError: false,
 		},
@@ -138,14 +107,14 @@ func TestDisableKeys(t *testing.T) {
 						DeleteAfter:  7,
 					}
 				setup.AddYaleCRD(CRD)
-				setup.AddSecret(secret)
+				setup.AddSecret(newSecret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 				expect.CreateQuery("my-fake-project", true).
 					Returns(activityResponse)
 			},
 			setupIam: func(expect gcp.ExpectIam) {
-				expect.GetServiceAccountKey("my-fake-project", OLD_KEY_NAME, false).
+				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
 						Disabled:       false,
 						Name:           OLD_KEY_NAME,
@@ -158,7 +127,7 @@ func TestDisableKeys(t *testing.T) {
 			verifyK8s: func(expect k8s.Expect) {
 				// set an expectation that a secret matching this one will exist in the cluster
 				// once the test completes
-				expect.HasSecret(secret)
+				expect.HasSecret(newSecret)
 			},
 			expectError: true,
 		},
@@ -170,11 +139,11 @@ func TestDisableKeys(t *testing.T) {
 						DisableAfter: 10,
 					}
 				setup.AddYaleCRD(CRD)
-				setup.AddSecret(secret)
+				setup.AddSecret(newSecret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {},
 			setupIam: func(expect gcp.ExpectIam) {
-				expect.GetServiceAccountKey("my-fake-project", OLD_KEY_NAME, false).
+				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
 						Disabled:       true,
 						Name:           OLD_KEY_NAME,
@@ -187,7 +156,7 @@ func TestDisableKeys(t *testing.T) {
 			verifyK8s: func(expect k8s.Expect) {
 				// set an expectation that a secret matching this one will exist in the cluster
 				// once the test completes
-				expect.HasSecret(secret)
+				expect.HasSecret(newSecret)
 			},
 			expectError: false,
 		},

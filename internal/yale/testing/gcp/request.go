@@ -80,22 +80,26 @@ func (r *request) Times(callCount int) Request {
 
 func (r *request) buildResponder() httpmock.Responder {
 	switch r.method {
-	case methodGet:
-		return buildGetResponder(r)
 	case methodPost:
 		return buildPostResponder(r)
 	default:
-		panic(fmt.Errorf("unsupported method: %q", r.method))
+		return buildResponder(r)
 	}
 }
 
-// Creates a simple responder for GET requests
-func buildGetResponder(r *request) httpmock.Responder {
+// Creates a simple responder for requests
+func buildResponder(r *request) httpmock.Responder {
 	status := r.status
 	if status == 0 {
 		status = defaultGetStatus
 	}
-	return httpmock.NewJsonResponderOrPanic(status, r.responseBody)
+	return func(req *http.Request) (*http.Response, error) {
+		if status != defaultGetStatus {
+			return nil, errors.New("The request has thrown an error.")
+		}
+		return httpmock.NewJsonResponse(status, r.responseBody)
+	}
+
 }
 
 // Creates an httpmock.Responder for POST requests that validates the actual request body matches the expected request body
@@ -146,7 +150,7 @@ func buildPostResponder(r *request) httpmock.Responder {
 			return nil, fmt.Errorf("POST %s\n\t%T differ (-got, +want):\n%s", r.url, r.requestBody, diff)
 		}
 		if status != defaultPostStatus {
-			return nil, errors.New("I'm an error")
+			return nil, errors.New("The request has thrown an error.")
 		}
 		return httpmock.NewJsonResponse(status, r.responseBody)
 	}

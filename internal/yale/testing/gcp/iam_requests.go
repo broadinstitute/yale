@@ -78,3 +78,25 @@ func createDisableServiceAccountKeyRequest(method string, url string) DisableSer
 		request: *newRequest(method, url),
 	}
 }
+
+// Delete key
+type DeleteServiceAccountKeyRequest interface {
+	Returns() DeleteServiceAccountKeyRequest
+	Request
+}
+
+type deleteServiceAccountKeyRequest struct {
+	request
+}
+func createDeleteServiceAccountKeyRequest(method string, url string) DeleteServiceAccountKeyRequest {
+	return &deleteServiceAccountKeyRequest{
+		request: *newRequest(method, url),
+	}
+}
+
+// https://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys/disable#response-bodyhttps://cloud.google.com/iam/docs/reference/rest/v1/projects.serviceAccounts.keys/disable#response-body
+func (r *deleteServiceAccountKeyRequest) Returns() DeleteServiceAccountKeyRequest {
+	r.ResponseBody(struct {
+	}{})
+	return r
+}
