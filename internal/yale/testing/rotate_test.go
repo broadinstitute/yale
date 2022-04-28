@@ -87,7 +87,7 @@ func TestRotateKeys(t *testing.T) {
 			verifyK8s: func(expect k8s.Expect) {
 				// set an expectation that a secret matching this one will exist in the cluster
 				// once the test completes
-				expect.HasSecret(secret)
+				expect.HasSecret(newSecret)
 			},
 			expectError: false,
 		},
