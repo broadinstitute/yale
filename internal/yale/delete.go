@@ -6,6 +6,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+
+// DeleteKeys Main method for deleting keys.
 func (m *Yale) DeleteKeys() error {
 	// Get all GCPSaKey resources
 	result, err := m.GetGCPSaKeyList()
@@ -24,13 +26,13 @@ func (m *Yale) DeleteKeys() error {
 
 // Removes 'oldServiceAccountKeyName' annotation
 func (m *Yale) removeOldKeyName(K8Secret *corev1.Secret) error {
-	// Restores annotations for secret
 	annotations := K8Secret.GetAnnotations()
 	delete(annotations, "oldServiceAccountKeyName")
 	K8Secret.ObjectMeta.SetAnnotations(annotations)
 	return m.UpdateSecret(K8Secret)
 }
 
+// DeleteKey Holds logic to delete a single key
 func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeySpec) error {
 	keyName := k8Secret.Annotations["oldServiceAccountKeyName"]
 	saKey, err := m.GetSAKey(keyName)
@@ -56,7 +58,7 @@ func (m *Yale) Delete(name string) error {
 	return err
 }
 
-// GetSAKey Returns SA key
+// GetSAKey Returns an SA key
 func (m *Yale) GetSAKey(keyName string) (*SaKey, error) {
 	ctx := context.Background()
 	saKey, err := m.gcp.Projects.ServiceAccounts.Keys.Get(keyName).Context(ctx).Do()
