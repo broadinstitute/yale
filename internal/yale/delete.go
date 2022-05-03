@@ -34,8 +34,10 @@ func (m *Yale) removeOldKeyName(K8Secret *corev1.Secret) error {
 
 // DeleteKey Holds logic to delete a single key
 func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeySpec) error {
-	keyName := k8Secret.Annotations["oldServiceAccountKeyName"]
-	saKey, err := m.GetSAKey(keyName)
+	secretAnnotations := k8Secret.GetAnnotations()
+	keyName := secretAnnotations["oldServiceAccountKeyName"]
+	saName := secretAnnotations["serviceAccountKeyName"]
+	saKey, err := m.GetSAKey(saName, keyName)
 	if err != nil {
 		return err
 	}
@@ -59,7 +61,7 @@ func (m *Yale) Delete(name string) error {
 }
 
 // GetSAKey Returns an SA key
-func (m *Yale) GetSAKey(keyName string) (*SaKey, error) {
+func (m *Yale) GetSAKey(saName string, keyName string) (*SaKey, error) {
 	ctx := context.Background()
 	saKey, err := m.gcp.Projects.ServiceAccounts.Keys.Get(keyName).Context(ctx).Do()
 	if err != nil {
@@ -68,7 +70,7 @@ func (m *Yale) GetSAKey(keyName string) (*SaKey, error) {
 	return &SaKey{
 		saKey.PrivateKeyData,
 		saKey.Name,
-		keyName,
+		saName,
 		saKey.ValidAfterTime,
 		saKey.Disabled,
 	}, nil

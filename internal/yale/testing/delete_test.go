@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"testing"
 )
-
+var DeleteCrd = CRD
 func TestDeleteKeys(t *testing.T) {
 
 	testCases := []struct {
@@ -23,12 +23,13 @@ func TestDeleteKeys(t *testing.T) {
 		{
 			name: "Show gracefully exit from Delete API returns error",
 			setupK8s: func(setup k8s.Setup) {
-				CRD.Spec.KeyRotation =
+
+				DeleteCrd.Spec.KeyRotation =
 					v1beta1.KeyRotation{
 						DeleteAfter:  3,
 						DisableAfter: 14,
 					}
-				setup.AddYaleCRD(CRD)
+				setup.AddYaleCRD(DeleteCrd)
 				setup.AddSecret(newSecret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
@@ -52,12 +53,12 @@ func TestDeleteKeys(t *testing.T) {
 		{
 			name: "Should delete key",
 			setupK8s: func(setup k8s.Setup) {
-				CRD.Spec.KeyRotation =
+				DeleteCrd.Spec.KeyRotation =
 					v1beta1.KeyRotation{
 						DeleteAfter:  3,
 						DisableAfter: 14,
 					}
-				setup.AddYaleCRD(CRD)
+				setup.AddYaleCRD(DeleteCrd)
 				setup.AddSecret(newSecret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {

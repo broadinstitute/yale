@@ -138,11 +138,11 @@ func TestRotateKeys(t *testing.T) {
 						},
 					},
 				})
-				setup.AddSecret(OLD_SECRET)
+				setup.AddSecret(newSecret)
 			},
 			setupGcp: func(expect gcp.ExpectIam) {},
 			verifyK8s: func(expect k8s.Expect) {
-				expect.HasSecret(OLD_SECRET)
+				expect.HasSecret(newSecret)
 			},
 			expectError: false,
 		},

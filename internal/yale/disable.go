@@ -38,7 +38,7 @@ func (m *Yale) DisableKeys() error {
 
 func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySpec) error {
 	secretAnnotations := Secret.GetAnnotations()
-	key, err := m.GetSAKey(secretAnnotations["oldServiceAccountKeyName"])
+	key, err := m.GetSAKey(secretAnnotations["serviceAccountKeyName"], secretAnnotations["oldServiceAccountKeyName"])
 	if err != nil {
 		return err
 	}
