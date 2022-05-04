@@ -17,6 +17,7 @@ type Mock interface {
 	Setup()
 	// GetIAMClient returns a new iam.Service client that is configured to use httpmock
 	GetIAMClient() *iam.Service
+	// GetIAMClient returns a new iam.Service client that is configured to use httpmock
 	GetPAClient() *policyanalyzer.Service
 	// AssertExpectations verifies that all expectations on the mock client were met
 	AssertExpectations(t *testing.T) bool
@@ -24,9 +25,11 @@ type Mock interface {
 	Cleanup()
 }
 
-func NewMock(expectFn func(expect Expect)) Mock {
-	e := newExpect()
-	expectFn(e)
+func NewMock(iamExpectFn func(expect ExpectIam), paExpectFn func(expect ExpectPolicyAnalyzer)) Mock {
+	e := newExpectIam()
+	iamExpectFn(e)
+	pa := newExpectPolicyAnalyzer()
+	paExpectFn(pa)
 
 	httpClient := &http.Client{}
 	iamClient, err := iam.NewService(context.Background(), option.WithoutAuthentication(), option.WithHTTPClient(httpClient))
@@ -39,7 +42,7 @@ func NewMock(expectFn func(expect Expect)) Mock {
 	}
 
 	return &mock{
-		requests:   e.requests,
+		requests:   append(e.requests, pa.requests...),
 		httpClient: httpClient,
 		iamClient:  iamClient,
 		paClient:   paClient,
