@@ -15,6 +15,9 @@ func (m *Yale) DeleteKeys() error {
 		return err
 	}
 	secrets, gcpSaKeys, err := m.FilterRotatedKeys(result)
+	if err != nil {
+		return err
+	}
 	for i, secret := range secrets {
 		err = m.DeleteKey(secret, gcpSaKeys[i].Spec)
 		if err != nil {
@@ -43,6 +46,9 @@ func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeyS
 	}
 	totalTime := gcpSaKeySpec.KeyRotation.DisableAfter + gcpSaKeySpec.KeyRotation.DeleteAfter
 	isInUse, err := m.IsAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
+	if err != nil {
+		return err
+	}
 	if saKey.disabled && !isInUse {
 		err = m.Delete(keyName)
 		if err != nil {
