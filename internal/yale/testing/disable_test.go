@@ -12,7 +12,7 @@ import (
 	"google.golang.org/api/iam/v1"
 	"testing"
 )
-var DisableCrd = CRD
+
 func TestDisableKeys(t *testing.T) {
 
 	testCases := []struct {
@@ -26,13 +26,14 @@ func TestDisableKeys(t *testing.T) {
 		{
 			name: "Should disable key",
 			setupK8s: func(setup k8s.Setup) {
-				DisableCrd.Spec.KeyRotation =
+				CRD.Spec.KeyRotation =
 					v1beta1.KeyRotation{
+
 						DisableAfter: 14,
 					}
 				// Add a yale CRD to the fake cluster!
 				// If we wanted, we could add some secrets here too with setup.AddSecret()
-				setup.AddYaleCRD(DisableCrd)
+				setup.AddYaleCRD(CRD)
 				setup.AddSecret(newSecret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
@@ -47,12 +48,12 @@ func TestDisableKeys(t *testing.T) {
 
 				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
-					Disabled:       false,
-					Name:           OLD_KEY_NAME,
-					PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
-					ValidAfterTime: "2014-04-08T14:21:44Z",
-					ServerResponse: googleapi.ServerResponse{},
-				})
+						Disabled:       false,
+						Name:           OLD_KEY_NAME,
+						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
+						ValidAfterTime: "2014-04-08T14:21:44Z",
+						ServerResponse: googleapi.ServerResponse{},
+					})
 
 			},
 			verifyK8s: func(expect k8s.Expect) {
@@ -65,13 +66,13 @@ func TestDisableKeys(t *testing.T) {
 		{
 			name: "Should not disable key before time to disable",
 			setupK8s: func(setup k8s.Setup) {
-				DisableCrd.Spec.KeyRotation =
+				CRD.Spec.KeyRotation =
 					v1beta1.KeyRotation{
 						RotateAfter:  90,
 						DisableAfter: 4000,
 						DeleteAfter:  7,
 					}
-				setup.AddYaleCRD(DisableCrd)
+				setup.AddYaleCRD(CRD)
 				setup.AddSecret(newSecret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
@@ -115,12 +116,12 @@ func TestDisableKeys(t *testing.T) {
 			setupIam: func(expect gcp.ExpectIam) {
 				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
-					Disabled:       false,
-					Name:           OLD_KEY_NAME,
-					PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
-					ValidAfterTime: "2023-04-08T14:21:44Z",
-					ServerResponse: googleapi.ServerResponse{},
-				})
+						Disabled:       false,
+						Name:           OLD_KEY_NAME,
+						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
+						ValidAfterTime: "2023-04-08T14:21:44Z",
+						ServerResponse: googleapi.ServerResponse{},
+					})
 
 			},
 			verifyK8s: func(expect k8s.Expect) {
@@ -142,7 +143,7 @@ func TestDisableKeys(t *testing.T) {
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {},
 			setupIam: func(expect gcp.ExpectIam) {
-				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
+				expect.GetServiceAccountKey( OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
 						Disabled:       true,
 						Name:           OLD_KEY_NAME,
