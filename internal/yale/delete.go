@@ -2,78 +2,81 @@ package yale
 
 import (
 	"context"
-	"fmt"
-	//	apiv1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1"
-	//corev1 "k8s.io/api/core/v1"
+	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 )
 
-//
-//func (m *Yale) DeleteKeys() error {
-//	// Get all GCPSaKey resources
-//	result, err := m.GetGCPSaKeyList()
-//	if err != nil {
-//		return err
-//	} else {
-//		secrets, gcpSaKeys := m.FilterRotatedKeys(result)
-//		for i, secret := range secrets {
-//			keyName := secret.Annotations["oldServiceAccountKeyName"]
-//			saKey, err := m.GetSAKey(keyName, gcpSaKeys[i].Spec.GoogleProject)
-//			if err != nil {
-//				return err
-//			}
-//			spec := gcpSaKeys[i].Spec
-//			canDelete, err := m.CanDelete(spec, keyName)
-//			if saKey.disabled && canDelete {
-//				err = m.DeleteKey(keyName)
-//				if err != nil {
-//					return err
-//				}
-//				err = m.removeOldKeyName(secret, spec, *saKey)
-//				if err != nil {
-//					return err
-//				}
-//			}
-//		}
-//	}
-//	return nil
-//}
-//
-//// Removes 'oldServiceAccountKeyName' annotation
-//func (m *Yale) removeOldKeyName(K8Secret *corev1.Secret, GCPSaKeySpec apiv1.GCPSaKeySpec, Key SaKey) error {
-//	// Restores annotations for secret
-//	newAnnotations := createAnnotations(Key)
-//	K8Secret.Annotations = newAnnotations
-//	err := m.UpdateSecret(GCPSaKeySpec, K8Secret)
-//	if err != nil {
-//		return err
-//	}
-//	return nil
-//}
-//
-//// CanDelete Determines if key can be deleted
-//func (m *Yale) CanDelete(GCPSaKeySpec apiv1.GCPSaKeySpec, name string) (bool, error) {
-//	totalTime := GCPSaKeySpec.DaysDisabled + GCPSaKeySpec.DaysDeauthenticated
-//	return m.isAuthenticated(totalTime, name, GCPSaKeySpec)
-//}
-//
-//// DeleteKey Deletes key
-//func (m *Yale) DeleteKey(name string) error {
-//	ctx := context.Background()
-//	_, err := m.gcp.Projects.ServiceAccounts.Keys.Delete(name).Context(ctx).Do()
-//	return err
-//}
-// GetSAKey Returns SA key
-func (m *Yale) GetSAKey(googleProject string, keyName string) (*SaKey, error) {
-	name := fmt.Sprintf("projects/%s/serviceAccounts/%s", googleProject, keyName)
+
+// DeleteKeys Main method for deleting keys.
+func (m *Yale) DeleteKeys() error {
+	// Get all GCPSaKey resources
+	result, err := m.GetGCPSaKeyList()
+	if err != nil {
+		return err
+	}
+	secrets, gcpSaKeys, err := m.FilterRotatedKeys(result)
+	if err != nil {
+		return err
+	}
+	for i, secret := range secrets {
+		err = m.DeleteKey(secret, gcpSaKeys[i].Spec)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Removes 'oldServiceAccountKeyName' annotation
+func (m *Yale) removeOldKeyName(K8Secret *corev1.Secret) error {
+	annotations := K8Secret.GetAnnotations()
+	delete(annotations, "oldServiceAccountKeyName")
+	K8Secret.ObjectMeta.SetAnnotations(annotations)
+	return m.UpdateSecret(K8Secret)
+}
+
+// DeleteKey Holds logic to delete a single key
+func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeySpec) error {
+	secretAnnotations := k8Secret.GetAnnotations()
+	keyName := secretAnnotations["oldServiceAccountKeyName"]
+	saName := secretAnnotations["serviceAccountKeyName"]
+	saKey, err := m.GetSAKey(saName, keyName)
+	if err != nil {
+		return err
+	}
+	totalTime := gcpSaKeySpec.KeyRotation.DisableAfter + gcpSaKeySpec.KeyRotation.DeleteAfter
+	isInUse, err := m.IsAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
+	if err != nil {
+		return err
+	}
+	if saKey.disabled && !isInUse {
+		err = m.Delete(keyName)
+		if err != nil {
+			return err
+		}
+		return m.removeOldKeyName(k8Secret)
+	}
+	return nil
+}
+
+// Delete key
+func (m *Yale) Delete(name string) error {
 	ctx := context.Background()
-	saKey, err := m.gcp.Projects.ServiceAccounts.Keys.Get(name).Context(ctx).Do()
+	_, err := m.gcp.Projects.ServiceAccounts.Keys.Delete(name).Context(ctx).Do()
+	return err
+}
+
+// GetSAKey Returns an SA key
+func (m *Yale) GetSAKey(saName string, keyName string) (*SaKey, error) {
+	ctx := context.Background()
+	saKey, err := m.gcp.Projects.ServiceAccounts.Keys.Get(keyName).Context(ctx).Do()
 	if err != nil {
 		return nil, err
 	}
 	return &SaKey{
 		saKey.PrivateKeyData,
 		saKey.Name,
-		name,
+		saName,
 		saKey.ValidAfterTime,
 		saKey.Disabled,
 	}, nil

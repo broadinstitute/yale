@@ -10,22 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iam/v1"
-	"google.golang.org/api/policyanalyzer/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
 )
 
-var activityResponse = policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse{
-	Activities: []*policyanalyzer.GoogleCloudPolicyanalyzerV1Activity{
-		{
-			Activity:     googleapi.RawMessage(activity),
-			ActivityType: "serviceAccountKeyLastAuthentication",
-		}},
-}
-var activity = `{"lastAuthenticatedTime":"2021-04-18T07:00:00Z","serviceAccountKey":{"serviceAccountId":"108004111716625043518","projectNumber":"635957978953","fullResourceName":"//iam.googleapis.com/projects/my-fake-project/serviceAccounts/my-sa@blah.com/keys/e0b1b971487ffff7f725b124d"}}`
-
-const keyName = "my-sa@blah.com/keys/e0b1b971487ffff7f725b124d"
 
 var secret = corev1.Secret{
 	ObjectMeta: metav1.ObjectMeta{
@@ -73,11 +62,11 @@ func TestDisableKeys(t *testing.T) {
 			},
 			setupIam: func(expect gcp.ExpectIam) {
 				// set up a mock for a GCP api call to disable a service account
-				expect.DisableServiceAccountKey("my-fake-project", OLD_KEY_NAME).
+				expect.DisableServiceAccountKey(OLD_KEY_NAME).
 					With(iam.DisableServiceAccountKeyRequest{}).
 					Returns()
 
-				expect.GetServiceAccountKey("my-fake-project", OLD_KEY_NAME, false).
+				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
 						Disabled:       false,
 						Name:           OLD_KEY_NAME,
@@ -111,7 +100,7 @@ func TestDisableKeys(t *testing.T) {
 					Returns(activityResponse)
 			},
 			setupIam: func(expect gcp.ExpectIam) {
-				expect.GetServiceAccountKey("my-fake-project", OLD_KEY_NAME, false).
+				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
 						Disabled:       false,
 						Name:           OLD_KEY_NAME,
@@ -145,7 +134,7 @@ func TestDisableKeys(t *testing.T) {
 					Returns(activityResponse)
 			},
 			setupIam: func(expect gcp.ExpectIam) {
-				expect.GetServiceAccountKey("my-fake-project", OLD_KEY_NAME, false).
+				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
 						Disabled:       false,
 						Name:           OLD_KEY_NAME,
@@ -174,7 +163,7 @@ func TestDisableKeys(t *testing.T) {
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {},
 			setupIam: func(expect gcp.ExpectIam) {
-				expect.GetServiceAccountKey("my-fake-project", OLD_KEY_NAME, false).
+				expect.GetServiceAccountKey( OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
 						Disabled:       true,
 						Name:           OLD_KEY_NAME,
