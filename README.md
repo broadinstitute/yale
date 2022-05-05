@@ -4,8 +4,7 @@
 
 ## Usage
 
-Yale is a Go service that manages Google Cloud Platform (GCP) service account (SA) keys used by Kubernetes resources. As stated in  GCP documents, <em>Service accounts are unique identities used to facilitate programmatic access to GCP APIs</em>. For compliance, keys must be rotated no more than 90 days.
-
+Yale is a Go service that manages Google Cloud Platform (GCP) service account (SA) keys used by Kubernetes resources. As stated in  GCP documents, <em>Service accounts are unique identities used to facilitate programmatic access to GCP APIs</em>. For compliance, keys must be rotated at least every 90 days.
 
 Yale has five purposes:
 1. Create new secrets for new GSK resources and store referenced SA keys in a Secrets.
@@ -60,8 +59,8 @@ Where:
 | spec.secret.name | string | yes|  | Name of Secret that houses SA. **Name must end in "sa-secret"** |
 |spec.secret.pemKeyName | string |  no | service-account.pem | Name of Secret data field that stores pem private key|
 | spec.secret.jsonKeyName | string | no | service-account.json | Name of Secret data field that stores private key |
-| spec.keyRotation.rotateAfter | int | no | 69 | Amount of days before key is rotated |
-| spec.keyRotation.deleteAfter | int | no | 14 | Amount of days key is disabled before deleting |
+| spec.keyRotation.rotateAfter | int | no 65 | Amount of days before key is rotated |
+| spec.keyRotation.deleteAfter | int | no | 15 | Amount of days key is disabled before deleting |
 | spec.keyRotation.disableAfter | int | no | 10 | Amount of days since key was last authenticated against before disabling |
 | spec.googleServiceAccount.name | string | yes |  | Email of the GCP SA |
 | spec.googleServiceAccount.project | string | yes |  | Google project ID SA is associated with|
