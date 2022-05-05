@@ -2,8 +2,6 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/broadinstitute/yale)](https://goreportcard.com/report/github.com/broadinstitute/yale)
 
-## Usage
-
 Yale is a Go service that manages Google Cloud Platform (GCP) service account (SA) keys used by Kubernetes resources. As stated in  GCP documents, <em>Service accounts are unique identities used to facilitate programmatic access to GCP APIs</em>. For compliance, keys must be rotated at least every 90 days.
 
 Yale has five purposes:
