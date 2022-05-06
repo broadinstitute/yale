@@ -76,7 +76,7 @@ Yale also requires a GCP service account with roles/iam.serviceAccountKeyAdmin r
 ### Running Locally
 
 While the intended use for yale is to run as a kubernetes cronjob it is also possible to run the tool locally against a remote cluster.
-A public docker image is available at `us-central1-docker.pkg.dev/dsp-artifact-registry/yale/yale:v0.0.12`
+A public docker image is available at `us-central1-docker.pkg.dev/dsp-artifact-registry/yale/yale:v0.0.14`
 
 When running the docker image locally the `-local` runtime flag must be used. This tells yale to connect to a remote cluster using your local `.kube/config` otherwise in cluster authentication will be used. Your local `.kubconfig` and a GCP credential must be mounted to the container when running locally.
 
