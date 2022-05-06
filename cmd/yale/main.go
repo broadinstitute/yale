@@ -41,10 +41,6 @@ func main() {
 		logs.Error.Fatal(err)
 	}
 
-	if err != nil {
-		logs.Error.Fatal(err)
-	}
-
 }
 
 func parseArgs() *args {
