@@ -1,6 +1,8 @@
 # yale
 
+
 [![Go Report Card](https://goreportcard.com/badge/github.com/broadinstitute/yale)](https://goreportcard.com/report/github.com/broadinstitute/yale)
+![latest build](https://github.com/broadinstitute/yale/actions/workflows/build.yaml/badge.svg?branch=main)
 
 Yale is a Go service that manages Google Cloud Platform (GCP) service account (SA) keys used by Kubernetes resources. As stated in  GCP documents, <em>Service accounts are unique identities used to facilitate programmatic access to GCP APIs</em>. For compliance, keys must be rotated at least every 90 days.
 
@@ -76,7 +78,7 @@ Yale also requires a GCP service account with roles/iam.serviceAccountKeyAdmin r
 ### Running Locally
 
 While the intended use for yale is to run as a kubernetes cronjob it is also possible to run the tool locally against a remote cluster.
-A public docker image is available at `us-central1-docker.pkg.dev/dsp-artifact-registry/yale/yale:v0.0.12`
+A public docker image is available at `us-central1-docker.pkg.dev/dsp-artifact-registry/yale/yale:v0.0.14`
 
 When running the docker image locally the `-local` runtime flag must be used. This tells yale to connect to a remote cluster using your local `.kube/config` otherwise in cluster authentication will be used. Your local `.kubconfig` and a GCP credential must be mounted to the container when running locally.
 
