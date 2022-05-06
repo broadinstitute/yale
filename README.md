@@ -1,24 +1,101 @@
+# yale
 
-# golang-project-template
+[![Go Report Card](https://goreportcard.com/badge/github.com/broadinstitute/yale)](https://goreportcard.com/report/github.com/broadinstitute/yale)
 
-A Repo containing a standard layout and configuration for golang projects.
+Yale is a Go service that manages Google Cloud Platform (GCP) service account (SA) keys used by Kubernetes resources. As stated in  GCP documents, <em>Service accounts are unique identities used to facilitate programmatic access to GCP APIs</em>. For compliance, keys must be rotated at least every 90 days.
 
-The project layout defined in this repo is a simplified version of [https://github.com/golang-standards/project-layout](https://github.com/golang-standards/project-layout)
-with some additional ci/cd setup added in. Some of the patterns defined in that example are overkill for dsp-devops' current needs, however this can easily be updated if needs change.
+Yale has five purposes:
+1. Create new secrets for new GSK resources and store referenced SA keys in a Secrets.
+2. Detect keys that need to be rotated.
+3. Update GSK generated Secrets with new keys.
+4. Check for old keys and disable them.
+5. Delete disabled keys.
 
-The basic structure provided in this repo is intended to serve as a starting point when starting a new go project and to avoid boilerplate.
+Yale monitors GcpSaKey resouces to manage the referenced GCP SA. GcpSaKey is custom resource definition, or [CRD](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/), that tells Yale how to create or modify secrets holding GCP SA keys. These secrets are referenced in Kubernetes resources, ie. Deployments, Cronjobs, etc, and when modified, trigger rolling updates to update those resources.
 
-## Usage
+## How to use Yale
 
-Click the `use this template` button in the top right to create a new repo with the desired owner and name using the files and folder structure defined here. Make sure to check the `include all branches` option in order to include the `gh-pages` branch so that code coverage html reports work properly.
+A GcpSaKey needs to be created via helm for every service account. For example,
 
-Most of the CI/CD worflows included here are intended to be generic with two exceptions.
+```
+apiVersion: yale.broadinstitute.org/v1beta1
+kind: GcpSaKey
+metadata:
+  name: example-gcpsakey
+spec:
+  secret:
+      name: example-sa-secret
+      pemKeyName: example.pem
+      jsonKeyName: example.json
+    keyRotation:
+      rotateAfter: 90
+      deleteAfter: 7
+      disableAfter: 7
+    googleServiceAccount:
+      name: example@broad-dsde-dev.iam.gserviceaccount.com
+      project: broad-dsde-dev
+```
+or if using default values:
+```
+apiVersion: yale.broadinstitute.org/v1beta1
+kind: GcpSaKey
+metadata:
+  name: example-gcpsakey
+spec:
+  secret:
+      name: example-sa-secret
+    googleServiceAccount:
+      name: example@broad-dsde-dev.iam.gserviceaccount.com
+      project: broad-dsde-dev
+```
 
-1. [this line in the dockerfile](https://github.com/broadinstitute/golang-project-template/blob/142d0dc810fa4f3afa68e0a5d37aac03f0c3796f/Dockerfile#L13) which will need to be updated to match the actual name of any executable(s).
+Where:
 
-## Additional Steps
+| Field | Type | Required| Default | Description |
+|-----|------|------|---------|-------------|
+| metadata.name| string| yes | | Name of Resource. **Name must end in gcpsakey**|
+| spec.secret.name | string | yes|  | Name of Secret that houses SA. **Name must end in "sa-secret"** |
+|spec.secret.pemKeyName | string |  no | service-account.pem | Name of Secret data field that stores pem private key|
+| spec.secret.jsonKeyName | string | no | service-account.json | Name of Secret data field that stores private key |
+| spec.keyRotation.rotateAfter | int | no 65 | Amount of days before key is rotated |
+| spec.keyRotation.deleteAfter | int | no | 15 | Amount of days key is disabled before deleting |
+| spec.keyRotation.disableAfter | int | no | 10 | Amount of days since key was last authenticated against before disabling |
+| spec.googleServiceAccount.name | string | yes |  | Email of the GCP SA |
+| spec.googleServiceAccount.project | string | yes |  | Google project ID SA is associated with|
 
-1. After creating a new repo from the template. Github secrets referenced in the ci/cd jobs need to be created. This can be done automatically using terraform.
-   [Instructions here](ttps://docs.google.com/document/d/1JbjV4xjAlSOuZY-2bInatl4av3M-y_LmHQkLYyISYns/edit?usp=sharing). [Example for ci in this repo](https://github.com/broadinstitute/terraform-ap-deployments/blob/master/github/tfvars/broadinstitute-golang-project-template.tfvars)
+That's all! Yale takes care of the rest!
 
-2. Create an a new image repository in `dsp-artifact-registry` for the ci/cd pipeline to push images to. This can also be done automatically via terraform. [Here is the example for this repo](https://github.com/broadinstitute/terraform-ap-deployments/blob/91715091d935e5f0727d108b371322e8dce19094/dsp-artifact-registry/tfvars/dsp-artifact-registry.tfvars#L11). A similar entry for the new repo just needs to be added to that file
+## Installation
+
+Yale is intended to be deployed as a kubernetes cronjob. Since keys rotate at the project level, not service, the cronJob performs all functions and checks against SA keys defined in GcpSaKey resource. Therefore, the cronJob does not need to be added to each service. The cronjob will run Yale every 2 minutes.
+
+When deployed as a cronjob [via helm](https://github.com/broadinstitute/terra-helmfile/blob/master/charts/yale/templates/cronJob.yam), Yale uses in cluster authentication provided by kubernetes/client-go. There are no additional steps required to configure this.
+
+Yale also requires a GCP service account with roles/iam.serviceAccountKeyAdmin role. The cronjob expects service account credentials to be mounted to the pod or workload identity can be used instead.
+
+### Running Locally
+
+While the intended use for yale is to run as a kubernetes cronjob it is also possible to run the tool locally against a remote cluster.
+A public docker image is available at `us-central1-docker.pkg.dev/dsp-artifact-registry/yale/yale:v0.0.12`
+
+When running the docker image locally the `-local` runtime flag must be used. This tells yale to connect to a remote cluster using your local `.kube/config` otherwise in cluster authentication will be used. Your local `.kubconfig` and a GCP credential must be mounted to the container when running locally.
+
+Unit tests can be run with `go test`:
+
+```
+    # Run tests w/ coverage stats
+    go test -coverprofile=coverage.out
+
+    # View line-by-line coverage report in browser
+    go tool cover -html=coverage.out
+```
+
+### Runtime flags
+
+```
+Usage of yale:
+  -kubeconfig string
+    	(optional) absolute path to kubectl config (default "~/.kube/config")
+  -local
+    	use this flag when running locally (outside of cluster to use local kube config
+```
