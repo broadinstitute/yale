@@ -58,7 +58,7 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 		}
 		logs.Info.Printf("%s is not allowed to be disabled.", r.FindString(serviceAccountName))
 	}
-
+	logs.Info.Printf("%s is already disabled.", r.FindString(serviceAccountName))
 	return nil
 }
 

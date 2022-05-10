@@ -44,7 +44,7 @@ func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeyS
 	if err != nil {
 		return err
 	}
-	logs.Info.Printf("Checking if %s can be deleted.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
+	logs.Info.Printf("Checking if %s should be deleted.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
 	totalTime := gcpSaKeySpec.KeyRotation.DisableAfter + gcpSaKeySpec.KeyRotation.DeleteAfter
 	isNotUsed, err := m.IsAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
 	if err != nil {
@@ -59,7 +59,7 @@ func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeyS
 		logs.Info.Printf("Successfully deleted %s.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
 		return m.removeOldKeyName(k8Secret)
 	}
-	logs.Info.Printf("%s can not be deleted.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
+	logs.Info.Printf("Is not time for %s to be deleted.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
 	return nil
 }
 
