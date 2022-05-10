@@ -44,28 +44,28 @@ func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeyS
 	if err != nil {
 		return err
 	}
-	logs.Info.Printf("Checking if %s should be deleted.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
+	logs.Info.Printf("Checking if %s should be deleted.", saKey.serviceAccountKeyName)
 	totalTime := gcpSaKeySpec.KeyRotation.DisableAfter + gcpSaKeySpec.KeyRotation.DeleteAfter
 	isNotUsed, err := m.IsAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
 	if err != nil {
 		return err
 	}
 	if saKey.disabled && isNotUsed {
-		logs.Info.Printf("%s can be deleted.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
+		logs.Info.Printf("%s can be deleted.", saKey.serviceAccountKeyName)
 		err = m.Delete(keyName)
 		if err != nil {
 			return err
 		}
-		logs.Info.Printf("Successfully deleted %s.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
+		logs.Info.Printf("Successfully deleted %s.", saKey.serviceAccountKeyName)
 		return m.removeOldKeyName(k8Secret)
 	}
-	logs.Info.Printf("Is not time for %s to be deleted.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
+	logs.Info.Printf("Is not time for %s to be deleted.", saKey.serviceAccountKeyName)
 	return nil
 }
 
 // Delete key
 func (m *Yale) Delete(name string) error {
-	logs.Info.Printf("Trying to delete %s.", r.FindString(name))
+	logs.Info.Printf("Trying to delete %s.", name)
 	ctx := context.Background()
 	_, err := m.gcp.Projects.ServiceAccounts.Keys.Delete(name).Context(ctx).Do()
 	return err
