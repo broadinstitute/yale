@@ -179,7 +179,10 @@ func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	}
 	// Create annotations for new key
 	newAnnotations := createAnnotations(*Key)
+	// Record old key's name for tracking
 	newAnnotations["oldServiceAccountKeyName"] = originalAnnotations["serviceAccountKeyName"]
+	// Update valid after date to new key validAfterTime
+	newAnnotations["validAfterDate"] = Key.validAfterTime
 	K8Secret.ObjectMeta.SetAnnotations(newAnnotations)
 
 	saKey, err := base64.StdEncoding.DecodeString(Key.privateKeyData)
