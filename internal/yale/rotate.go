@@ -79,6 +79,7 @@ func (m *Yale) rotateKey(gsk apiv1b1.GCPSaKey) error {
 		return err
 	}
 	if !exists {
+
 		return m.CreateSecret(gsk)
 	} else {
 		return m.UpdateKey(gsk.Spec, gsk.Namespace)
@@ -91,6 +92,7 @@ func (m *Yale) secretExists(secret apiv1b1.Secret, namespace string) (bool, erro
 		return true, nil
 	}
 	if errors.IsNotFound(err) {
+		logs.Info.Printf("%s does not exist", secret.Name)
 		return false, nil
 	}
 	return false, err
@@ -113,7 +115,7 @@ func createAnnotations(key SaKey) map[string]string {
 
 // CreateSecret Creates a secret for a new GSK resource
 func (m *Yale) CreateSecret(gsk apiv1b1.GCPSaKey) error {
-	logs.Info.Printf("Creating secret %s ...", gsk.Spec.Secret.Name)
+	logs.Info.Printf("Attempting to create secret %s ...", gsk.Spec.Secret.Name)
 	saKey, err := m.CreateSAKey(gsk.Spec.GoogleServiceAccount.Project, gsk.Spec.GoogleServiceAccount.Name)
 
 	if err != nil {
@@ -161,6 +163,7 @@ func (m *Yale) CreateSecret(gsk apiv1b1.GCPSaKey) error {
 	if err != nil {
 		return err
 	}
+	logs.Info.Printf("Successfully created secret %s for %s", gsk.Spec.Secret.Name, r.FindString(gsk.Spec.GoogleServiceAccount.Name))
 	return nil
 }
 
@@ -208,7 +211,7 @@ func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 
 // CreateSAKey Creates a new GCP SA key
 func (m *Yale) CreateSAKey(project string, saName string) (*SaKey, error) {
-	logs.Info.Printf("Creating new key for %s", r.FindString(saName))
+	logs.Info.Printf("Starting to create new key for %s", r.FindString(saName))
 	// Expected naming convention for GCP i.am API
 	name := fmt.Sprintf("projects/%s/serviceAccounts/%s", project, saName)
 
@@ -221,6 +224,7 @@ func (m *Yale) CreateSAKey(project string, saName string) (*SaKey, error) {
 	if err != nil {
 		return nil, err
 	}
+	logs.Info.Printf("Created key for %s", r.FindString(saName))
 	return &SaKey{
 		newKey.PrivateKeyData,
 		newKey.Name,
