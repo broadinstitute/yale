@@ -9,6 +9,7 @@ import (
 	"google.golang.org/api/iam/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 	"time"
 )
 
@@ -35,10 +36,22 @@ func (m *Yale) DisableKeys() error {
 	}
 	return nil
 }
-
+func after(value string, a string) string {
+	// Get substring after a string.
+	pos := strings.LastIndex(value, a)
+	if pos == -1 {
+		return ""
+	}
+	adjustedPos := pos + len(a)
+	if adjustedPos >= len(value) {
+		return ""
+	}
+	return value[adjustedPos:]
+}
 func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySpec) error {
 	secretAnnotations := Secret.GetAnnotations()
 	key, err := m.GetSAKey(secretAnnotations["serviceAccountKeyName"], secretAnnotations["oldServiceAccountKeyName"])
+	keyNameForLogs := after(key.serviceAccountKeyName, "serviceAccounts/")
 	if err != nil {
 		return err
 	}
@@ -48,31 +61,32 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 			return err
 		}
 		if canDisableKey {
-			logs.Info.Printf("%s is allowed to be disabled.", key.serviceAccountKeyName)
-			logs.Info.Printf("Trying to disable %s.", key.serviceAccountKeyName)
+			logs.Info.Printf("%s is allowed to be disabled.", keyNameForLogs)
+			logs.Info.Printf("Trying to disable %s.", keyNameForLogs)
 			err = m.Disable(secretAnnotations["oldServiceAccountKeyName"])
 			if err != nil {
 				return err
 			}
 		} else {
-			logs.Info.Printf("%s is not allowed to be disabled.", key.serviceAccountKeyName)
+			logs.Info.Printf("%s is not allowed to be disabled.", keyNameForLogs)
 		}
 
 	}
-	logs.Info.Printf("%s is already disabled.", key.serviceAccountKeyName)
+	logs.Info.Printf("%s is already disabled.", keyNameForLogs)
 	return nil
 }
 
 // CanDisableKey Determines if a key can be disabled
 func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey) (bool, error) {
-	logs.Info.Printf("Checking if %s can be disabled.", r.FindString(GCPSaKeySpec.GoogleServiceAccount.Name))
+	keyNameForLogs := after(key.serviceAccountKeyName, "serviceAccounts/")
+	logs.Info.Printf("Checking if %s can be disabled.", keyNameForLogs)
 	keyIsNotUsed, err := m.IsAuthenticated(GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project)
 	if err != nil {
 		return false, err
 	}
 	isTimeToDisable, err := IsExpired(key.validAfterTime, GCPSaKeySpec.KeyRotation.DisableAfter)
 	if isTimeToDisable {
-		logs.Info.Printf("Time to disable %s.", key.serviceAccountKeyName)
+		logs.Info.Printf("Time to disable %s.", keyNameForLogs)
 	}
 	if err != nil {
 		return false, err
@@ -91,7 +105,8 @@ func (m *Yale) Disable(keyName string) error {
 
 // IsAuthenticated Determines if key has been authenticated in x amount of days
 func (m *Yale) IsAuthenticated(timeSinceAuth int, keyName string, googleProject string) (bool, error) {
-	logs.Info.Printf("Checking if %s is being used.", r.FindString(keyName))
+	keyNameForLogs := after(keyName, "serviceAccounts/")
+	logs.Info.Printf("Checking if %s is being used.", keyNameForLogs)
 	query := fmt.Sprintf("projects/%s/locations/us-central1-a/activityTypes/serviceAccountKeyLastAuthentication", googleProject)
 	queryFilter := fmt.Sprintf("activities.fullResourceName = \"//iam.googleapis.com/%s\"", keyName)
 	ctx := context.Background()
@@ -111,9 +126,9 @@ func (m *Yale) IsAuthenticated(timeSinceAuth int, keyName string, googleProject 
 	}
 	keyIsNotUsed, err := IsExpired(activity.LastAuthenticatedTime, timeSinceAuth)
 	if keyIsNotUsed {
-		logs.Info.Printf("%s is not being used.", keyName)
+		logs.Info.Printf("%s is not being used.", keyNameForLogs)
 	} else {
-		logs.Info.Printf("%s is being used.", keyName)
+		logs.Info.Printf("%s is being used.", keyNameForLogs)
 	}
 	return keyIsNotUsed, err
 }
