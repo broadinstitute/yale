@@ -3,9 +3,9 @@ package yale
 import (
 	"context"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
+	"github.com/broadinstitute/yale/internal/yale/logs"
 	corev1 "k8s.io/api/core/v1"
 )
-
 
 // DeleteKeys Main method for deleting keys.
 func (m *Yale) DeleteKeys() error {
@@ -41,26 +41,32 @@ func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeyS
 	keyName := secretAnnotations["oldServiceAccountKeyName"]
 	saName := secretAnnotations["serviceAccountKeyName"]
 	saKey, err := m.GetSAKey(saName, keyName)
+	keyNameForLogs := after(saKey.serviceAccountKeyName, "serviceAccounts/")
 	if err != nil {
 		return err
 	}
+	logs.Info.Printf("Checking if %s should be deleted.", keyNameForLogs)
 	totalTime := gcpSaKeySpec.KeyRotation.DisableAfter + gcpSaKeySpec.KeyRotation.DeleteAfter
-	isInUse, err := m.IsAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
+	isNotUsed, err := m.IsNotAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
 	if err != nil {
 		return err
 	}
-	if saKey.disabled && !isInUse {
+	if saKey.disabled && isNotUsed {
+		logs.Info.Printf("%s can be deleted.", keyNameForLogs)
 		err = m.Delete(keyName)
 		if err != nil {
 			return err
 		}
+		logs.Info.Printf("Successfully deleted %s.", keyNameForLogs)
 		return m.removeOldKeyName(k8Secret)
 	}
+	logs.Info.Printf("Is not time for %s to be deleted.", keyNameForLogs)
 	return nil
 }
 
 // Delete key
 func (m *Yale) Delete(name string) error {
+	logs.Info.Printf("Trying to delete %s.", after(name, "serviceAccounts/"))
 	ctx := context.Background()
 	_, err := m.gcp.Projects.ServiceAccounts.Keys.Delete(name).Context(ctx).Do()
 	return err

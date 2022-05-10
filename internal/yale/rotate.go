@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"regexp"
 )
 
 // KEY_ALGORITHM what key algorithm to use when creating new Google SA keys
@@ -22,6 +23,10 @@ const KEY_ALGORITHM string = "KEY_ALG_RSA_2048"
 
 // KEY_FORMAT format to use when creating new Google SA keys
 const KEY_FORMAT string = "TYPE_GOOGLE_CREDENTIALS_FILE"
+
+// Returns service account name
+// Ex: agora-perf-service-account@broad-dsde-perf.iam.gserviceaccount.com returns agora-perf-service-account
+var r, _ = regexp.Compile("^[^@]*")
 
 type Yale struct { // Yale config
 	gcp   *iam.Service                   // GCP IAM API client
@@ -74,6 +79,7 @@ func (m *Yale) rotateKey(gsk apiv1b1.GCPSaKey) error {
 		return err
 	}
 	if !exists {
+
 		return m.CreateSecret(gsk)
 	} else {
 		return m.UpdateKey(gsk.Spec, gsk.Namespace)
@@ -86,6 +92,7 @@ func (m *Yale) secretExists(secret apiv1b1.Secret, namespace string) (bool, erro
 		return true, nil
 	}
 	if errors.IsNotFound(err) {
+		logs.Info.Printf("%s does not exist", secret.Name)
 		return false, nil
 	}
 	return false, err
@@ -108,7 +115,7 @@ func createAnnotations(key SaKey) map[string]string {
 
 // CreateSecret Creates a secret for a new GSK resource
 func (m *Yale) CreateSecret(gsk apiv1b1.GCPSaKey) error {
-	logs.Info.Printf("Creating secret %s ...", gsk.Spec.Secret.Name)
+	logs.Info.Printf("Attempting to create secret %s ...", gsk.Spec.Secret.Name)
 	saKey, err := m.CreateSAKey(gsk.Spec.GoogleServiceAccount.Project, gsk.Spec.GoogleServiceAccount.Name)
 
 	if err != nil {
@@ -116,11 +123,13 @@ func (m *Yale) CreateSecret(gsk apiv1b1.GCPSaKey) error {
 	}
 	jsonKey, err := base64.StdEncoding.DecodeString(saKey.privateKeyData)
 	if err != nil {
+		logs.Error.Printf("Cannot decode %s: %v ", r.FindString(gsk.Spec.GoogleServiceAccount.Name), err)
 		return err
 	}
 	saData := saKeyData{}
 	err = json.Unmarshal(jsonKey, &saData)
 	if err != nil {
+		logs.Error.Printf("Cannot unmarshal %s: %v ", r.FindString(gsk.Spec.GoogleServiceAccount.Name), err)
 		return err
 	}
 
@@ -154,6 +163,7 @@ func (m *Yale) CreateSecret(gsk apiv1b1.GCPSaKey) error {
 	if err != nil {
 		return err
 	}
+	logs.Info.Printf("Successfully created secret %s for %s", gsk.Spec.Secret.Name, r.FindString(gsk.Spec.GoogleServiceAccount.Name))
 	return nil
 }
 
@@ -165,14 +175,15 @@ func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	}
 	// Annotations are not queryable
 	originalAnnotations := K8Secret.GetAnnotations()
-	keyIsExpired, err := IsExpired(originalAnnotations["validAfterDate"], gskSpec.KeyRotation.RotateAfter, originalAnnotations["serviceAccountKeyName"])
+	keyIsExpired, err := IsExpired(originalAnnotations["validAfterDate"], gskSpec.KeyRotation.RotateAfter)
 	if err != nil {
 		return err
 	}
 	if !keyIsExpired {
+		logs.Info.Printf("It is not time to rotate %v. ", r.FindString(gskSpec.GoogleServiceAccount.Name))
 		return nil
 	}
-
+	logs.Info.Printf("Time to rotate %v ", r.FindString(gskSpec.GoogleServiceAccount.Name))
 	Key, err := m.CreateSAKey(gskSpec.GoogleServiceAccount.Project, gskSpec.GoogleServiceAccount.Name)
 	if err != nil {
 		return err
@@ -184,11 +195,13 @@ func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 
 	saKey, err := base64.StdEncoding.DecodeString(Key.privateKeyData)
 	if err != nil {
+		logs.Error.Printf("Cannot decode %s: %v ", r.FindString(gskSpec.GoogleServiceAccount.Name), err)
 		return err
 	}
 	saData := saKeyData{}
 	err = json.Unmarshal(saKey, &saData)
 	if err != nil {
+		logs.Error.Printf("Cannot unmarshal %s: %v ", r.FindString(gskSpec.GoogleServiceAccount.Name), err)
 		return err
 	}
 	K8Secret.Data[gskSpec.Secret.JsonKeyName] = saKey
@@ -198,7 +211,7 @@ func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 
 // CreateSAKey Creates a new GCP SA key
 func (m *Yale) CreateSAKey(project string, saName string) (*SaKey, error) {
-	logs.Info.Printf("Creating new SA key for %s", saName)
+	logs.Info.Printf("Starting to create new key for %s", r.FindString(saName))
 	// Expected naming convention for GCP i.am API
 	name := fmt.Sprintf("projects/%s/serviceAccounts/%s", project, saName)
 
@@ -209,9 +222,9 @@ func (m *Yale) CreateSAKey(project string, saName string) (*SaKey, error) {
 	}
 	newKey, err := m.gcp.Projects.ServiceAccounts.Keys.Create(name, rb).Context(ctx).Do()
 	if err != nil {
-		logs.Warn.Printf(" %v\n", err)
 		return nil, err
 	}
+	logs.Info.Printf("Created key for %s", r.FindString(saName))
 	return &SaKey{
 		newKey.PrivateKeyData,
 		newKey.Name,
@@ -230,8 +243,9 @@ func (m *Yale) GetSecret(secret apiv1b1.Secret, namespace string) (*corev1.Secre
 func (m *Yale) UpdateSecret(k8Secret *corev1.Secret) error {
 	_, err := m.k8s.CoreV1().Secrets(k8Secret.Namespace).Update(context.TODO(), k8Secret, metav1.UpdateOptions{})
 	if err != nil {
+		logs.Error.Printf("Error updating secret %s: %v\n", k8Secret.Name, err)
 		return err
 	}
-	logs.Info.Printf("%s secret has been updated:", k8Secret.Name)
+	logs.Info.Printf("%s secret has been updated", k8Secret.Name)
 	return nil
 }

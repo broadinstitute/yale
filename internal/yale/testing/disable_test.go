@@ -15,7 +15,6 @@ import (
 	"testing"
 )
 
-
 var secret = corev1.Secret{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "my-fake-secret",
@@ -48,7 +47,6 @@ func TestDisableKeys(t *testing.T) {
 			setupK8s: func(setup k8s.Setup) {
 				CRD.Spec.KeyRotation =
 					v1beta1.KeyRotation{
-
 						DisableAfter: 14,
 					}
 				// Add a yale CRD to the fake cluster!
@@ -163,7 +161,7 @@ func TestDisableKeys(t *testing.T) {
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {},
 			setupIam: func(expect gcp.ExpectIam) {
-				expect.GetServiceAccountKey( OLD_KEY_NAME, false).
+				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
 						Disabled:       true,
 						Name:           OLD_KEY_NAME,

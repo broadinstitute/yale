@@ -9,6 +9,7 @@ import (
 	"google.golang.org/api/iam/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 	"time"
 )
 
@@ -35,10 +36,22 @@ func (m *Yale) DisableKeys() error {
 	}
 	return nil
 }
-
+func after(value string, a string) string {
+	// Get substring after a string.
+	pos := strings.LastIndex(value, a)
+	if pos == -1 {
+		return ""
+	}
+	adjustedPos := pos + len(a)
+	if adjustedPos >= len(value) {
+		return ""
+	}
+	return value[adjustedPos:]
+}
 func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySpec) error {
 	secretAnnotations := Secret.GetAnnotations()
 	key, err := m.GetSAKey(secretAnnotations["serviceAccountKeyName"], secretAnnotations["oldServiceAccountKeyName"])
+	keyNameForLogs := after(key.serviceAccountKeyName, "serviceAccounts/")
 	if err != nil {
 		return err
 	}
@@ -48,38 +61,52 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 			return err
 		}
 		if canDisableKey {
+			logs.Info.Printf("%s is allowed to be disabled.", keyNameForLogs)
+			logs.Info.Printf("Trying to disable %s.", keyNameForLogs)
 			err = m.Disable(secretAnnotations["oldServiceAccountKeyName"])
 			if err != nil {
 				return err
 			}
+		} else {
+			logs.Info.Printf("%s is not allowed to be disabled.", keyNameForLogs)
+			return nil
 		}
 	}
+	logs.Info.Printf("%s is already disabled.", keyNameForLogs)
 	return nil
 }
 
 // CanDisableKey Determines if a key can be disabled
 func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey) (bool, error) {
-	keyIsInUse, err := m.IsAuthenticated(GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project)
+	keyNameForLogs := after(key.serviceAccountKeyName, "serviceAccounts/")
+	logs.Info.Printf("Checking if %s can be disabled.", keyNameForLogs)
+	keyIsNotUsed, err := m.IsNotAuthenticated(GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project)
 	if err != nil {
 		return false, err
 	}
-	isTimeToDisable, err := IsExpired(key.validAfterTime, GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName)
+	isTimeToDisable, err := IsExpired(key.validAfterTime, GCPSaKeySpec.KeyRotation.DisableAfter)
+	if isTimeToDisable {
+		logs.Info.Printf("Time to disable %s.", keyNameForLogs)
+	}
 	if err != nil {
 		return false, err
 	}
-	return !keyIsInUse && isTimeToDisable, err
+	return keyIsNotUsed && isTimeToDisable, err
 }
 
 // Disable key
 func (m *Yale) Disable(keyName string) error {
+	logs.Info.Printf("Disabling %s.", r.FindString(keyName))
 	request := &iam.DisableServiceAccountKeyRequest{}
 	ctx := context.Background()
 	_, err := m.gcp.Projects.ServiceAccounts.Keys.Disable(keyName, request).Context(ctx).Do()
 	return err
 }
 
-// IsAuthenticated Determines if key has been authenticated in x amount of days
-func (m *Yale) IsAuthenticated(timeSinceAuth int, keyName string, googleProject string) (bool, error) {
+// IsNotAuthenticated Determines if key has been authenticated in x amount of days
+func (m *Yale) IsNotAuthenticated(timeSinceAuth int, keyName string, googleProject string) (bool, error) {
+	keyNameForLogs := after(keyName, "serviceAccounts/")
+	logs.Info.Printf("Checking if %s is being used.", keyNameForLogs)
 	query := fmt.Sprintf("projects/%s/locations/us-central1-a/activityTypes/serviceAccountKeyLastAuthentication", googleProject)
 	queryFilter := fmt.Sprintf("activities.fullResourceName = \"//iam.googleapis.com/%s\"", keyName)
 	ctx := context.Background()
@@ -97,23 +124,26 @@ func (m *Yale) IsAuthenticated(timeSinceAuth int, keyName string, googleProject 
 	if err != nil {
 		return false, err
 	}
-	isTimeToDisable, err := IsExpired(activity.LastAuthenticatedTime, timeSinceAuth, keyName)
-	return !isTimeToDisable, err
+	keyIsNotUsed, err := IsExpired(activity.LastAuthenticatedTime, timeSinceAuth)
+	if keyIsNotUsed {
+		logs.Info.Printf("%s is not being used.", keyNameForLogs)
+	} else {
+		logs.Info.Printf("%s is being used.", keyNameForLogs)
+	}
+	return keyIsNotUsed, err
 }
 
 // IsExpired Determines if it's time to disable a key
-func IsExpired(beginDate string, duration int, keyName string) (bool, error) {
-	dateAuthorized, err := time.Parse(time.RFC3339, beginDate)
+func IsExpired(beginDate string, duration int) (bool, error) {
+	formattedBeginDate, err := time.Parse(time.RFC3339, beginDate)
 	if err != nil {
 		return false, err
 	}
-	// Date sa key expected to be expire
-	expireDate := dateAuthorized.AddDate(0, 0, duration)
+	// Date sa key expected to expire
+	expireDate := formattedBeginDate.AddDate(0, 0, duration)
 	if time.Now().After(expireDate) {
-		logs.Info.Printf("%v has not expired", keyName)
 		return true, nil
 	}
-	logs.Info.Printf("%v has expired", keyName)
 	return false, nil
 }
 
