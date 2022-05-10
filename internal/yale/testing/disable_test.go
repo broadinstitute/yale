@@ -182,7 +182,7 @@ func TestDisableKeys(t *testing.T) {
 				// once the test completes
 				expect.HasSecret(secret)
 			},
-			expectError: false,
+			expectError: true,
 		},
 		{
 			name: "Yale should gracefully throw error with bad policy analyzer API request",
