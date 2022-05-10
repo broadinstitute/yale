@@ -3,6 +3,7 @@ package yale
 import (
 	"context"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
+	"github.com/broadinstitute/yale/internal/yale/logs"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -44,23 +45,28 @@ func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeyS
 	if err != nil {
 		return err
 	}
+	logs.Info.Printf("Checking if %s can be deleted.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
 	totalTime := gcpSaKeySpec.KeyRotation.DisableAfter + gcpSaKeySpec.KeyRotation.DeleteAfter
-	isInUse, err := m.IsAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
+	isNotUsed, err := m.IsAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
 	if err != nil {
 		return err
 	}
-	if saKey.disabled && !isInUse {
+	if saKey.disabled && isNotUsed {
+		logs.Info.Printf("%s can be deleted.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
 		err = m.Delete(keyName)
 		if err != nil {
 			return err
 		}
+		logs.Info.Printf("Successfully deleted %s.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
 		return m.removeOldKeyName(k8Secret)
 	}
+	logs.Info.Printf("%s can not be deleted.", r.FindString(gcpSaKeySpec.GoogleServiceAccount.Name))
 	return nil
 }
 
 // Delete key
 func (m *Yale) Delete(name string) error {
+	logs.Info.Printf("Trying to delete %s.", r.FindString(name))
 	ctx := context.Background()
 	_, err := m.gcp.Projects.ServiceAccounts.Keys.Delete(name).Context(ctx).Do()
 	return err
@@ -69,6 +75,7 @@ func (m *Yale) Delete(name string) error {
 // GetSAKey Returns an SA key
 func (m *Yale) GetSAKey(saName string, keyName string) (*SaKey, error) {
 	ctx := context.Background()
+	//my-sa@blah.com/e0b1b971487ffff7f725b124d:
 	saKey, err := m.gcp.Projects.ServiceAccounts.Keys.Get(keyName).Context(ctx).Do()
 	if err != nil {
 		return nil, err
