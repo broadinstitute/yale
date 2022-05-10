@@ -246,6 +246,6 @@ func (m *Yale) UpdateSecret(k8Secret *corev1.Secret) error {
 		logs.Error.Printf("Error updating secret %s: %v\n", k8Secret.Name, err)
 		return err
 	}
-	logs.Error.Printf("%s secret has been updated:", k8Secret.Name)
+	logs.Info.Printf("%s secret has been updated", k8Secret.Name)
 	return nil
 }
