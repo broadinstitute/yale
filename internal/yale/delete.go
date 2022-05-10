@@ -7,7 +7,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-
 // DeleteKeys Main method for deleting keys.
 func (m *Yale) DeleteKeys() error {
 	// Get all GCPSaKey resources
@@ -75,7 +74,6 @@ func (m *Yale) Delete(name string) error {
 // GetSAKey Returns an SA key
 func (m *Yale) GetSAKey(saName string, keyName string) (*SaKey, error) {
 	ctx := context.Background()
-	//my-sa@blah.com/e0b1b971487ffff7f725b124d:
 	saKey, err := m.gcp.Projects.ServiceAccounts.Keys.Get(keyName).Context(ctx).Do()
 	if err != nil {
 		return nil, err

@@ -70,7 +70,7 @@ func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey) (boo
 		return false, err
 	}
 	isTimeToDisable, err := IsExpired(key.validAfterTime, GCPSaKeySpec.KeyRotation.DisableAfter)
-	if isTimeToDisable{
+	if isTimeToDisable {
 		logs.Info.Printf("Time to disable %s.", r.FindString(GCPSaKeySpec.GoogleServiceAccount.Name))
 	}
 	if err != nil {
@@ -112,7 +112,7 @@ func (m *Yale) IsAuthenticated(timeSinceAuth int, keyName string, googleProject 
 	keyIsNotUsed, err := IsExpired(activity.LastAuthenticatedTime, timeSinceAuth)
 	if keyIsNotUsed {
 		logs.Info.Printf("%s is not being used.", saName)
-	}else {
+	} else {
 		logs.Info.Printf("%s is being used.", saName)
 	}
 	return keyIsNotUsed, err

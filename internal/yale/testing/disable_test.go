@@ -15,7 +15,6 @@ import (
 	"testing"
 )
 
-
 var secret = corev1.Secret{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "my-fake-secret",
@@ -32,6 +31,7 @@ var secret = corev1.Secret{
 		"agora.json": []byte(NEW_JSON_KEY),
 	},
 }
+
 func TestDisableKeys(t *testing.T) {
 
 	testCases := []struct {
@@ -161,7 +161,7 @@ func TestDisableKeys(t *testing.T) {
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {},
 			setupIam: func(expect gcp.ExpectIam) {
-				expect.GetServiceAccountKey( OLD_KEY_NAME, false).
+				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
 					Returns(iam.ServiceAccountKey{
 						Disabled:       true,
 						Name:           OLD_KEY_NAME,
