@@ -114,14 +114,16 @@ func (m *Yale) IsNotAuthenticated(timeSinceAuth int, keyName string, googleProje
 	if err != nil {
 		return false, err
 	}
-	// There are no activities to report or key has not been authenticated against in the past 2 days
+	// There are no activities to report
 	if activityResp.Activities == nil {
+		logs.Error.Printf("%s has no activities to report and there is no way to see when key was last authorized.", keyNameForLogs)
 		return false, nil
 	}
 	activity := &Activity{}
 	results := activityResp.Activities[0]
 	err = json.Unmarshal(results.Activity, activity)
-	if err != nil {
+	// key has not been authenticated against in the past 2 days
+	if err != nil || len(activity.LastAuthenticatedTime) == 0 {
 		return false, err
 	}
 	keyIsNotUsed, err := IsExpired(activity.LastAuthenticatedTime, timeSinceAuth)
