@@ -151,7 +151,7 @@ func TestDisableKeys(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "Should not disable key if there is no activity response",
+			name: "Should throw error if there is no activity response",
 			setupK8s: func(setup k8s.Setup) {
 				CRD.Spec.KeyRotation =
 					v1beta1.KeyRotation{
