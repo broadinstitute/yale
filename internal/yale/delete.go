@@ -47,7 +47,7 @@ func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeyS
 	}
 	logs.Info.Printf("Checking if %s should be deleted.", keyNameForLogs)
 	totalTime := gcpSaKeySpec.KeyRotation.DisableAfter + gcpSaKeySpec.KeyRotation.DeleteAfter
-	isNotUsed, err := m.IsAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
+	isNotUsed, err := m.IsNotAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
 	if err != nil {
 		return err
 	}

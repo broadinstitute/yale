@@ -80,7 +80,7 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey) (bool, error) {
 	keyNameForLogs := after(key.serviceAccountKeyName, "serviceAccounts/")
 	logs.Info.Printf("Checking if %s can be disabled.", keyNameForLogs)
-	keyIsNotUsed, err := m.IsAuthenticated(GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project)
+	keyIsNotUsed, err := m.IsNotAuthenticated(GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project)
 	if err != nil {
 		return false, err
 	}
@@ -103,8 +103,8 @@ func (m *Yale) Disable(keyName string) error {
 	return err
 }
 
-// IsAuthenticated Determines if key has been authenticated in x amount of days
-func (m *Yale) IsAuthenticated(timeSinceAuth int, keyName string, googleProject string) (bool, error) {
+// IsNotAuthenticated Determines if key has been authenticated in x amount of days
+func (m *Yale) IsNotAuthenticated(timeSinceAuth int, keyName string, googleProject string) (bool, error) {
 	keyNameForLogs := after(keyName, "serviceAccounts/")
 	logs.Info.Printf("Checking if %s is being used.", keyNameForLogs)
 	query := fmt.Sprintf("projects/%s/locations/us-central1-a/activityTypes/serviceAccountKeyLastAuthentication", googleProject)
@@ -135,12 +135,12 @@ func (m *Yale) IsAuthenticated(timeSinceAuth int, keyName string, googleProject 
 
 // IsExpired Determines if it's time to disable a key
 func IsExpired(beginDate string, duration int) (bool, error) {
-	formatedBeginDate, err := time.Parse(time.RFC3339, beginDate)
+	formattedBeginDate, err := time.Parse(time.RFC3339, beginDate)
 	if err != nil {
 		return false, err
 	}
 	// Date sa key expected to expire
-	expireDate := formatedBeginDate.AddDate(0, 0, duration)
+	expireDate := formattedBeginDate.AddDate(0, 0, duration)
 	if time.Now().After(expireDate) {
 		return true, nil
 	}
