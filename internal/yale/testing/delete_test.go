@@ -40,7 +40,7 @@ func TestDeleteKeys(t *testing.T) {
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 				expect.CreateQuery("my-fake-project", false).
-					Returns(activityResponse)
+					Returns(hasAuthenticatedActivityResponse)
 			},
 			setupIam: func(expect gcp.ExpectIam) {
 				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
@@ -85,7 +85,7 @@ func TestDeleteKeys(t *testing.T) {
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 				expect.CreateQuery("my-fake-project", false).
-					Returns(activityResponse)
+					Returns(hasAuthenticatedActivityResponse)
 			},
 			setupIam: func(expect gcp.ExpectIam) {
 				saKey.Disabled = true
@@ -114,7 +114,7 @@ func TestDeleteKeys(t *testing.T) {
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 				expect.CreateQuery("my-fake-project", false).
-					Returns(activityResponse)
+					Returns(hasAuthenticatedActivityResponse)
 			},
 			setupIam: func(expect gcp.ExpectIam) {
 				saKey.Disabled = true

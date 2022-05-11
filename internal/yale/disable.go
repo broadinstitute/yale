@@ -114,14 +114,20 @@ func (m *Yale) IsNotAuthenticated(timeSinceAuth int, keyName string, googleProje
 	if err != nil {
 		return false, err
 	}
-	// There are no activities to report or key has not been authenticated against in the past 2 days
+	// There are no activities to report
 	if activityResp.Activities == nil {
-		return false, nil
+		logs.Error.Printf("%s has no activities to report and there is no way to see when key was last authorized.", keyNameForLogs)
+		return false, fmt.Errorf("There are no activities to report. \n"+
+			"Make sure policy analyzer enabled and %s exists.", keyNameForLogs)
 	}
 	activity := &Activity{}
 	results := activityResp.Activities[0]
 	err = json.Unmarshal(results.Activity, activity)
-	if err != nil {
+	// Policy analyzer has a lag of ~2 days. When key has rotated recently, policy
+	// analyzer will report an empty string because there are no authentication activity in the past 2 days
+	if err != nil || len(activity.LastAuthenticatedTime) == 0 {
+		logs.Info.Printf("%s has no authentication time to report.\n"+
+			" Key likely rotated recently and is considered to be actively used.", keyNameForLogs)
 		return false, err
 	}
 	keyIsNotUsed, err := IsExpired(activity.LastAuthenticatedTime, timeSinceAuth)
