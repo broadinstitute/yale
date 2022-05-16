@@ -61,8 +61,9 @@ func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeyS
 			logs.Info.Printf("Successfully deleted %s.", keyNameForLogs)
 			return m.removeOldKeyName(k8Secret)
 		}
+	}else{
+	logs.Info.Printf("%s is not disabled yet and can not be deleted.", keyNameForLogs)
 	}
-	logs.Info.Printf("%s is not disabled and can not be deleted.", keyNameForLogs)
 	return nil
 }
 

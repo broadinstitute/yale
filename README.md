@@ -37,18 +37,35 @@ spec:
       name: example@broad-dsde-dev.iam.gserviceaccount.com
       project: broad-dsde-dev
 ```
-or if using default values:
+or using the [yale library](https://github.com/broadinstitute/terra-helmfile/tree/master/charts/yalelib) with customized values:
 ```
-apiVersion: yale.broadinstitute.org/v1beta1
-kind: GcpSaKey
-metadata:
-  name: example-gcpsakey
+{{- include "libchart.gcpsakey" (list . "example.gcpsakey" ) -}}
+
+{{- define "example.gcpsakey" -}}
 spec:
+  keyRotation:
+    rotateAfter: 20
+    deleteAfter: 5
+    disableAfter: 5
+  googleServiceAccount:
+    name: {{ .Values.example.googleServiceAccount.name }}
   secret:
-      name: example-sa-secret
-    googleServiceAccount:
-      name: example@broad-dsde-dev.iam.gserviceaccount.com
-      project: broad-dsde-dev
+    name: {{ .Chart.Name }}-sa-secret
+    pemKeyName: examplee-account.pem
+    jsonKeyName: sqlproxy-service-account.json
+{{- end }}
+```
+or using default values
+```
+{{- include "libchart.gcpsakey" (list . "example.gcpsakey" ) -}}
+
+{{- define "example.gcpsakey" -}}
+spec:
+   googleServiceAccount:
+      name: {{ .Values.example.googleServiceAccount.name }}
+   secret:
+      name: {{ .Chart.Name }}-sa-secret
+{{- end }}
 ```
 
 Where:
@@ -59,11 +76,13 @@ Where:
 | spec.secret.name | string | yes|  | Name of Secret that houses SA. **Name must end in "sa-secret"** |
 |spec.secret.pemKeyName | string |  no | service-account.pem | Name of Secret data field that stores pem private key|
 | spec.secret.jsonKeyName | string | no | service-account.json | Name of Secret data field that stores private key |
-| spec.keyRotation.rotateAfter | int | no 65 | Amount of days before key is rotated |
+| spec.keyRotation.rotateAfter | int | no | 65 | Amount of days before key is rotated |
 | spec.keyRotation.deleteAfter | int | no | 15 | Amount of days key is disabled before deleting |
 | spec.keyRotation.disableAfter | int | no | 10 | Amount of days since key was last authenticated against before disabling |
 | spec.googleServiceAccount.name | string | yes |  | Email of the GCP SA |
 | spec.googleServiceAccount.project | string | yes |  | Google project ID SA is associated with|
+
+When using the Yale library make sure to add the library as a dependency in the [Chart.yaml](https://github.com/broadinstitute/terra-helmfile/blob/4db9e59714ed74ec9c61e66f6af610c92f04f073/charts/agora/Chart.yaml#L26) file and here's an example [value.yaml](https://github.com/broadinstitute/terra-helmfile/blob/e8068635cb164a9df5aa2820451144aa2fcee044/charts/agora/values.yaml#L114) file. Read more about helm libraries [here](https://helm.sh/docs/topics/library_charts/).
 
 That's all! Yale takes care of the rest!
 
