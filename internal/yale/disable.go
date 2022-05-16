@@ -71,8 +71,9 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 			logs.Info.Printf("%s is not allowed to be disabled.", keyNameForLogs)
 			return nil
 		}
+	}else {
+		logs.Info.Printf("%s is already disabled.", keyNameForLogs)
 	}
-	logs.Info.Printf("%s is already disabled.", keyNameForLogs)
 	return nil
 }
 
