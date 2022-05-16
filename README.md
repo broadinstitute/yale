@@ -51,7 +51,7 @@ spec:
     name: {{ .Values.example.googleServiceAccount.name }}
   secret:
     name: {{ .Chart.Name }}-sa-secret
-    pemKeyName: examplee-account.pem
+    pemKeyName: example-account.pem
     jsonKeyName: sqlproxy-service-account.json
 {{- end }}
 ```
@@ -82,7 +82,7 @@ Where:
 | spec.googleServiceAccount.name | string | yes |  | Email of the GCP SA |
 | spec.googleServiceAccount.project | string | yes |  | Google project ID SA is associated with|
 
-When using the Yale library make sure to add the library as a dependency in the [Chart.yaml](https://github.com/broadinstitute/terra-helmfile/blob/4db9e59714ed74ec9c61e66f6af610c92f04f073/charts/agora/Chart.yaml#L26) file and here's an example [value.yaml](https://github.com/broadinstitute/terra-helmfile/blob/e8068635cb164a9df5aa2820451144aa2fcee044/charts/agora/values.yaml#L114) file. Read more about helm libraries [here](https://helm.sh/docs/topics/library_charts/).
+The default values are not required if using the Yale library, otherwise they must be included in the chart. When using the Yale library make sure to add the library as a dependency in the [Chart.yaml](https://github.com/broadinstitute/terra-helmfile/blob/4db9e59714ed74ec9c61e66f6af610c92f04f073/charts/agora/Chart.yaml#L26) file and here's an example [value.yaml](https://github.com/broadinstitute/terra-helmfile/blob/e8068635cb164a9df5aa2820451144aa2fcee044/charts/agora/values.yaml#L114) file. Read more about helm libraries [here](https://helm.sh/docs/topics/library_charts/).
 
 That's all! Yale takes care of the rest!
 
