@@ -5,17 +5,19 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"regexp"
+
 	"github.com/broadinstitute/yale/internal/yale/client"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	v1beta1client "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/logs"
+	vaultapi "github.com/hashicorp/vault/api"
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/api/policyanalyzer/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"regexp"
 )
 
 // KEY_ALGORITHM what key algorithm to use when creating new Google SA keys
@@ -33,9 +35,11 @@ type Yale struct { // Yale config
 	gcpPA *policyanalyzer.Service        // GCP Policy API client
 	k8s   kubernetes.Interface           // K8s API client
 	crd   v1beta1client.YaleCRDInterface // K8s CRD API client
+	vault *vaultapi.Client               // Vault API client
 }
 
 type saKeyData struct {
+	// b64Encoded
 	PrivateKey string `json:"private_key"`
 }
 
@@ -53,8 +57,9 @@ func NewYale(clients *client.Clients) (*Yale, error) {
 	gcp := clients.GetGCP()
 	crd := clients.GetCRDs()
 	gcpPA := clients.GetGCPPA()
+	vault := clients.GetVault()
 
-	return &Yale{gcp, gcpPA, k8s, crd}, nil
+	return &Yale{gcp, gcpPA, k8s, crd, vault}, nil
 }
 
 func (m *Yale) RotateKeys() error {
@@ -121,6 +126,7 @@ func (m *Yale) CreateSecret(gsk apiv1b1.GCPSaKey) error {
 	if err != nil {
 		return err
 	}
+
 	jsonKey, err := base64.StdEncoding.DecodeString(saKey.privateKeyData)
 	if err != nil {
 		logs.Error.Printf("Cannot decode %s: %v ", r.FindString(gsk.Spec.GoogleServiceAccount.Name), err)
@@ -163,7 +169,33 @@ func (m *Yale) CreateSecret(gsk apiv1b1.GCPSaKey) error {
 	if err != nil {
 		return err
 	}
+	if gsk.Spec.Vault != nil {
+		vaultKey := VaultKey{
+			ClientEmail: gsk.Spec.GoogleServiceAccount.Name,
+			Base64:      []byte(saData.PrivateKey),
+			Plain:       jsonKey,
+		}
+		err = m.addToVault(vaultKey, gsk.Spec.Vault)
+		if err != nil {
+			return err
+		}
+	}
+
 	logs.Info.Printf("Successfully created secret %s for %s", gsk.Spec.Secret.Name, r.FindString(gsk.Spec.GoogleServiceAccount.Name))
+	return nil
+}
+
+func (m *Yale) addToVault(vk VaultKey, vc []apiv1b1.VaultConfig) error {
+
+	for _, v := range vc {
+		payload, err := convertNewKeyToVaultSecretPayload(vk, v)
+		if err != nil {
+			return err
+		}
+		if err := m.WriteJSONKeyToVault(v.Path, payload); err != nil {
+			return fmt.Errorf("error writing new key for %s to Vault at %s: %v", vk.ClientEmail, v.Path, err)
+		}
+	}
 	return nil
 }
 
@@ -206,6 +238,17 @@ func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	if err != nil {
 		logs.Error.Printf("Cannot unmarshal %s: %v ", r.FindString(gskSpec.GoogleServiceAccount.Name), err)
 		return err
+	}
+	if gskSpec.Vault != nil {
+		vaultKey := VaultKey{
+			ClientEmail: gskSpec.GoogleServiceAccount.Name,
+			Base64:      []byte(saData.PrivateKey),
+			Plain:       saKey,
+		}
+		err = m.addToVault(vaultKey, gskSpec.Vault)
+		if err != nil {
+			return err
+		}
 	}
 	K8Secret.Data[gskSpec.Secret.JsonKeyName] = saKey
 	K8Secret.Data[gskSpec.Secret.PemKeyName] = []byte(saData.PrivateKey)
@@ -252,3 +295,4 @@ func (m *Yale) UpdateSecret(k8Secret *corev1.Secret) error {
 	logs.Info.Printf("%s secret has been updated", k8Secret.Name)
 	return nil
 }
+

@@ -9,6 +9,7 @@ type GCPSaKeySpec struct {
 	GoogleServiceAccount GoogleServiceAccount `json:"googleServiceAccount"`
 	Secret               Secret               `json:"secret"`
 	KeyRotation          KeyRotation          `json:"keyRotation"`
+	Vault                []VaultConfig        `json:"vault"`
 }
 
 type GoogleServiceAccount struct {
@@ -20,6 +21,12 @@ type Secret struct {
 	Name        string `json:"name"`
 	PemKeyName  string `json:"pemKeyName"`
 	JsonKeyName string `json:"jsonKeyName"`
+}
+
+type VaultConfig struct {
+	Path   string `json:"path"`
+	Format string `json:"format"`
+	Key    string `json:"key"`
 }
 
 type KeyRotation struct {
