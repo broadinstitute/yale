@@ -83,6 +83,45 @@ func TestDisableKeys(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name: "Should retry on 420 error",
+			setupK8s: func(setup k8s.Setup) {
+				CRD.Spec.KeyRotation =
+					v1beta1.KeyRotation{
+						DisableAfter: 14,
+					}
+				// Add a yale CRD to the fake cluster!
+				// If we wanted, we could add some secrets here too with setup.AddSecret()
+				setup.AddYaleCRD(CRD)
+				setup.AddSecret(secret)
+			},
+			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
+				expect.CreateQuery("my-fake-project", false).
+					Returns(hasServerError)
+			},
+			setupIam: func(expect gcp.ExpectIam) {
+				// set up a mock for a GCP api call to disable a service account
+				expect.DisableServiceAccountKey(OLD_KEY_NAME).
+					With(iam.DisableServiceAccountKeyRequest{}).
+					Returns()
+
+				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
+					Returns(iam.ServiceAccountKey{
+						Disabled:       false,
+						Name:           OLD_KEY_NAME,
+						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
+						ValidAfterTime: "2014-04-08T14:21:44Z",
+						ServerResponse: googleapi.ServerResponse{},
+					})
+
+			},
+			verifyK8s: func(expect k8s.Expect) {
+				// set an expectation that a secret matching this one will exist in the cluster
+				// once the test completes
+				expect.HasSecret(secret)
+			},
+			expectError: false,
+		},
+		{
 			name: "Should not disable key before time to disable",
 			setupK8s: func(setup k8s.Setup) {
 				CRD.Spec.KeyRotation =

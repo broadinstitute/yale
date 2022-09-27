@@ -71,7 +71,7 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 			logs.Info.Printf("%s is not allowed to be disabled.", keyNameForLogs)
 			return nil
 		}
-	}else {
+	} else {
 		logs.Info.Printf("%s is already disabled.", keyNameForLogs)
 	}
 	return nil
@@ -81,14 +81,14 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey) (bool, error) {
 	keyNameForLogs := after(key.serviceAccountKeyName, "serviceAccounts/")
 	logs.Info.Printf("Checking if %s can be disabled.", keyNameForLogs)
-	keyIsNotUsed, err := m.IsNotAuthenticated(GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project)
-	if err != nil {
-		return false, err
-	}
 	isTimeToDisable, err := IsExpired(key.validAfterTime, GCPSaKeySpec.KeyRotation.DisableAfter)
 	if isTimeToDisable {
 		logs.Info.Printf("Time to disable %s.", keyNameForLogs)
 	}
+	if err != nil {
+		return false, err
+	}
+	keyIsNotUsed, err := m.IsNotAuthenticated(GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project)
 	if err != nil {
 		return false, err
 	}
@@ -114,6 +114,18 @@ func (m *Yale) IsNotAuthenticated(timeSinceAuth int, keyName string, googleProje
 	activityResp, err := m.gcpPA.Projects.Locations.ActivityTypes.Activities.Query(query).Filter(queryFilter).Context(ctx).Do()
 	if err != nil {
 		return false, err
+	}
+	if activityResp.HTTPStatusCode == 429 {
+		for i := 1; i < 5; i++ {
+			time.Sleep(60 * time.Second)
+			activityResp, err = m.gcpPA.Projects.Locations.ActivityTypes.Activities.Query(query).Filter(queryFilter).Context(ctx).Do()
+			if activityResp.HTTPStatusCode != 429 {
+				break
+			}
+		}
+		if (err != nil) || (activityResp.HTTPStatusCode == 200) {
+			return false, err
+		}
 	}
 	// There are no activities to report
 	if activityResp.Activities == nil {
