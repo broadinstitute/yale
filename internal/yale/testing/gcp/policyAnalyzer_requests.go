@@ -1,6 +1,7 @@
 package gcp
 
 import (
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/policyanalyzer/v1"
 )
 
@@ -19,10 +20,12 @@ type createQuery struct {
 }
 
 func (r *createQuery) CallCount(callcount int) {
-	//TODO implement me
 	r.callCount = callcount
 }
 
+func (r *createQuery) Error(err *googleapi.Error) {
+	r.error = err
+}
 func newQueryRequest(method string, query string) CreateQuery {
 	return &createQuery{
 		request: *newRequest(method, query),

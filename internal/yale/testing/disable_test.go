@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iam/v1"
+	"google.golang.org/api/policyanalyzer/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
@@ -56,8 +57,10 @@ func TestDisableKeys(t *testing.T) {
 			},
 			// Policy analyzer returns 429
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
-				expect.CreateQuery("my-fake-project", 429, "googleapi: Error 429: Quota exceeded for quota metric", 5).
-					Returns(hasAuthenticatedActivityResponse)
+				expect.CreateQuery("my-fake-project", 429, &googleapi.Error{Message: "googleapi: Error 429: Quota exceeded for quota metric"}, 5).
+					Returns(policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse{
+						Activities: []*policyanalyzer.GoogleCloudPolicyanalyzerV1Activity{
+							{}}})
 			},
 			setupIam: func(expect gcp.ExpectIam) {
 				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
@@ -283,9 +286,9 @@ func TestDisableKeys(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			k8sMock := k8s.NewMock(tc.setupK8s, tc.verifyK8s)
-			gcpMock := gcp.NewMock(tc.setupIam, tc.setupPa)
-
-			gcpMock.Setup()
+			gcpMock := gcp.NewMock(tc.setupIam, tc.setupGcp)
+			paMock := gcp.
+				gcpMock.Setup()
 			t.Cleanup(gcpMock.Cleanup)
 
 			clients := client.NewClients(gcpMock.GetIAMClient(), gcpMock.GetPAClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient())

@@ -27,7 +27,7 @@ type Request interface {
 	// CallCount sets the expected about of calls for the mocked request (
 	CallCount(callcount int)
 	// CallCount sets the expected about of calls for the mocked request (
-	Error(error googleapi.Error)
+	Error(error *googleapi.Error)
 	// ResponseBody sets the body for the mock response (marshalled to JSON)
 	ResponseBody(responseBody interface{}) Request
 	// Times sets the number of times this request should be expected
@@ -47,13 +47,13 @@ type request struct {
 	method       string
 	url          string
 	requestBody  interface{}
-	error        googleapi.Error
+	error        *googleapi.Error
 	status       int
 	responseBody interface{}
 	callCount    int
 }
 
-func (r *request) Error(error googleapi.Error) {
+func (r *request) Error(error *googleapi.Error) {
 	r.error = error
 }
 
@@ -82,6 +82,7 @@ func (r *request) Status(status int) {
 
 // ResponseBody sets the body for the mock response (marshalled to JSON)
 func (r *request) ResponseBody(responseBody interface{}) Request {
+
 	r.responseBody = responseBody
 	return r
 }
@@ -96,6 +97,7 @@ func (r *request) buildResponder() httpmock.Responder {
 	switch r.method {
 	case methodPost:
 		return buildPostResponder(r)
+
 	default:
 		return buildResponder(r)
 	}
@@ -103,17 +105,28 @@ func (r *request) buildResponder() httpmock.Responder {
 
 // Creates a simple responder for requests
 func buildResponder(r *request) httpmock.Responder {
+	if r.status != defaultGetStatus {
+		return buildErrorResponder(r)
+	}
 	status := r.status
 	if status == 0 {
 		status = defaultGetStatus
 	}
 	return func(req *http.Request) (*http.Response, error) {
-		//if status != defaultGetStatus {
-		//	return nil, errors.New("The request has thrown an error.")
-		//}
+
 		return httpmock.NewJsonResponse(status, r.responseBody)
 	}
 
+}
+
+func buildErrorResponder(r *request) httpmock.Responder {
+	googleError := r.error
+	if googleError.Message == "" {
+		panic("this function should only be called for google errors")
+	}
+	return func(req *http.Request) (*http.Response, error) {
+		return nil, errors.New(googleError.Message)
+	}
 }
 
 // Creates an httpmock.Responder for POST requests that validates the actual request body matches the expected request body
@@ -121,7 +134,6 @@ func buildPostResponder(r *request) httpmock.Responder {
 	if r.method != methodPost {
 		panic("this function should only be called for post requests")
 	}
-
 	status := r.status
 	callcount := r.callCount
 	if status == 0 {
@@ -170,6 +182,7 @@ func buildPostResponder(r *request) httpmock.Responder {
 		if status != defaultPostStatus {
 			return nil, errors.New("The request has thrown an error.")
 		}
+
 		return httpmock.NewJsonResponse(status, r.responseBody)
 	}
 }
