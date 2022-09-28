@@ -3,6 +3,7 @@ module github.com/broadinstitute/yale
 go 1.15
 
 require (
+	cloud.google.com/go/errorreporting v0.2.0 // indirect
 	github.com/google/go-cmp v0.5.7
 	github.com/jarcoal/httpmock v1.1.0
 	github.com/mitchellh/mapstructure v1.4.3 // indirect

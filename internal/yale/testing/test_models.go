@@ -59,11 +59,7 @@ var CRD = v1beta1.GCPSaKey{
 }
 
 var hasServerError = policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse{
-	Activities: []*policyanalyzer.GoogleCloudPolicyanalyzerV1Activity{
-		{
-			Activity:     googleapi.RawMessage(hasAuthenticated),
-			ActivityType: "serviceAccountKeyLastAuthentication",
-		}},
+	Activities:     []*policyanalyzer.GoogleCloudPolicyanalyzerV1Activity{},
 	ServerResponse: googleapi.ServerResponse{HTTPStatusCode: 429},
 }
 

@@ -18,6 +18,11 @@ type createQuery struct {
 	request
 }
 
+func (r *createQuery) CallCount(callcount int) {
+	//TODO implement me
+	r.callCount = callcount
+}
+
 func newQueryRequest(method string, query string) CreateQuery {
 	return &createQuery{
 		request: *newRequest(method, query),
