@@ -123,7 +123,7 @@ func (m *Yale) IsNotAuthenticated(timeSinceAuth int, keyName string, googleProje
 			// another error occurred
 			return false, err
 		}
-		activityResp, err = m.jitter(query, queryFilter)
+		activityResp, err = m.retryPolicyAnalyzerRequest(query, queryFilter)
 		if err != nil {
 			return false, err
 		}
@@ -153,12 +153,12 @@ func (m *Yale) IsNotAuthenticated(timeSinceAuth int, keyName string, googleProje
 	return keyIsNotUsed, err
 }
 
-func (m *Yale) jitter(query string, queryFilter string) (*policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse, error) {
+func (m *Yale) retryPolicyAnalyzerRequest(query string, queryFilter string) (*policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse, error) {
 	ctx := context.Background()
 	var activityResp *policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse
 	var err error
 	for i := 1; i < 5; i++ {
-		time.Sleep(15 * time.Second)
+		time.Sleep(1 * time.Minute)
 		activityResp, err = m.gcpPA.Projects.Locations.ActivityTypes.Activities.Query(query).Filter(queryFilter).Context(ctx).Do()
 		if err == nil {
 			return activityResp, err
