@@ -20,7 +20,7 @@ func TestRotateKeys(t *testing.T) {
 	testCases := []struct {
 		name        string                     // set name of test case
 		setupK8s    func(setup k8s.Setup)      // add some fake objects to the cluster before test starts
-		setupGcp    func(expect gcp.ExpectIam) // set up some mocked GCP api requests for the test
+		setupIam    func(expect gcp.ExpectIam) // set up some mocked GCP api requests for the test
 		setupPA     func(analyzer gcp.ExpectPolicyAnalyzer)
 		verifyK8s   func(expect k8s.Expect) // verify that the secrets we expect exist in the cluster after test completes
 		expectError bool
@@ -32,7 +32,7 @@ func TestRotateKeys(t *testing.T) {
 				// Add a yale CRD to the fake cluster!
 				setup.AddYaleCRD(CRD)
 			},
-			setupGcp: func(expect gcp.ExpectIam) {
+			setupIam: func(expect gcp.ExpectIam) {
 				// set up a mock for a GCP api call to create a service account
 				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com", false).
 					With(iam.CreateServiceAccountKeyRequest{
@@ -43,7 +43,6 @@ func TestRotateKeys(t *testing.T) {
 						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
 					})
 			},
-
 			verifyK8s: func(expect k8s.Expect) {
 				expect.HasSecret(OLD_SECRET)
 			},
@@ -72,7 +71,7 @@ func TestRotateKeys(t *testing.T) {
 					},
 				})
 			},
-			setupGcp: func(expect gcp.ExpectIam) {
+			setupIam: func(expect gcp.ExpectIam) {
 				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com", false).
 					With(iam.CreateServiceAccountKeyRequest{
 						KeyAlgorithm:   yale.KEY_ALGORITHM,
@@ -99,7 +98,7 @@ func TestRotateKeys(t *testing.T) {
 				setup.AddSecret(OLD_SECRET)
 			},
 			setupPA: func(expect gcp.ExpectPolicyAnalyzer) {},
-			setupGcp: func(expect gcp.ExpectIam) {
+			setupIam: func(expect gcp.ExpectIam) {
 				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com", true).
 					With(iam.CreateServiceAccountKeyRequest{
 						KeyAlgorithm:   yale.KEY_ALGORITHM,
@@ -140,7 +139,7 @@ func TestRotateKeys(t *testing.T) {
 				})
 				setup.AddSecret(newSecret)
 			},
-			setupGcp: func(expect gcp.ExpectIam) {},
+			setupIam: func(expect gcp.ExpectIam) {},
 			verifyK8s: func(expect k8s.Expect) {
 				expect.HasSecret(newSecret)
 			},
@@ -151,12 +150,14 @@ func TestRotateKeys(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			k8sMock := k8s.NewMock(tc.setupK8s, tc.verifyK8s)
-			gcpMock := gcp.NewMock(tc.setupGcp, tc.setupPA)
+			iamMock := gcp.NewIamMock(tc.setupIam)
+			paMock := gcp.NewPolicyAnaylzerMock(tc.setupPA)
+			iamMock.Setup()
+			paMock.Setup()
+			t.Cleanup(iamMock.Cleanup)
+			t.Cleanup(paMock.Cleanup)
 
-			gcpMock.Setup()
-			t.Cleanup(gcpMock.Cleanup)
-
-			clients := client.NewClients(gcpMock.GetIAMClient(), gcpMock.GetPAClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient())
+			clients := client.NewClients(iamMock.GetClient(), paMock.GetClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient())
 
 			yale, err := yale.NewYale(clients)
 			require.NoError(t, err, "unexpected error constructing Yale")
@@ -171,7 +172,8 @@ func TestRotateKeys(t *testing.T) {
 					t.Errorf("Unexpected errror for %v", tc.name)
 				}
 			}
-			gcpMock.AssertExpectations(t)
+			iamMock.AssertExpectations(t)
+			paMock.AssertExpectations(t)
 			k8sMock.AssertExpectations(t)
 		})
 	}

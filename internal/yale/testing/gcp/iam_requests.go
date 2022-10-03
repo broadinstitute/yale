@@ -1,6 +1,8 @@
 package gcp
 
-import "google.golang.org/api/iam/v1"
+import (
+	"google.golang.org/api/iam/v1"
+)
 
 // create key
 type CreateServiceAccountKeyRequest interface {

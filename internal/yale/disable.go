@@ -6,7 +6,9 @@ import (
 	"fmt"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/logs"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iam/v1"
+	"google.golang.org/api/policyanalyzer/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
@@ -49,6 +51,7 @@ func after(value string, a string) string {
 	return value[adjustedPos:]
 }
 func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySpec) error {
+
 	secretAnnotations := Secret.GetAnnotations()
 	key, err := m.GetSAKey(secretAnnotations["serviceAccountKeyName"], secretAnnotations["oldServiceAccountKeyName"])
 	keyNameForLogs := after(key.serviceAccountKeyName, "serviceAccounts/")
@@ -71,7 +74,7 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 			logs.Info.Printf("%s is not allowed to be disabled.", keyNameForLogs)
 			return nil
 		}
-	}else {
+	} else {
 		logs.Info.Printf("%s is already disabled.", keyNameForLogs)
 	}
 	return nil
@@ -79,18 +82,19 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 
 // CanDisableKey Determines if a key can be disabled
 func (m *Yale) CanDisableKey(GCPSaKeySpec apiv1b1.GCPSaKeySpec, key *SaKey) (bool, error) {
+	var keyIsNotUsed = false
 	keyNameForLogs := after(key.serviceAccountKeyName, "serviceAccounts/")
 	logs.Info.Printf("Checking if %s can be disabled.", keyNameForLogs)
-	keyIsNotUsed, err := m.IsNotAuthenticated(GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project)
+	isTimeToDisable, err := IsExpired(key.validAfterTime, GCPSaKeySpec.KeyRotation.DisableAfter)
 	if err != nil {
 		return false, err
 	}
-	isTimeToDisable, err := IsExpired(key.validAfterTime, GCPSaKeySpec.KeyRotation.DisableAfter)
 	if isTimeToDisable {
 		logs.Info.Printf("Time to disable %s.", keyNameForLogs)
-	}
-	if err != nil {
-		return false, err
+		keyIsNotUsed, err = m.IsNotAuthenticated(GCPSaKeySpec.KeyRotation.DisableAfter, key.serviceAccountKeyName, GCPSaKeySpec.GoogleServiceAccount.Project)
+		if err != nil {
+			return false, err
+		}
 	}
 	return keyIsNotUsed && isTimeToDisable, err
 }
@@ -106,6 +110,7 @@ func (m *Yale) Disable(keyName string) error {
 
 // IsNotAuthenticated Determines if key has been authenticated in x amount of days
 func (m *Yale) IsNotAuthenticated(timeSinceAuth int, keyName string, googleProject string) (bool, error) {
+	activity := &Activity{}
 	keyNameForLogs := after(keyName, "serviceAccounts/")
 	logs.Info.Printf("Checking if %s is being used.", keyNameForLogs)
 	query := fmt.Sprintf("projects/%s/locations/us-central1-a/activityTypes/serviceAccountKeyLastAuthentication", googleProject)
@@ -113,23 +118,31 @@ func (m *Yale) IsNotAuthenticated(timeSinceAuth int, keyName string, googleProje
 	ctx := context.Background()
 	activityResp, err := m.gcpPA.Projects.Locations.ActivityTypes.Activities.Query(query).Filter(queryFilter).Context(ctx).Do()
 	if err != nil {
-		return false, err
+		tooManyRequests := isfourTwentyNine(err.(*googleapi.Error))
+		if !tooManyRequests {
+			// another error occurred
+			return false, err
+		}
+		activityResp, err = m.retryPolicyAnalyzerRequest(query, queryFilter)
+		if err != nil {
+			return false, err
+		}
 	}
 	// There are no activities to report
-	if activityResp.Activities == nil {
-		logs.Error.Printf("%s has no activities to report and there is no way to see when key was last authorized.", keyNameForLogs)
-		return false, fmt.Errorf("There are no activities to report. \n"+
-			"Make sure policy analyzer enabled and %s exists.", keyNameForLogs)
-	}
-	activity := &Activity{}
-	results := activityResp.Activities[0]
-	err = json.Unmarshal(results.Activity, activity)
-	// Policy analyzer has a lag of ~2 days. When key has rotated recently, policy
-	// analyzer will report an empty string because there are no authentication activity in the past 2 days
-	if err != nil || len(activity.LastAuthenticatedTime) == 0 {
-		logs.Info.Printf("%s has no authentication time to report.\n"+
-			" Key likely rotated recently and is considered to be actively used.", keyNameForLogs)
+	hasActivities, err := hasActivities(activityResp.Activities)
+	if err != nil {
 		return false, err
+	}
+	if hasActivities {
+		results := activityResp.Activities[0]
+		err = json.Unmarshal(results.Activity, activity)
+		// Policy analyzer has a lag of ~2 days. When key has rotated recently, policy
+		// analyzer will report an empty string because there are no authentication activity in the past 2 days
+		if err != nil || len(activity.LastAuthenticatedTime) == 0 {
+			logs.Info.Printf("%s has no authentication time to report.\n"+
+				" Key likely rotated recently and is considered to be actively used.", keyNameForLogs)
+			return false, err
+		}
 	}
 	keyIsNotUsed, err := IsExpired(activity.LastAuthenticatedTime, timeSinceAuth)
 	if keyIsNotUsed {
@@ -138,6 +151,37 @@ func (m *Yale) IsNotAuthenticated(timeSinceAuth int, keyName string, googleProje
 		logs.Info.Printf("%s is being used.", keyNameForLogs)
 	}
 	return keyIsNotUsed, err
+}
+
+func (m *Yale) retryPolicyAnalyzerRequest(query string, queryFilter string) (*policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse, error) {
+	ctx := context.Background()
+	var activityResp *policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse
+	var err error
+	for i := 1; i < 5; i++ {
+		time.Sleep(1 * time.Minute)
+		activityResp, err = m.gcpPA.Projects.Locations.ActivityTypes.Activities.Query(query).Filter(queryFilter).Context(ctx).Do()
+		if err == nil {
+			return activityResp, err
+		}
+		tooManyRequests := isfourTwentyNine(err.(*googleapi.Error))
+		if !tooManyRequests {
+			return activityResp, err
+		}
+	}
+	return activityResp, err
+}
+
+func hasActivities(activities []*policyanalyzer.GoogleCloudPolicyanalyzerV1Activity) (bool, error) {
+	// There are no activities to report
+	if activities == nil {
+		logs.Error.Printf("No activities to report and there is no way to see when key was last authorized.")
+		return false, fmt.Errorf("There are no activities to report. \n" +
+			"Make sure policy analyzer enabled and exists.")
+	}
+	return true, nil
+}
+func isfourTwentyNine(err *googleapi.Error) bool {
+	return (err.Code == 429) || strings.Contains(err.Message, "Quota exceeded for quota metric")
 }
 
 // IsExpired Determines if it's time to disable a key

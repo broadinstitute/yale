@@ -32,15 +32,13 @@ func TestDeleteKeys(t *testing.T) {
 			setupK8s: func(setup k8s.Setup) {
 				DeleteCrd.Spec.KeyRotation =
 					v1beta1.KeyRotation{
-						DeleteAfter:  2500,
+						DeleteAfter:  2,
 						DisableAfter: 14,
 					}
 				setup.AddYaleCRD(DeleteCrd)
 				setup.AddSecret(newSecret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
-				expect.CreateQuery("my-fake-project", false).
-					Returns(hasAuthenticatedActivityResponse)
 			},
 			setupIam: func(expect gcp.ExpectIam) {
 				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
@@ -48,7 +46,7 @@ func TestDeleteKeys(t *testing.T) {
 						Disabled:       true,
 						Name:           OLD_KEY_NAME,
 						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
-						ValidAfterTime: "2022-04-08T14:21:44Z",
+						ValidAfterTime: "4000-04-08T14:21:44Z",
 						ServerResponse: googleapi.ServerResponse{},
 					})
 			},
@@ -60,7 +58,7 @@ func TestDeleteKeys(t *testing.T) {
 						UID:       "FakeUId",
 						Annotations: map[string]string{
 							"serviceAccountKeyName": keyName,
-							"validAfterTime":        "2021-04-08T14:21:44Z",
+							"validAfterTime":        "4000-04-08T14:21:44Z",
 						},
 					},
 					Data: map[string][]byte{
@@ -81,10 +79,10 @@ func TestDeleteKeys(t *testing.T) {
 						DisableAfter: 14,
 					}
 				setup.AddYaleCRD(DeleteCrd)
-				setup.AddSecret(newSecret)
+				setup.AddSecret(expiredSecret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
-				expect.CreateQuery("my-fake-project", false).
+				expect.CreateQuery("my-fake-project", 200, nil, 1).
 					Returns(hasAuthenticatedActivityResponse)
 			},
 			setupIam: func(expect gcp.ExpectIam) {
@@ -97,7 +95,7 @@ func TestDeleteKeys(t *testing.T) {
 					Returns(saKey)
 			},
 			verifyK8s: func(expect k8s.Expect) {
-				expect.HasSecret(newSecret)
+				expect.HasSecret(expiredSecret)
 			},
 			expectError: true,
 		},
@@ -110,10 +108,10 @@ func TestDeleteKeys(t *testing.T) {
 						DisableAfter: 14,
 					}
 				setup.AddYaleCRD(DeleteCrd)
-				setup.AddSecret(newSecret)
+				setup.AddSecret(expiredSecret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
-				expect.CreateQuery("my-fake-project", false).
+				expect.CreateQuery("my-fake-project", 200, nil, 1).
 					Returns(hasAuthenticatedActivityResponse)
 			},
 			setupIam: func(expect gcp.ExpectIam) {
@@ -137,7 +135,7 @@ func TestDeleteKeys(t *testing.T) {
 						UID:       "FakeUId",
 						Annotations: map[string]string{
 							"serviceAccountKeyName": keyName,
-							"validAfterTime":        "2021-04-08T14:21:44Z",
+							"validAfterTime":        "2000-04-08T14:21:44Z",
 						},
 					},
 					Data: map[string][]byte{
@@ -152,12 +150,14 @@ func TestDeleteKeys(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			k8sMock := k8s.NewMock(tc.setupK8s, tc.verifyK8s)
-			gcpMock := gcp.NewMock(tc.setupIam, tc.setupPa)
+			iamMock := gcp.NewIamMock(tc.setupIam)
+			paMock := gcp.NewPolicyAnaylzerMock(tc.setupPa)
+			iamMock.Setup()
+			paMock.Setup()
+			t.Cleanup(iamMock.Cleanup)
+			t.Cleanup(paMock.Cleanup)
 
-			gcpMock.Setup()
-			t.Cleanup(gcpMock.Cleanup)
-
-			clients := client.NewClients(gcpMock.GetIAMClient(), gcpMock.GetPAClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient())
+			clients := client.NewClients(iamMock.GetClient(), paMock.GetClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient())
 			yale, err := yale2.NewYale(clients)
 			require.NoError(t, err, "unexpected error constructing Yale")
 			err = yale.DeleteKeys()
@@ -171,7 +171,8 @@ func TestDeleteKeys(t *testing.T) {
 					t.Errorf("Unexpected errror for %v", tc.name)
 				}
 			}
-			gcpMock.AssertExpectations(t)
+			iamMock.AssertExpectations(t)
+			paMock.AssertExpectations(t)
 			k8sMock.AssertExpectations(t)
 		})
 	}

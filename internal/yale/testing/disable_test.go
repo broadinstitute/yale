@@ -44,6 +44,41 @@ func TestDisableKeys(t *testing.T) {
 		expectError bool
 	}{
 		{
+			name: "Should retry on 420 error",
+			setupK8s: func(setup k8s.Setup) {
+				CRD.Spec.KeyRotation =
+					v1beta1.KeyRotation{
+						DisableAfter: 14,
+					}
+				// Add a yale CRD to the fake cluster!
+				// If we wanted, we could add some secrets here too with setup.AddSecret()
+				setup.AddYaleCRD(CRD)
+				setup.AddSecret(secret)
+			},
+			// Policy analyzer returns 429
+			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
+				expect.CreateQuery("my-fake-project", 429, &googleapi.Error{Code: 429, Message: "googleapi: Error 429: Quota exceeded for quota metric"}, 5).
+					Returns(policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse{})
+			},
+			setupIam: func(expect gcp.ExpectIam) {
+				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
+					Returns(iam.ServiceAccountKey{
+						Disabled:       false,
+						Name:           OLD_KEY_NAME,
+						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
+						ValidAfterTime: "2014-04-08T14:21:44Z",
+						ServerResponse: googleapi.ServerResponse{},
+					})
+
+			},
+			verifyK8s: func(expect k8s.Expect) {
+				// set an expectation that a secret matching this one will exist in the cluster
+				// once the test completes
+				expect.HasSecret(secret)
+			},
+			expectError: true,
+		},
+		{
 			name: "Should disable key",
 			setupK8s: func(setup k8s.Setup) {
 				CRD.Spec.KeyRotation =
@@ -56,7 +91,7 @@ func TestDisableKeys(t *testing.T) {
 				setup.AddSecret(secret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
-				expect.CreateQuery("my-fake-project", false).
+				expect.CreateQuery("my-fake-project", 200, nil, 1).
 					Returns(hasAuthenticatedActivityResponse)
 			},
 			setupIam: func(expect gcp.ExpectIam) {
@@ -95,8 +130,6 @@ func TestDisableKeys(t *testing.T) {
 				setup.AddSecret(secret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
-				expect.CreateQuery("my-fake-project", false).
-					Returns(hasAuthenticatedActivityResponse)
 			},
 			setupIam: func(expect gcp.ExpectIam) {
 				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
@@ -104,7 +137,7 @@ func TestDisableKeys(t *testing.T) {
 						Disabled:       false,
 						Name:           OLD_KEY_NAME,
 						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
-						ValidAfterTime: "2023-04-08T14:21:44Z",
+						ValidAfterTime: "4000-04-08T14:21:44Z",
 						ServerResponse: googleapi.ServerResponse{},
 					})
 
@@ -117,53 +150,19 @@ func TestDisableKeys(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "Should not disable key if it has not been authenticated against",
+			name: "Should not disable key if error code != 200",
 			setupK8s: func(setup k8s.Setup) {
 				CRD.Spec.KeyRotation =
 					v1beta1.KeyRotation{
 						RotateAfter:  90,
-						DisableAfter: 4000,
+						DisableAfter: 10,
 						DeleteAfter:  7,
 					}
 				setup.AddYaleCRD(CRD)
 				setup.AddSecret(secret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
-				expect.CreateQuery("my-fake-project", false).
-					Returns(hasNotAuthenticatedActivityResponse)
-			},
-			setupIam: func(expect gcp.ExpectIam) {
-				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
-					Returns(iam.ServiceAccountKey{
-						Disabled:       false,
-						Name:           OLD_KEY_NAME,
-						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
-						ValidAfterTime: "2023-04-08T14:21:44Z",
-						ServerResponse: googleapi.ServerResponse{},
-					})
-
-			},
-			verifyK8s: func(expect k8s.Expect) {
-				// set an expectation that a secret matching this one will exist in the cluster
-				// once the test completes
-				expect.HasSecret(secret)
-			},
-			expectError: false,
-		},
-		{
-			name: "Should throw error if there is no activity response",
-			setupK8s: func(setup k8s.Setup) {
-				CRD.Spec.KeyRotation =
-					v1beta1.KeyRotation{
-						RotateAfter:  90,
-						DisableAfter: 4000,
-						DeleteAfter:  7,
-					}
-				setup.AddYaleCRD(CRD)
-				setup.AddSecret(secret)
-			},
-			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
-				expect.CreateQuery("my-fake-project", false).
+				expect.CreateQuery("my-fake-project", 100, &googleapi.Error{Code: 400}, 1).
 					Returns(policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse{})
 			},
 			setupIam: func(expect gcp.ExpectIam) {
@@ -172,7 +171,7 @@ func TestDisableKeys(t *testing.T) {
 						Disabled:       false,
 						Name:           OLD_KEY_NAME,
 						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
-						ValidAfterTime: "2023-04-08T14:21:44Z",
+						ValidAfterTime: "2020-04-08T14:21:44Z",
 						ServerResponse: googleapi.ServerResponse{},
 					})
 
@@ -185,20 +184,20 @@ func TestDisableKeys(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name: "Yale should gracefully throw error with bad policy analyzer API request",
+			name: "Should throw error if there is no activity response",
 			setupK8s: func(setup k8s.Setup) {
 				CRD.Spec.KeyRotation =
 					v1beta1.KeyRotation{
 						RotateAfter:  90,
-						DisableAfter: 200,
+						DisableAfter: 10,
 						DeleteAfter:  7,
 					}
 				setup.AddYaleCRD(CRD)
 				setup.AddSecret(secret)
 			},
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
-				expect.CreateQuery("my-fake-project", true).
-					Returns(hasAuthenticatedActivityResponse)
+				expect.CreateQuery("my-fake-project", 200, nil, 1).
+					Returns(policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse{})
 			},
 			setupIam: func(expect gcp.ExpectIam) {
 				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
@@ -206,7 +205,7 @@ func TestDisableKeys(t *testing.T) {
 						Disabled:       false,
 						Name:           OLD_KEY_NAME,
 						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(FAKE_JSON_KEY)),
-						ValidAfterTime: "2023-04-08T14:21:44Z",
+						ValidAfterTime: "2020-04-08T14:21:44Z",
 						ServerResponse: googleapi.ServerResponse{},
 					})
 
@@ -251,12 +250,14 @@ func TestDisableKeys(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			k8sMock := k8s.NewMock(tc.setupK8s, tc.verifyK8s)
-			gcpMock := gcp.NewMock(tc.setupIam, tc.setupPa)
+			iamMock := gcp.NewIamMock(tc.setupIam)
+			paMock := gcp.NewPolicyAnaylzerMock(tc.setupPa)
+			iamMock.Setup()
+			paMock.Setup()
+			t.Cleanup(iamMock.Cleanup)
+			t.Cleanup(paMock.Cleanup)
 
-			gcpMock.Setup()
-			t.Cleanup(gcpMock.Cleanup)
-
-			clients := client.NewClients(gcpMock.GetIAMClient(), gcpMock.GetPAClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient())
+			clients := client.NewClients(iamMock.GetClient(), paMock.GetClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient())
 			yale, err := yale2.NewYale(clients)
 			require.NoError(t, err, "unexpected error constructing Yale")
 			err = yale.DisableKeys()
@@ -270,7 +271,8 @@ func TestDisableKeys(t *testing.T) {
 					t.Errorf("Unexpected errror for %v", tc.name)
 				}
 			}
-			gcpMock.AssertExpectations(t)
+			iamMock.AssertExpectations(t)
+
 			k8sMock.AssertExpectations(t)
 		})
 	}
