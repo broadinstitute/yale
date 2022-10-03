@@ -119,14 +119,14 @@ func (m *Yale) IsNotAuthenticated(timeSinceAuth int, keyName string, googleProje
 	activityResp, err := m.gcpPA.Projects.Locations.ActivityTypes.Activities.Query(query).Filter(queryFilter).Context(ctx).Do()
 	if err != nil {
 		tooManyRequests := isfourTwentyNine(err.(*googleapi.Error))
-		if tooManyRequests {
-			activityResp, err = m.jitter(query, queryFilter)
-			if err != nil {
-				return false, err
-			}
+		if !tooManyRequests {
+			// another error occurred
+			return false, err
 		}
-		// another error occurred
-		return false, err
+		activityResp, err = m.jitter(query, queryFilter)
+		if err != nil {
+			return false, err
+		}
 	}
 	// There are no activities to report
 	hasActivities, err := hasActivities(activityResp.Activities)
@@ -174,9 +174,9 @@ func (m *Yale) jitter(query string, queryFilter string) (*policyanalyzer.GoogleC
 func hasActivities(activities []*policyanalyzer.GoogleCloudPolicyanalyzerV1Activity) (bool, error) {
 	// There are no activities to report
 	if activities == nil {
-		logs.Error.Printf("%s has no activities to report and there is no way to see when key was last authorized.")
+		logs.Error.Printf("No activities to report and there is no way to see when key was last authorized.")
 		return false, fmt.Errorf("There are no activities to report. \n" +
-			"Make sure policy analyzer enabled and %s exists.")
+			"Make sure policy analyzer enabled and exists.")
 	}
 	return true, nil
 }

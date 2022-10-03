@@ -66,15 +66,7 @@ var hasAuthenticatedActivityResponse = policyanalyzer.GoogleCloudPolicyanalyzerV
 		}},
 }
 
-var hasNotAuthenticatedActivityResponse = policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse{
-	Activities: []*policyanalyzer.GoogleCloudPolicyanalyzerV1Activity{
-		{
-			Activity:     googleapi.RawMessage(hasNotAuthenticated),
-			ActivityType: "serviceAccountKeyLastAuthentication",
-		}},
-}
 var hasAuthenticated = `{"lastAuthenticatedTime":"2021-04-18T07:00:00Z","serviceAccountKey":{"serviceAccountId":"108004111716625043518","projectNumber":"635957978953","fullResourceName":"//iam.googleapis.com/projects/my-fake-project/serviceAccounts/my-sa@blah.com/keys/e0b1b971487ffff7f725b124d"}}`
-var hasNotAuthenticated = `{"lastAuthenticatedTime":"","serviceAccountKey":{"serviceAccountId":"108004111716625043518","projectNumber":"635957978953","fullResourceName":"//iam.googleapis.com/projects/my-fake-project/serviceAccounts/my-sa@blah.com/keys/e0b1b971487ffff7f725b124d"}}`
 
 const keyName = "my-sa@blah.com/keys/e0b1b971487ffff7f725b124d"
 

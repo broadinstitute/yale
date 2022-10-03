@@ -16,7 +16,6 @@ const methodPost = "POST"
 
 const defaultGetStatus = 200
 const defaultPostStatus = 201
-const defaultCallCount = 1
 
 // Request encapsulates a mocked GCP API request & response
 type Request interface {
@@ -119,28 +118,14 @@ func buildResponder(r *request) httpmock.Responder {
 
 }
 
-//func buildErrorResponder(r *request) httpmock.Responder {
-//	googleError := r.error
-//	if googleError.Message == "" {
-//		panic("this function should only be called for google errors")
-//	}
-//	return func(req *http.Request) (*http.Response, error) {
-//		return nil, errors.New(googleError.Message)
-//	}
-//}
-
 // Creates an httpmock.Responder for POST requests that validates the actual request body matches the expected request body
 func buildPostResponder(r *request) httpmock.Responder {
 	if r.method != methodPost {
 		panic("this function should only be called for post requests")
 	}
 	status := r.status
-	callcount := r.callCount
 	if status == 0 {
 		status = defaultPostStatus
-	}
-	if callcount == 0 {
-		callcount = defaultCallCount
 	}
 
 	if r.responseBody == nil {
