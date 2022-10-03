@@ -28,10 +28,10 @@ func main() {
 	if err != nil {
 		logs.Error.Fatal(err)
 	}
-	//err = m.RotateKeys()
-	//if err != nil {
-	//	logs.Error.Fatal(err)
-	//}
+	err = m.RotateKeys()
+	if err != nil {
+		logs.Error.Fatal(err)
+	}
 	err = m.DisableKeys()
 	if err != nil {
 		logs.Error.Fatal(err)
