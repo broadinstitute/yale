@@ -58,11 +58,6 @@ var CRD = v1beta1.GCPSaKey{
 	},
 }
 
-var hasServerError = policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse{
-	Activities:     []*policyanalyzer.GoogleCloudPolicyanalyzerV1Activity{},
-	ServerResponse: googleapi.ServerResponse{HTTPStatusCode: 429},
-}
-
 var hasAuthenticatedActivityResponse = policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse{
 	Activities: []*policyanalyzer.GoogleCloudPolicyanalyzerV1Activity{
 		{
