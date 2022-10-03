@@ -98,7 +98,24 @@ var newSecret = corev1.Secret{
 		UID:       "FakeUId",
 		Annotations: map[string]string{
 			"serviceAccountKeyName":    keyName,
-			"validAfterTime":           "2021-04-08T14:21:44Z",
+			"validAfterDate":           "2030-04-08T14:21:44Z",
+			"oldServiceAccountKeyName": OLD_KEY_NAME,
+		},
+	},
+	Data: map[string][]byte{
+		"agora.pem":  []byte(NEW_FAKE_PEM),
+		"agora.json": []byte(NEW_JSON_KEY),
+	},
+}
+
+var expiredSecret = corev1.Secret{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "my-fake-secret",
+		Namespace: "my-fake-namespace",
+		UID:       "FakeUId",
+		Annotations: map[string]string{
+			"serviceAccountKeyName":    keyName,
+			"validAfterDate":           "2000-04-08T14:21:44Z",
 			"oldServiceAccountKeyName": OLD_KEY_NAME,
 		},
 	},

@@ -105,13 +105,13 @@ func (r *request) buildResponder() httpmock.Responder {
 
 // Creates a simple responder for requests
 func buildResponder(r *request) httpmock.Responder {
-	if r.status != defaultGetStatus {
-		return buildErrorResponder(r)
-	}
 	status := r.status
 	if status == 0 {
 		status = defaultGetStatus
 	}
+	//if status != defaultGetStatus {
+	//	return buildErrorResponder(r)
+	//}
 	return func(req *http.Request) (*http.Response, error) {
 
 		return httpmock.NewJsonResponse(status, r.responseBody)
@@ -119,15 +119,15 @@ func buildResponder(r *request) httpmock.Responder {
 
 }
 
-func buildErrorResponder(r *request) httpmock.Responder {
-	googleError := r.error
-	if googleError.Message == "" {
-		panic("this function should only be called for google errors")
-	}
-	return func(req *http.Request) (*http.Response, error) {
-		return nil, errors.New(googleError.Message)
-	}
-}
+//func buildErrorResponder(r *request) httpmock.Responder {
+//	googleError := r.error
+//	if googleError.Message == "" {
+//		panic("this function should only be called for google errors")
+//	}
+//	return func(req *http.Request) (*http.Response, error) {
+//		return nil, errors.New(googleError.Message)
+//	}
+//}
 
 // Creates an httpmock.Responder for POST requests that validates the actual request body matches the expected request body
 func buildPostResponder(r *request) httpmock.Responder {

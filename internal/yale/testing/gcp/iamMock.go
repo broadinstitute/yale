@@ -20,8 +20,8 @@ type Mock interface {
 	Cleanup()
 }
 
-func NewMock(expectFn func(expect Expect)) Mock {
-	e := newExpect()
+func NewIamMock(expectFn func(expect ExpectIam)) *iamMock {
+	e := newExpectIam()
 	expectFn(e)
 
 	httpClient := &http.Client{}
@@ -30,7 +30,7 @@ func NewMock(expectFn func(expect Expect)) Mock {
 		panic(err)
 	}
 
-	return &mock{
+	return &iamMock{
 		requests:   e.requests,
 		httpClient: httpClient,
 		iamClient:  iamClient,

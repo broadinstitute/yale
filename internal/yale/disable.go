@@ -158,13 +158,14 @@ func (m *Yale) jitter(query string, queryFilter string) (*policyanalyzer.GoogleC
 	var activityResp *policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse
 	var err error
 	for i := 1; i < 5; i++ {
-		//time.Sleep(time.Duration(rand.Intn(15)))
+		time.Sleep(15 * time.Second)
 		activityResp, err = m.gcpPA.Projects.Locations.ActivityTypes.Activities.Query(query).Filter(queryFilter).Context(ctx).Do()
-		if err != nil {
-			tooManyRequests := isfourTwentyNine(err.(*googleapi.Error))
-			if !tooManyRequests {
-				return nil, err
-			}
+		if err == nil {
+			return activityResp, err
+		}
+		tooManyRequests := isfourTwentyNine(err.(*googleapi.Error))
+		if !tooManyRequests {
+			return activityResp, err
 		}
 	}
 	return activityResp, err
@@ -180,7 +181,7 @@ func hasActivities(activities []*policyanalyzer.GoogleCloudPolicyanalyzerV1Activ
 	return true, nil
 }
 func isfourTwentyNine(err *googleapi.Error) bool {
-	return strings.Contains(err.Message, "Error 429: Quota exceeded")
+	return (err.Code == 429) || strings.Contains(err.Message, "Quota exceeded for quota metric")
 }
 
 // IsExpired Determines if it's time to disable a key
