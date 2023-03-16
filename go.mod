@@ -1,6 +1,6 @@
 module github.com/broadinstitute/yale
 
-go 1.15
+go 1.20
 
 require (
 	github.com/google/go-cmp v0.5.7
