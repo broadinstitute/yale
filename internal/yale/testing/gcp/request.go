@@ -7,7 +7,7 @@ import (
 	"github.com/jarcoal/httpmock"
 	"github.com/pkg/errors"
 	"google.golang.org/api/googleapi"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -153,7 +153,7 @@ func buildPostResponder(r *request) httpmock.Responder {
 			return nil, err
 		}
 
-		actualBytes, err := ioutil.ReadAll(req.Body)
+		actualBytes, err := io.ReadAll(req.Body)
 		if err != nil {
 			return nil, err
 		}
