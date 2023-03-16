@@ -323,7 +323,7 @@ func (m *Yale) prepareSecret(spec apiv1b1.VaultReplication, key *SaKey) (map[str
 		secret[spec.Key] = string(asJson)
 	case apiv1b1.Base64:
 		secret[spec.Key] = base64Encoded
-	case apiv1b1.Pem:
+	case apiv1b1.PEM:
 		secret[spec.Key] = keyData.PrivateKey
 	default:
 		panic(fmt.Errorf("unsupported Vault replication format: %#v", spec.Format))

@@ -43,10 +43,10 @@ const (
 	Map VaultReplicationFormat = iota
 	JSON
 	Base64
-	Pem
+	PEM
 )
 
-// verify format has correct encoding
+// verify format implements expected interfaces
 var _ encoding.TextUnmarshaler = (*VaultReplicationFormat)(nil)
 var _ encoding.TextMarshaler = (VaultReplicationFormat)(0)
 
@@ -58,7 +58,7 @@ func (v VaultReplicationFormat) String() string {
 		return "json"
 	case Base64:
 		return "base64"
-	case Pem:
+	case PEM:
 		return "pem"
 	default:
 		return "unknown"
@@ -67,7 +67,7 @@ func (v VaultReplicationFormat) String() string {
 
 func (v VaultReplicationFormat) MarshalText() ([]byte, error) {
 	switch v {
-	case Map, JSON, Base64, Pem:
+	case Map, JSON, Base64, PEM:
 		return []byte(v.String()), nil
 	default:
 		return nil, fmt.Errorf("unknown replication format: %#v", v)
@@ -87,7 +87,7 @@ func (v *VaultReplicationFormat) UnmarshalText(data []byte) error {
 		*v = Base64
 		return nil
 	case "pem":
-		*v = Pem
+		*v = PEM
 		return nil
 	default:
 		return fmt.Errorf("unknown replication format: %q", s)

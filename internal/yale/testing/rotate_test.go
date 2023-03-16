@@ -90,7 +90,7 @@ func TestRotateKeys(t *testing.T) {
 							},
 							{
 								Path:   "secret/foo/test/pem",
-								Format: v1beta1.Pem,
+								Format: v1beta1.PEM,
 								Key:    "key.pem",
 							},
 						},
