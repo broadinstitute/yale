@@ -29,6 +29,8 @@ const KEY_FORMAT string = "TYPE_GOOGLE_CREDENTIALS_FILE"
 // how long to sleep between 429 retries for the policy analyzer API
 const defaultPolicyAnalyzerRetrySleep = time.Minute
 
+const defaultVaultReplicationSecretKey = "sa-key"
+
 // Returns service account name
 // Ex: agora-perf-service-account@broad-dsde-perf.iam.gserviceaccount.com returns agora-perf-service-account
 var r, _ = regexp.Compile("^[^@]*")
@@ -313,6 +315,10 @@ func (m *Yale) prepareSecret(spec apiv1b1.VaultReplication, key *SaKey) (map[str
 	}
 
 	secret := make(map[string]interface{})
+	secretKey := spec.Key
+	if secretKey == "" {
+		secretKey = defaultVaultReplicationSecretKey
+	}
 
 	switch spec.Format {
 	case apiv1b1.Map:
@@ -320,11 +326,11 @@ func (m *Yale) prepareSecret(spec apiv1b1.VaultReplication, key *SaKey) (map[str
 			return nil, fmt.Errorf("error decoding private key to secret map: %v", err)
 		}
 	case apiv1b1.JSON:
-		secret[spec.Key] = string(asJson)
+		secret[secretKey] = string(asJson)
 	case apiv1b1.Base64:
-		secret[spec.Key] = base64Encoded
+		secret[secretKey] = base64Encoded
 	case apiv1b1.PEM:
-		secret[spec.Key] = keyData.PrivateKey
+		secret[secretKey] = keyData.PrivateKey
 	default:
 		panic(fmt.Errorf("unsupported Vault replication format: %#v", spec.Format))
 	}
