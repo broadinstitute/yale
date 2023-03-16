@@ -7,6 +7,7 @@ import (
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/testing/gcp"
 	"github.com/broadinstitute/yale/internal/yale/testing/k8s"
+	"github.com/broadinstitute/yale/internal/yale/testing/vault"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/iam/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -23,6 +24,7 @@ func TestRotateKeys(t *testing.T) {
 		setupIam    func(expect gcp.ExpectIam) // set up some mocked GCP api requests for the test
 		setupPA     func(analyzer gcp.ExpectPolicyAnalyzer)
 		verifyK8s   func(expect k8s.Expect) // verify that the secrets we expect exist in the cluster after test completes
+		verifyVault func(expect vault.Expect)
 		expectError bool
 	}{
 		{
@@ -45,6 +47,94 @@ func TestRotateKeys(t *testing.T) {
 			},
 			verifyK8s: func(expect k8s.Expect) {
 				expect.HasSecret(OLD_SECRET)
+			},
+			expectError: false,
+		},
+		{
+			name:    "should replicate key to Vault if spec has vault replications",
+			setupPA: func(expect gcp.ExpectPolicyAnalyzer) {},
+			setupK8s: func(setup k8s.Setup) {
+				setup.AddYaleCRD(v1beta1.GCPSaKey{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "foo-key",
+						Namespace: "foo-namespace",
+						UID:       "FakeUId",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						GoogleServiceAccount: v1beta1.GoogleServiceAccount{
+							Name:    "foo-sa@blah.com",
+							Project: "foo-project",
+						},
+						Secret: v1beta1.Secret{
+							Name:        "foo-sa-secret",
+							PemKeyName:  "sa.pem",
+							JsonKeyName: "sa.json",
+						},
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter: 45000,
+						},
+						VaultReplications: []v1beta1.VaultReplication{
+							{
+								Path:   "secret/foo/test/map",
+								Format: v1beta1.Map,
+							},
+							{
+								Path:   "secret/foo/test/json",
+								Format: v1beta1.JSON,
+								Key:    "key.json",
+							},
+							{
+								Path:   "secret/foo/test/base64",
+								Format: v1beta1.Base64,
+								Key:    "key.b64",
+							},
+							{
+								Path:   "secret/foo/test/pem",
+								Format: v1beta1.Pem,
+								Key:    "key.pem",
+							},
+						},
+					},
+				})
+			},
+			setupIam: func(expect gcp.ExpectIam) {
+				// set up a mock for a GCP api call to create a service account key
+				expect.CreateServiceAccountKey("foo-project", "foo-sa@blah.com", false).
+					With(iam.CreateServiceAccountKeyRequest{
+						KeyAlgorithm:   yale.KEY_ALGORITHM,
+						PrivateKeyType: yale.KEY_FORMAT,
+					}).
+					Returns(iam.ServiceAccountKey{
+						Name:           "foo-sa@blah.com",
+						PrivateKeyData: base64.StdEncoding.EncodeToString([]byte(`{"email":"foo-sa@blah.com","private_key":"new-foo-key"}`)),
+					})
+			},
+			verifyK8s: func(expect k8s.Expect) {
+				expect.HasSecret(corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "foo-sa-secret",
+						Namespace: "foo-namespace",
+					},
+					Data: map[string][]byte{
+						"sa.pem":  []byte("new-foo-key"),
+						"sa.json": []byte(`{"email":"foo-sa@blah.com","private_key":"new-foo-key"}`),
+					},
+				})
+			},
+			verifyVault: func(expect vault.Expect) {
+				expect.HasSecret("secret/foo/test/map", map[string]interface{}{
+					"email":       "foo-sa@blah.com",
+					"private_key": "new-foo-key",
+				})
+				expect.HasSecret("secret/foo/test/json", map[string]interface{}{
+					"key.json": `{"email":"foo-sa@blah.com","private_key":"new-foo-key"}`,
+				})
+				expect.HasSecret("secret/foo/test/base64", map[string]interface{}{
+					"key.b64": "eyJlbWFpbCI6ImZvby1zYUBibGFoLmNvbSIsInByaXZhdGVfa2V5IjoibmV3LWZvby1rZXkifQ==",
+				})
+				expect.HasSecret("secret/foo/test/pem", map[string]interface{}{
+					"key.pem": "new-foo-key",
+				})
 			},
 			expectError: false,
 		},
@@ -152,12 +242,14 @@ func TestRotateKeys(t *testing.T) {
 			k8sMock := k8s.NewMock(tc.setupK8s, tc.verifyK8s)
 			iamMock := gcp.NewIamMock(tc.setupIam)
 			paMock := gcp.NewPolicyAnaylzerMock(tc.setupPA)
+			fakeVault := vault.NewFakeVaultServer(t, tc.verifyVault)
+
 			iamMock.Setup()
 			paMock.Setup()
 			t.Cleanup(iamMock.Cleanup)
 			t.Cleanup(paMock.Cleanup)
 
-			clients := client.NewClients(iamMock.GetClient(), paMock.GetClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient())
+			clients := client.NewClients(iamMock.GetClient(), paMock.GetClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient(), fakeVault.NewClient())
 
 			yale, err := yale.NewYale(clients)
 			require.NoError(t, err, "unexpected error constructing Yale")
@@ -169,12 +261,13 @@ func TestRotateKeys(t *testing.T) {
 				}
 			} else {
 				if err != nil {
-					t.Errorf("Unexpected errror for %v", tc.name)
+					t.Errorf("Unexpected error: %v", err)
 				}
 			}
 			iamMock.AssertExpectations(t)
 			paMock.AssertExpectations(t)
 			k8sMock.AssertExpectations(t)
+			fakeVault.AssertExpectations(t)
 		})
 	}
 }

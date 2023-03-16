@@ -1,6 +1,8 @@
 package v1beta1
 
 import (
+	"encoding"
+	"fmt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -8,6 +10,7 @@ import (
 type GCPSaKeySpec struct {
 	GoogleServiceAccount GoogleServiceAccount `json:"googleServiceAccount"`
 	Secret               Secret               `json:"secret"`
+	VaultReplications    []VaultReplication   `json:"vaultReplications"`
 	KeyRotation          KeyRotation          `json:"keyRotation"`
 }
 
@@ -27,6 +30,70 @@ type KeyRotation struct {
 	DeleteAfter  int `json:"deleteAfter"`
 	DisableAfter int `json:"disableAfter"`
 }
+
+type VaultReplication struct {
+	Path   string                 `json:"path"`
+	Format VaultReplicationFormat `json:"format"`
+	Key    string                 `json:"key"`
+}
+
+type VaultReplicationFormat int64
+
+const (
+	Map VaultReplicationFormat = iota
+	JSON
+	Base64
+	Pem
+)
+
+// verify format has correct encoding
+var _ encoding.TextUnmarshaler = (*VaultReplicationFormat)(nil)
+var _ encoding.TextMarshaler = (VaultReplicationFormat)(0)
+
+func (v VaultReplicationFormat) String() string {
+	switch v {
+	case Map:
+		return "map"
+	case JSON:
+		return "json"
+	case Base64:
+		return "base64"
+	case Pem:
+		return "pem"
+	default:
+		return "unknown"
+	}
+}
+
+func (v VaultReplicationFormat) MarshalText() ([]byte, error) {
+	switch v {
+	case Map, JSON, Base64, Pem:
+		return []byte(v.String()), nil
+	default:
+		return nil, fmt.Errorf("unknown replication format: %#v", v)
+	}
+}
+
+func (v *VaultReplicationFormat) UnmarshalText(data []byte) error {
+	s := string(data)
+	switch s {
+	case "map":
+		*v = Map
+		return nil
+	case "json":
+		*v = JSON
+		return nil
+	case "base64":
+		*v = Base64
+		return nil
+	case "pem":
+		*v = Pem
+		return nil
+	default:
+		return fmt.Errorf("unknown replication format: %q", s)
+	}
+}
+
 type GCPSaKey struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

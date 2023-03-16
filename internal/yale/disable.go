@@ -158,7 +158,8 @@ func (m *Yale) retryPolicyAnalyzerRequest(query string, queryFilter string) (*po
 	var activityResp *policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse
 	var err error
 	for i := 1; i < 5; i++ {
-		time.Sleep(1 * time.Minute)
+		logs.Info.Printf("Received 429 error from PolicyAnalyzer API, will retry request in %s", m.options.PolicyAnalyzerRetrySleepTime)
+		time.Sleep(m.options.PolicyAnalyzerRetrySleepTime)
 		activityResp, err = m.gcpPA.Projects.Locations.ActivityTypes.Activities.Query(query).Filter(queryFilter).Context(ctx).Do()
 		if err == nil {
 			return activityResp, err

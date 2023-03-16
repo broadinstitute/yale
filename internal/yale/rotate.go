@@ -9,6 +9,7 @@ import (
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	v1beta1client "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/logs"
+	vaultapi "github.com/hashicorp/vault/api"
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/api/policyanalyzer/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"regexp"
+	"time"
 )
 
 // KEY_ALGORITHM what key algorithm to use when creating new Google SA keys
@@ -24,15 +26,20 @@ const KEY_ALGORITHM string = "KEY_ALG_RSA_2048"
 // KEY_FORMAT format to use when creating new Google SA keys
 const KEY_FORMAT string = "TYPE_GOOGLE_CREDENTIALS_FILE"
 
+// how long to sleep between 429 retries for the policy analyzer API
+const defaultPolicyAnalyzerRetrySleep = time.Minute
+
 // Returns service account name
 // Ex: agora-perf-service-account@broad-dsde-perf.iam.gserviceaccount.com returns agora-perf-service-account
 var r, _ = regexp.Compile("^[^@]*")
 
 type Yale struct { // Yale config
-	gcp   *iam.Service                   // GCP IAM API client
-	gcpPA *policyanalyzer.Service        // GCP Policy API client
-	k8s   kubernetes.Interface           // K8s API client
-	crd   v1beta1client.YaleCRDInterface // K8s CRD API client
+	options Options
+	gcp     *iam.Service                   // GCP IAM API client
+	gcpPA   *policyanalyzer.Service        // GCP Policy API client
+	k8s     kubernetes.Interface           // K8s API client
+	crd     v1beta1client.YaleCRDInterface // K8s CRD API client
+	vault   *vaultapi.Client               // Vault API client
 }
 
 type saKeyData struct {
@@ -47,14 +54,26 @@ type SaKey struct {
 	disabled              bool
 }
 
+type Options struct {
+	PolicyAnalyzerRetrySleepTime time.Duration
+}
+
 // NewYale /* Construct a new Yale Manager */
-func NewYale(clients *client.Clients) (*Yale, error) {
+func NewYale(clients *client.Clients, opts ...func(*Options)) (*Yale, error) {
+	options := Options{
+		PolicyAnalyzerRetrySleepTime: defaultPolicyAnalyzerRetrySleep,
+	}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	k8s := clients.GetK8s()
 	gcp := clients.GetGCP()
 	crd := clients.GetCRDs()
 	gcpPA := clients.GetGCPPA()
+	vault := clients.GetVault()
 
-	return &Yale{gcp, gcpPA, k8s, crd}, nil
+	return &Yale{options, gcp, gcpPA, k8s, crd, vault}, nil
 }
 
 func (m *Yale) RotateKeys() error {
@@ -163,11 +182,16 @@ func (m *Yale) CreateSecret(gsk apiv1b1.GCPSaKey) error {
 	if err != nil {
 		return err
 	}
+
+	if err = m.replicateKeyToVault(gsk.Spec, saKey); err != nil {
+		return err
+	}
+
 	logs.Info.Printf("Successfully created secret %s for %s", gsk.Spec.Secret.Name, r.FindString(gsk.Spec.GoogleServiceAccount.Name))
 	return nil
 }
 
-//UpdateKey Updates pem data and private key data fields in Secret with new key
+// UpdateKey Updates pem data and private key data fields in Secret with new key
 func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	K8Secret, err := m.GetSecret(gskSpec.Secret, namespace)
 	if err != nil {
@@ -209,7 +233,13 @@ func (m *Yale) UpdateKey(gskSpec apiv1b1.GCPSaKeySpec, namespace string) error {
 	}
 	K8Secret.Data[gskSpec.Secret.JsonKeyName] = saKey
 	K8Secret.Data[gskSpec.Secret.PemKeyName] = []byte(saData.PrivateKey)
-	return m.UpdateSecret(K8Secret)
+	if err = m.UpdateSecret(K8Secret); err != nil {
+		return err
+	}
+	if err = m.replicateKeyToVault(gskSpec, Key); err != nil {
+		return err
+	}
+	return nil
 }
 
 // CreateSAKey Creates a new GCP SA key
@@ -251,4 +281,53 @@ func (m *Yale) UpdateSecret(k8Secret *corev1.Secret) error {
 	}
 	logs.Info.Printf("%s secret has been updated", k8Secret.Name)
 	return nil
+}
+
+func (m *Yale) replicateKeyToVault(gskSpec apiv1b1.GCPSaKeySpec, key *SaKey) error {
+	for _, spec := range gskSpec.VaultReplications {
+		msg := fmt.Sprintf("replicating %s-formatted key %s to Vault (path %s, key %s)",
+			spec.Format, key.serviceAccountKeyName, spec.Path, spec.Key)
+		logs.Info.Printf(msg)
+		secretData, err := m.prepareSecret(spec, key)
+		if err != nil {
+			return fmt.Errorf("error %s: decoding failed: %v", msg, err)
+		}
+
+		if _, err = m.vault.Logical().Write(spec.Path, secretData); err != nil {
+			return fmt.Errorf("error %s: wrote failed: %v", msg, err)
+		}
+	}
+	return nil
+}
+
+func (m *Yale) prepareSecret(spec apiv1b1.VaultReplication, key *SaKey) (map[string]interface{}, error) {
+	base64Encoded := key.privateKeyData
+	asJson, err := base64.StdEncoding.DecodeString(base64Encoded)
+	if err != nil {
+		return nil, fmt.Errorf("failed to base64 decode private key %s (%s): %v", key.serviceAccountKeyName, key.serviceAccountName, err)
+	}
+	keyData := &saKeyData{}
+	err = json.Unmarshal(asJson, keyData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode key %s (%s) from JSON: %v", key.serviceAccountKeyName, key.serviceAccountName, err)
+	}
+
+	secret := make(map[string]interface{})
+
+	switch spec.Format {
+	case apiv1b1.Map:
+		if err := json.Unmarshal(asJson, &secret); err != nil {
+			return nil, fmt.Errorf("error decoding private key to secret map: %v", err)
+		}
+	case apiv1b1.JSON:
+		secret[spec.Key] = string(asJson)
+	case apiv1b1.Base64:
+		secret[spec.Key] = base64Encoded
+	case apiv1b1.Pem:
+		secret[spec.Key] = keyData.PrivateKey
+	default:
+		panic(fmt.Errorf("unsupported Vault replication format: %#v", spec.Format))
+	}
+
+	return secret, nil
 }
