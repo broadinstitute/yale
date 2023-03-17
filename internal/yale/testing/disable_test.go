@@ -7,6 +7,7 @@ import (
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/testing/gcp"
 	"github.com/broadinstitute/yale/internal/yale/testing/k8s"
+	"github.com/broadinstitute/yale/internal/yale/testing/vault"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iam/v1"
@@ -14,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
+	"time"
 )
 
 var secret = corev1.Secret{
@@ -252,13 +254,18 @@ func TestDisableKeys(t *testing.T) {
 			k8sMock := k8s.NewMock(tc.setupK8s, tc.verifyK8s)
 			iamMock := gcp.NewIamMock(tc.setupIam)
 			paMock := gcp.NewPolicyAnaylzerMock(tc.setupPa)
+			fakeVault := vault.NewFakeVaultServer(t, nil)
+
 			iamMock.Setup()
 			paMock.Setup()
 			t.Cleanup(iamMock.Cleanup)
 			t.Cleanup(paMock.Cleanup)
 
-			clients := client.NewClients(iamMock.GetClient(), paMock.GetClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient())
-			yale, err := yale2.NewYale(clients)
+			clients := client.NewClients(iamMock.GetClient(), paMock.GetClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient(), fakeVault.NewClient())
+			yale, err := yale2.NewYale(clients, func(options *yale2.Options) {
+				options.PolicyAnalyzerRetrySleepTime = 500 * time.Millisecond
+			})
+
 			require.NoError(t, err, "unexpected error constructing Yale")
 			err = yale.DisableKeys()
 			if tc.expectError {
