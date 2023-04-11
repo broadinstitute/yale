@@ -79,7 +79,8 @@ func (m *mock) AssertExpectations(t *testing.T) bool {
 func buildK8sClient(s *setup) kubernetes.Interface {
 	var objects []runtime.Object
 	for _, secret := range s.secrets {
-		objects = append(objects, &secret)
+		tmp := secret
+		objects = append(objects, &tmp)
 	}
 	k8s := k8sfake.NewSimpleClientset(objects...)
 	k8s.PrependReactor("create", "secrets", secretDataReactor)
