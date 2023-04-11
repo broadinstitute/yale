@@ -101,14 +101,22 @@ func (m *Yale) getKeysMap() (map[string]v1beta1.GCPSaKey, error) {
 		return nil, fmt.Errorf("error retrieving list of service account keys: %v", err)
 	}
 
+	var multiplesErr error
 	result := make(map[string]v1beta1.GCPSaKey)
 	for _, gcpSaKey := range gcpSaKeyList.Items {
 		email := gcpSaKey.Spec.GoogleServiceAccount.Name
 		match, exists := result[email]
+
 		if exists {
-			return nil, fmt.Errorf("found multiple GCPSaKey resources for service account %s: %s/%s, %s/%s", email, gcpSaKey.Namespace, gcpSaKey.Name, match.Namespace, match.Name)
+			multiplesErr = fmt.Errorf("found multiple GCPSaKey resources for service account %s: %s/%s, %s/%s", email, gcpSaKey.Namespace, gcpSaKey.Name, match.Namespace, match.Name)
+			logs.Warn.Printf(multiplesErr.Error())
+			continue
 		}
 		result[email] = gcpSaKey
+	}
+
+	if multiplesErr != nil {
+		return nil, multiplesErr
 	}
 	return result, nil
 }
