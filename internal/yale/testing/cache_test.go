@@ -116,6 +116,9 @@ func TestPopulateCache(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: cache.DefaultCacheNamespace,
 						Name:      "yale-cache-sa1-p1.com",
+						Annotations: map[string]string{
+							"yale.terra.bio/cache-entry": "true",
+						},
 					},
 					Data: map[string][]byte{
 						"value": asJsonOrPanic(cache.Entry{
@@ -146,6 +149,9 @@ func TestPopulateCache(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: cache.DefaultCacheNamespace,
 						Name:      "yale-cache-sa2-p1.com",
+						Annotations: map[string]string{
+							"yale.terra.bio/cache-entry": "true",
+						},
 					},
 					Data: map[string][]byte{
 						"value": asJsonOrPanic(cache.Entry{
