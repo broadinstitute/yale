@@ -23,9 +23,6 @@ const timeInADay = time.Hour * 24
 func (m *Yale) PopulateCache() error {
 	logs.Info.Printf("Syncing Yale cache (namespace: %s)...", m.options.CacheNamespace)
 
-	if err := m.createCacheNamespaceIfMissing(); err != nil {
-		return err
-	}
 	if err := m.deleteAllCacheEntries(); err != nil {
 		return err
 	}
@@ -143,29 +140,6 @@ func (m *Yale) addRotatedKeyToCacheEntry(entry *cache.Entry, gcpSaKey v1beta1.GC
 func (m *Yale) getSaKey(project string, serviceAccountEmail string, keyId string) (*iam.ServiceAccountKey, error) {
 	requestPath := fmt.Sprintf("/projects/%s/serviceAccounts/%s/keys/%s", project, serviceAccountEmail, keyId)
 	return m.gcp.Projects.ServiceAccounts.Keys.Get(requestPath).Context(context.Background()).Do()
-}
-
-// create cache namespace if it's missing
-func (m *Yale) createCacheNamespaceIfMissing() error {
-	list, err := m.k8s.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{
-		FieldSelector: "metadata.name=" + m.options.CacheNamespace,
-	})
-	if err != nil {
-		return fmt.Errorf("error listing namespaces: %v", err)
-	}
-	if len(list.Items) == 1 {
-		return nil
-	}
-	logs.Info.Printf("Creating namespace %s", m.options.CacheNamespace)
-	_, err = m.k8s.CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: m.options.CacheNamespace,
-		},
-	}, metav1.CreateOptions{})
-	if err != nil {
-		return fmt.Errorf("error creating namespace %q: %v", m.options.CacheNamespace, err)
-	}
-	return nil
 }
 
 func (m *Yale) deleteAllCacheEntries() error {
