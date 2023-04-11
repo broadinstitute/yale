@@ -145,7 +145,7 @@ func (m *Yale) getSaKey(project string, serviceAccountEmail string, keyId string
 func (m *Yale) deleteAllCacheEntries() error {
 	logs.Info.Printf("Deleting all cache entries in namespace %s (selector: %q)", m.options.CacheNamespace, cache.Selector())
 	return m.k8s.CoreV1().Secrets(m.options.CacheNamespace).DeleteCollection(context.Background(), metav1.DeleteOptions{}, metav1.ListOptions{
-		FieldSelector: cache.Selector(),
+		LabelSelector: cache.Selector(),
 	})
 }
 
