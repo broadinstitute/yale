@@ -41,10 +41,10 @@ func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeyS
 	keyName := secretAnnotations["oldServiceAccountKeyName"]
 	saName := secretAnnotations["serviceAccountKeyName"]
 	saKey, err := m.GetSAKey(saName, keyName)
-	keyNameForLogs := after(saKey.serviceAccountKeyName, "serviceAccounts/")
 	if err != nil {
 		return err
 	}
+	keyNameForLogs := after(saKey.serviceAccountKeyName, "serviceAccounts/")
 	logs.Info.Printf("Checking if %s should be deleted.", keyNameForLogs)
 	if saKey.disabled {
 		totalTime := gcpSaKeySpec.KeyRotation.DisableAfter + gcpSaKeySpec.KeyRotation.DeleteAfter

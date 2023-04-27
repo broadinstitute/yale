@@ -54,10 +54,10 @@ func (m *Yale) DisableKey(Secret *corev1.Secret, GCPSaKeySpec apiv1b1.GCPSaKeySp
 
 	secretAnnotations := Secret.GetAnnotations()
 	key, err := m.GetSAKey(secretAnnotations["serviceAccountKeyName"], secretAnnotations["oldServiceAccountKeyName"])
-	keyNameForLogs := after(key.serviceAccountKeyName, "serviceAccounts/")
 	if err != nil {
 		return err
 	}
+	keyNameForLogs := after(key.serviceAccountKeyName, "serviceAccounts/")
 	if !key.disabled {
 		canDisableKey, err := m.CanDisableKey(GCPSaKeySpec, key)
 		if err != nil {
