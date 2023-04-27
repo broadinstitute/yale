@@ -106,7 +106,7 @@ func TestPopulateCache(t *testing.T) {
 				})
 			},
 			setupIam: func(expect gcp.ExpectIam) {
-				expect.GetServiceAccountKey("/projects/p1/serviceAccounts/sa1@p1.com/keys/0001", false).
+				expect.GetServiceAccountKey("projects/p1/serviceAccounts/sa1@p1.com/keys/0001", false).
 					Returns(iam.ServiceAccountKey{
 						Disabled: false,
 					})
