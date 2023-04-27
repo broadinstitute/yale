@@ -32,20 +32,7 @@ func main() {
 	if err != nil {
 		logs.Error.Fatal(err)
 	}
-	err = m.RotateKeys()
-	if err != nil {
-		logs.Error.Fatal(err)
-	}
-	err = m.DisableKeys()
-	if err != nil {
-		logs.Error.Fatal(err)
-	}
-	err = m.DeleteKeys()
-	if err != nil {
-		logs.Error.Fatal(err)
-	}
-	err = m.PopulateCache()
-	if err != nil {
+	if err = m.Run(); err != nil {
 		logs.Error.Fatal(err)
 	}
 }
