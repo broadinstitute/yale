@@ -146,7 +146,7 @@ func (m *Yale) addRotatedKeyToCacheEntry(entry *cache.Entry, gcpSaKey v1beta1.GC
 
 // fetch service account key metadata from Google Cloud IAM API
 func (m *Yale) getSaKey(project string, serviceAccountEmail string, keyId string) (*iam.ServiceAccountKey, error) {
-	requestPath := fmt.Sprintf("/projects/%s/serviceAccounts/%s/keys/%s", project, serviceAccountEmail, keyId)
+	requestPath := fmt.Sprintf("projects/%s/serviceAccounts/%s/keys/%s", project, serviceAccountEmail, keyId)
 	return m.gcp.Projects.ServiceAccounts.Keys.Get(requestPath).Context(context.Background()).Do()
 }
 
