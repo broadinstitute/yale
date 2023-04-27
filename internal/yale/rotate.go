@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/broadinstitute/yale/internal/yale/cache"
 	"github.com/broadinstitute/yale/internal/yale/client"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	v1beta1client "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1"
@@ -58,12 +59,14 @@ type SaKey struct {
 
 type Options struct {
 	PolicyAnalyzerRetrySleepTime time.Duration
+	CacheNamespace               string
 }
 
 // NewYale /* Construct a new Yale Manager */
 func NewYale(clients *client.Clients, opts ...func(*Options)) (*Yale, error) {
 	options := Options{
 		PolicyAnalyzerRetrySleepTime: defaultPolicyAnalyzerRetrySleep,
+		CacheNamespace:               cache.DefaultCacheNamespace,
 	}
 	for _, opt := range opts {
 		opt(&options)
