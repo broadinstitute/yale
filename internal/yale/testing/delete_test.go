@@ -21,8 +21,9 @@ var DeleteCrd = CRD
 func TestDeleteKeys(t *testing.T) {
 
 	testCases := []struct {
-		name        string                                // set name of test case
-		setupK8s    func(setup k8s.Setup)                 // add some fake objects to the cluster before test starts
+		name        string // set name of test case
+		crd         v1beta1.GCPSaKey
+		secret      corev1.Secret
 		setupIam    func(expect gcp.ExpectIam)            // set up some mocked GCP api requests for the test
 		setupPa     func(expect gcp.ExpectPolicyAnalyzer) // set up some mocked GCP api requests for the test
 		verifyK8s   func(expect k8s.Expect)               // verify that the secrets we expect exist in the cluster after test completes
@@ -30,15 +31,13 @@ func TestDeleteKeys(t *testing.T) {
 	}{
 		{
 			name: "Should not delete key before time to",
-			setupK8s: func(setup k8s.Setup) {
-				DeleteCrd.Spec.KeyRotation =
-					v1beta1.KeyRotation{
-						DeleteAfter:  2,
-						DisableAfter: 14,
-					}
-				setup.AddYaleCRD(DeleteCrd)
-				setup.AddSecret(newSecret)
-			},
+			crd: overrideDefaultCRD(func(crd *v1beta1.GCPSaKey) {
+				crd.Spec.KeyRotation = v1beta1.KeyRotation{
+					DisableAfter: 14,
+					DeleteAfter:  2,
+				}
+			}),
+			secret: newSecret,
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 			},
 			setupIam: func(expect gcp.ExpectIam) {
@@ -72,16 +71,13 @@ func TestDeleteKeys(t *testing.T) {
 		},
 		{
 			name: "Show gracefully exit from Delete API returns error",
-			setupK8s: func(setup k8s.Setup) {
-
-				DeleteCrd.Spec.KeyRotation =
-					v1beta1.KeyRotation{
-						DeleteAfter:  3,
-						DisableAfter: 14,
-					}
-				setup.AddYaleCRD(DeleteCrd)
-				setup.AddSecret(expiredSecret)
-			},
+			crd: overrideDefaultCRD(func(crd *v1beta1.GCPSaKey) {
+				crd.Spec.KeyRotation = v1beta1.KeyRotation{
+					DisableAfter: 14,
+					DeleteAfter:  3,
+				}
+			}),
+			secret: expiredSecret,
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 				expect.CreateQuery("my-fake-project", 200, nil, 1).
 					Returns(hasAuthenticatedActivityResponse)
@@ -102,15 +98,13 @@ func TestDeleteKeys(t *testing.T) {
 		},
 		{
 			name: "Should delete key",
-			setupK8s: func(setup k8s.Setup) {
-				DeleteCrd.Spec.KeyRotation =
-					v1beta1.KeyRotation{
-						DeleteAfter:  3,
-						DisableAfter: 14,
-					}
-				setup.AddYaleCRD(DeleteCrd)
-				setup.AddSecret(expiredSecret)
-			},
+			crd: overrideDefaultCRD(func(crd *v1beta1.GCPSaKey) {
+				crd.Spec.KeyRotation = v1beta1.KeyRotation{
+					DisableAfter: 14,
+					DeleteAfter:  3,
+				}
+			}),
+			secret: expiredSecret,
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 				expect.CreateQuery("my-fake-project", 200, nil, 1).
 					Returns(hasAuthenticatedActivityResponse)
@@ -150,7 +144,10 @@ func TestDeleteKeys(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			k8sMock := k8s.NewMock(tc.setupK8s, tc.verifyK8s)
+			k8sMock := k8s.NewMock(func(setup k8s.Setup) {
+				setup.AddYaleCRD(tc.crd)
+				setup.AddSecret(tc.secret)
+			}, tc.verifyK8s)
 			iamMock := gcp.NewIamMock(tc.setupIam)
 			paMock := gcp.NewPolicyAnaylzerMock(tc.setupPa)
 			fakeVault := vault.NewFakeVaultServer(t, nil)
@@ -163,7 +160,7 @@ func TestDeleteKeys(t *testing.T) {
 			clients := client.NewClients(iamMock.GetClient(), paMock.GetClient(), k8sMock.GetK8sClient(), k8sMock.GetYaleCRDClient(), fakeVault.NewClient())
 			yale, err := yale2.NewYale(clients)
 			require.NoError(t, err, "unexpected error constructing Yale")
-			err = yale.DeleteKeys()
+			err = yale.DeleteKey(&tc.secret, tc.crd.Spec)
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error for %q, but err was nil", tc.name)
