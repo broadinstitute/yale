@@ -81,6 +81,40 @@ func NewYale(clients *client.Clients, opts ...func(*Options)) (*Yale, error) {
 	return &Yale{options, gcp, gcpPA, k8s, crd, vault}, nil
 }
 
+func (m *Yale) Run() error {
+	list, err := m.GetGCPSaKeyList()
+	if err != nil {
+		return err
+	}
+
+	for _, gsk := range list.Items {
+		if err = m.processKey(gsk); err != nil {
+			return err
+		}
+	}
+
+	return m.PopulateCache()
+}
+
+func (m *Yale) processKey(gsk apiv1b1.GCPSaKey) error {
+	secret, err := m.RotateKey(gsk)
+	if err != nil {
+		return err
+	}
+	if !metav1.HasAnnotation(secret.ObjectMeta, "oldServiceAccountKeyName") {
+		// there is no old key to disable or delete
+		return nil
+	}
+	if err := m.DisableKey(secret, gsk.Spec); err != nil {
+		return err
+	}
+	if err := m.DeleteKey(secret, gsk.Spec); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (m *Yale) RotateKey(gsk apiv1b1.GCPSaKey) (*corev1.Secret, error) {
 	exists, err := m.secretExists(gsk.Spec.Secret, gsk.Namespace)
 	if err != nil {

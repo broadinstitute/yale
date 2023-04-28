@@ -10,7 +10,6 @@ import (
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/api/policyanalyzer/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"time"
 )
@@ -179,21 +178,4 @@ func IsExpired(beginDate string, duration int) (bool, error) {
 		return true, nil
 	}
 	return false, nil
-}
-
-// FilterRotatedKeys Returns secrets that have rotated, which contain annotation 'oldServiceAccountKeyName' and their GSK resource
-func (m *Yale) FilterRotatedKeys(list *apiv1b1.GCPSaKeyList) ([]*corev1.Secret, []apiv1b1.GCPSaKey, error) {
-	var secrets []*corev1.Secret
-	var gcpSaKeys []apiv1b1.GCPSaKey
-	for _, gsk := range list.Items {
-		secret, err := m.GetSecret(gsk.Spec.Secret, gsk.Namespace)
-		if err != nil {
-			return nil, nil, err
-		}
-		if metav1.HasAnnotation(secret.ObjectMeta, "oldServiceAccountKeyName") {
-			secrets = append(secrets, secret)
-			gcpSaKeys = append(gcpSaKeys, gsk)
-		}
-	}
-	return secrets, gcpSaKeys, nil
 }
