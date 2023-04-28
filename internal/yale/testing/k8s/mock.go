@@ -29,8 +29,12 @@ type Mock interface {
 func NewMock(setupFn func(Setup), expectFn func(Expect)) Mock {
 	s := newSetup()
 	e := newExpect()
-	setupFn(s)
-	expectFn(e)
+	if setupFn != nil {
+		setupFn(s)
+	}
+	if expectFn != nil {
+		expectFn(e)
+	}
 
 	return &mock{
 		k8s:           buildK8sClient(s),

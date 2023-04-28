@@ -20,24 +20,6 @@ type Activity struct {
 	ServiceAccountKey     map[string]string `json:"serviceAccountKey"`
 }
 
-func (m *Yale) DisableKeys() error {
-	// Get all GCPSaKey resource
-	result, err := m.GetGCPSaKeyList()
-	if err != nil {
-		return err
-	}
-	secrets, gcpSaKeys, err := m.FilterRotatedKeys(result)
-	if err != nil {
-		return err
-	}
-	for i, secret := range secrets {
-		err = m.DisableKey(secret, gcpSaKeys[i].Spec)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
 func after(value string, a string) string {
 	// Get substring after a string.
 	pos := strings.LastIndex(value, a)

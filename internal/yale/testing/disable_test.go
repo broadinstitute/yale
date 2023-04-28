@@ -2,6 +2,7 @@ package yale
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	yale2 "github.com/broadinstitute/yale/internal/yale"
 	"github.com/broadinstitute/yale/internal/yale/client"
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
@@ -36,10 +37,10 @@ var secret = corev1.Secret{
 }
 
 func TestDisableKeys(t *testing.T) {
-
 	testCases := []struct {
-		name        string                                // set name of test case
-		setupK8s    func(setup k8s.Setup)                 // add some fake objects to the cluster before test starts
+		name        string // set name of test case
+		crd         v1beta1.GCPSaKey
+		secret      corev1.Secret
 		setupIam    func(expect gcp.ExpectIam)            // set up some mocked GCP api requests for the test
 		setupPa     func(expect gcp.ExpectPolicyAnalyzer) // set up some mocked GCP api requests for the test
 		verifyK8s   func(expect k8s.Expect)               // verify that the secrets we expect exist in the cluster after test completes
@@ -47,16 +48,12 @@ func TestDisableKeys(t *testing.T) {
 	}{
 		{
 			name: "Should retry on 420 error",
-			setupK8s: func(setup k8s.Setup) {
-				CRD.Spec.KeyRotation =
-					v1beta1.KeyRotation{
-						DisableAfter: 14,
-					}
-				// Add a yale CRD to the fake cluster!
-				// If we wanted, we could add some secrets here too with setup.AddSecret()
-				setup.AddYaleCRD(CRD)
-				setup.AddSecret(secret)
-			},
+			crd: overrideDefaultCRD(func(crd *v1beta1.GCPSaKey) {
+				crd.Spec.KeyRotation = v1beta1.KeyRotation{
+					DisableAfter: 14,
+				}
+			}),
+			secret: secret,
 			// Policy analyzer returns 429
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 				expect.CreateQuery("my-fake-project", 429, &googleapi.Error{Code: 429, Message: "googleapi: Error 429: Quota exceeded for quota metric"}, 5).
@@ -82,16 +79,12 @@ func TestDisableKeys(t *testing.T) {
 		},
 		{
 			name: "Should disable key",
-			setupK8s: func(setup k8s.Setup) {
-				CRD.Spec.KeyRotation =
-					v1beta1.KeyRotation{
-						DisableAfter: 14,
-					}
-				// Add a yale CRD to the fake cluster!
-				// If we wanted, we could add some secrets here too with setup.AddSecret()
-				setup.AddYaleCRD(CRD)
-				setup.AddSecret(secret)
-			},
+			crd: overrideDefaultCRD(func(crd *v1beta1.GCPSaKey) {
+				crd.Spec.KeyRotation = v1beta1.KeyRotation{
+					DisableAfter: 14,
+				}
+			}),
+			secret: secret,
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 				expect.CreateQuery("my-fake-project", 200, nil, 1).
 					Returns(hasAuthenticatedActivityResponse)
@@ -121,16 +114,14 @@ func TestDisableKeys(t *testing.T) {
 		},
 		{
 			name: "Should not disable key before time to disable",
-			setupK8s: func(setup k8s.Setup) {
-				CRD.Spec.KeyRotation =
-					v1beta1.KeyRotation{
-						RotateAfter:  90,
-						DisableAfter: 4000,
-						DeleteAfter:  7,
-					}
-				setup.AddYaleCRD(CRD)
-				setup.AddSecret(secret)
-			},
+			crd: overrideDefaultCRD(func(crd *v1beta1.GCPSaKey) {
+				crd.Spec.KeyRotation = v1beta1.KeyRotation{
+					RotateAfter:  90,
+					DisableAfter: 4000,
+					DeleteAfter:  7,
+				}
+			}),
+			secret: secret,
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 			},
 			setupIam: func(expect gcp.ExpectIam) {
@@ -153,16 +144,14 @@ func TestDisableKeys(t *testing.T) {
 		},
 		{
 			name: "Should not disable key if error code != 200",
-			setupK8s: func(setup k8s.Setup) {
-				CRD.Spec.KeyRotation =
-					v1beta1.KeyRotation{
-						RotateAfter:  90,
-						DisableAfter: 10,
-						DeleteAfter:  7,
-					}
-				setup.AddYaleCRD(CRD)
-				setup.AddSecret(secret)
-			},
+			crd: overrideDefaultCRD(func(crd *v1beta1.GCPSaKey) {
+				crd.Spec.KeyRotation = v1beta1.KeyRotation{
+					RotateAfter:  90,
+					DisableAfter: 10,
+					DeleteAfter:  7,
+				}
+			}),
+			secret: secret,
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 				expect.CreateQuery("my-fake-project", 100, &googleapi.Error{Code: 400}, 1).
 					Returns(policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse{})
@@ -187,16 +176,14 @@ func TestDisableKeys(t *testing.T) {
 		},
 		{
 			name: "Should throw error if there is no activity response",
-			setupK8s: func(setup k8s.Setup) {
-				CRD.Spec.KeyRotation =
-					v1beta1.KeyRotation{
-						RotateAfter:  90,
-						DisableAfter: 10,
-						DeleteAfter:  7,
-					}
-				setup.AddYaleCRD(CRD)
-				setup.AddSecret(secret)
-			},
+			crd: overrideDefaultCRD(func(crd *v1beta1.GCPSaKey) {
+				crd.Spec.KeyRotation = v1beta1.KeyRotation{
+					RotateAfter:  90,
+					DisableAfter: 10,
+					DeleteAfter:  7,
+				}
+			}),
+			secret: secret,
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {
 				expect.CreateQuery("my-fake-project", 200, nil, 1).
 					Returns(policyanalyzer.GoogleCloudPolicyanalyzerV1QueryActivityResponse{})
@@ -221,14 +208,12 @@ func TestDisableKeys(t *testing.T) {
 		},
 		{
 			name: "Should not disable if the key is already disabled",
-			setupK8s: func(setup k8s.Setup) {
-				CRD.Spec.KeyRotation =
-					v1beta1.KeyRotation{
-						DisableAfter: 10,
-					}
-				setup.AddYaleCRD(CRD)
-				setup.AddSecret(secret)
-			},
+			crd: overrideDefaultCRD(func(crd *v1beta1.GCPSaKey) {
+				crd.Spec.KeyRotation = v1beta1.KeyRotation{
+					DisableAfter: 10,
+				}
+			}),
+			secret:  secret,
 			setupPa: func(expect gcp.ExpectPolicyAnalyzer) {},
 			setupIam: func(expect gcp.ExpectIam) {
 				expect.GetServiceAccountKey(OLD_KEY_NAME, false).
@@ -251,7 +236,10 @@ func TestDisableKeys(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			k8sMock := k8s.NewMock(tc.setupK8s, tc.verifyK8s)
+			k8sMock := k8s.NewMock(func(setup k8s.Setup) {
+				setup.AddYaleCRD(tc.crd)
+				setup.AddSecret(tc.secret)
+			}, tc.verifyK8s)
 			iamMock := gcp.NewIamMock(tc.setupIam)
 			paMock := gcp.NewPolicyAnaylzerMock(tc.setupPa)
 			fakeVault := vault.NewFakeVaultServer(t, nil)
@@ -267,7 +255,7 @@ func TestDisableKeys(t *testing.T) {
 			})
 
 			require.NoError(t, err, "unexpected error constructing Yale")
-			err = yale.DisableKeys()
+			err = yale.DisableKey(&tc.secret, tc.crd.Spec)
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error for %q, but err was nil", tc.name)
@@ -283,4 +271,17 @@ func TestDisableKeys(t *testing.T) {
 			k8sMock.AssertExpectations(t)
 		})
 	}
+}
+
+func overrideDefaultCRD(overrideFn func(gcpSaKey *v1beta1.GCPSaKey)) v1beta1.GCPSaKey {
+	data, err := json.Marshal(CRD)
+	if err != nil {
+		panic(err)
+	}
+	var copy v1beta1.GCPSaKey
+	if err = json.Unmarshal(data, &copy); err != nil {
+		panic(err)
+	}
+	overrideFn(&copy)
+	return copy
 }

@@ -19,7 +19,8 @@ func TestRotateKeys(t *testing.T) {
 	newKeyName := "projects/my-fake-project/my-sa@blah.com/e0b1b971487ffff7f725b124h"
 
 	testCases := []struct {
-		name        string                     // set name of test case
+		name        string // set name of test case
+		crd         v1beta1.GCPSaKey
 		setupK8s    func(setup k8s.Setup)      // add some fake objects to the cluster before test starts
 		setupIam    func(expect gcp.ExpectIam) // set up some mocked GCP api requests for the test
 		setupPA     func(analyzer gcp.ExpectPolicyAnalyzer)
@@ -30,10 +31,7 @@ func TestRotateKeys(t *testing.T) {
 		{
 			name:    "should issue a new key if there is no existing secret for the CRD",
 			setupPA: func(expect gcp.ExpectPolicyAnalyzer) {},
-			setupK8s: func(setup k8s.Setup) {
-				// Add a yale CRD to the fake cluster!
-				setup.AddYaleCRD(CRD)
-			},
+			crd:     CRD,
 			setupIam: func(expect gcp.ExpectIam) {
 				// set up a mock for a GCP api call to create a service account
 				expect.CreateServiceAccountKey("my-fake-project", "my-sa@blah.com", false).
@@ -51,52 +49,50 @@ func TestRotateKeys(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:    "should replicate key to Vault if spec has vault replications",
-			setupPA: func(expect gcp.ExpectPolicyAnalyzer) {},
-			setupK8s: func(setup k8s.Setup) {
-				setup.AddYaleCRD(v1beta1.GCPSaKey{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "foo-key",
-						Namespace: "foo-namespace",
-						UID:       "FakeUId",
+			name: "should replicate key to Vault if spec has vault replications",
+			crd: v1beta1.GCPSaKey{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "foo-key",
+					Namespace: "foo-namespace",
+					UID:       "FakeUId",
+				},
+				Spec: v1beta1.GCPSaKeySpec{
+					GoogleServiceAccount: v1beta1.GoogleServiceAccount{
+						Name:    "foo-sa@blah.com",
+						Project: "foo-project",
 					},
-					Spec: v1beta1.GCPSaKeySpec{
-						GoogleServiceAccount: v1beta1.GoogleServiceAccount{
-							Name:    "foo-sa@blah.com",
-							Project: "foo-project",
+					Secret: v1beta1.Secret{
+						Name:        "foo-sa-secret",
+						PemKeyName:  "sa.pem",
+						JsonKeyName: "sa.json",
+					},
+					KeyRotation: v1beta1.KeyRotation{
+						RotateAfter: 45000,
+					},
+					VaultReplications: []v1beta1.VaultReplication{
+						{
+							Path:   "secret/foo/test/map",
+							Format: v1beta1.Map,
 						},
-						Secret: v1beta1.Secret{
-							Name:        "foo-sa-secret",
-							PemKeyName:  "sa.pem",
-							JsonKeyName: "sa.json",
+						{
+							Path:   "secret/foo/test/json",
+							Format: v1beta1.JSON,
+							Key:    "key.json",
 						},
-						KeyRotation: v1beta1.KeyRotation{
-							RotateAfter: 45000,
+						{
+							Path:   "secret/foo/test/base64",
+							Format: v1beta1.Base64,
+							Key:    "key.b64",
 						},
-						VaultReplications: []v1beta1.VaultReplication{
-							{
-								Path:   "secret/foo/test/map",
-								Format: v1beta1.Map,
-							},
-							{
-								Path:   "secret/foo/test/json",
-								Format: v1beta1.JSON,
-								Key:    "key.json",
-							},
-							{
-								Path:   "secret/foo/test/base64",
-								Format: v1beta1.Base64,
-								Key:    "key.b64",
-							},
-							{
-								Path:   "secret/foo/test/pem",
-								Format: v1beta1.PEM,
-								Key:    "key.pem",
-							},
+						{
+							Path:   "secret/foo/test/pem",
+							Format: v1beta1.PEM,
+							Key:    "key.pem",
 						},
 					},
-				})
+				},
 			},
+			setupPA: func(expect gcp.ExpectPolicyAnalyzer) {},
 			setupIam: func(expect gcp.ExpectIam) {
 				// set up a mock for a GCP api call to create a service account key
 				expect.CreateServiceAccountKey("foo-project", "foo-sa@blah.com", false).
@@ -141,8 +137,8 @@ func TestRotateKeys(t *testing.T) {
 		{
 			name:    "should rotate key if original key is expired",
 			setupPA: func(expect gcp.ExpectPolicyAnalyzer) {},
+			crd:     CRD,
 			setupK8s: func(setup k8s.Setup) {
-				setup.AddYaleCRD(CRD)
 				setup.AddSecret(corev1.Secret{
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
@@ -182,9 +178,8 @@ func TestRotateKeys(t *testing.T) {
 		},
 		{
 			name: "Yale should gracefully throw error with bad request",
-
+			crd:  CRD,
 			setupK8s: func(setup k8s.Setup) {
-				setup.AddYaleCRD(CRD)
 				setup.AddSecret(OLD_SECRET)
 			},
 			setupPA: func(expect gcp.ExpectPolicyAnalyzer) {},
@@ -203,30 +198,30 @@ func TestRotateKeys(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:    "Secret should remain the same when key is not rotated",
+			name: "Secret should remain the same when key is not rotated",
+			crd: v1beta1.GCPSaKey{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-gcp-sa-key",
+					Namespace: "my-fake-namespace",
+					UID:       "FakeUId",
+				},
+				Spec: v1beta1.GCPSaKeySpec{
+					GoogleServiceAccount: v1beta1.GoogleServiceAccount{
+						Name:    "my-sa@blah.com",
+						Project: "my-fake-project",
+					},
+					Secret: v1beta1.Secret{
+						Name:        "my-fake-secret",
+						PemKeyName:  "agora.pem",
+						JsonKeyName: "agora.json",
+					},
+					KeyRotation: v1beta1.KeyRotation{
+						RotateAfter: 45000,
+					},
+				},
+			},
 			setupPA: func(expect gcp.ExpectPolicyAnalyzer) {},
 			setupK8s: func(setup k8s.Setup) {
-				setup.AddYaleCRD(v1beta1.GCPSaKey{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "my-gcp-sa-key",
-						Namespace: "my-fake-namespace",
-						UID:       "FakeUId",
-					},
-					Spec: v1beta1.GCPSaKeySpec{
-						GoogleServiceAccount: v1beta1.GoogleServiceAccount{
-							Name:    "my-sa@blah.com",
-							Project: "my-fake-project",
-						},
-						Secret: v1beta1.Secret{
-							Name:        "my-fake-secret",
-							PemKeyName:  "agora.pem",
-							JsonKeyName: "agora.json",
-						},
-						KeyRotation: v1beta1.KeyRotation{
-							RotateAfter: 45000,
-						},
-					},
-				})
 				setup.AddSecret(newSecret)
 			},
 			setupIam: func(expect gcp.ExpectIam) {},
@@ -253,7 +248,7 @@ func TestRotateKeys(t *testing.T) {
 
 			yale, err := yale.NewYale(clients)
 			require.NoError(t, err, "unexpected error constructing Yale")
-			err = yale.RotateKeys()
+			_, err = yale.RotateKey(tc.crd)
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error for %q, but err was nil", tc.name)
