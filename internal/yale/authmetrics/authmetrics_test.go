@@ -28,7 +28,7 @@ const recordMode = false
 // credentials
 const grpcFile = "testdata/recordings/authmetrics.grpc"
 const httpFile = "testdata/recordings/authmetrics.http"
-const metadataFile = "testdata/recordings/authmetrics.timestamp"
+const metadataFile = "testdata/recordings/authmetrics.metadata"
 
 type testMetadata struct {
 	Timestamp time.Time
