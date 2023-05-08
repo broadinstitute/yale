@@ -1,7 +1,7 @@
 package main
 
 import (
-	monitoring "cloud.google.com/go/monitoring/apiv3"
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"context"
 	"encoding/json"
 	"github.com/google/go-replayers/grpcreplay"
@@ -34,13 +34,12 @@ type testMetadata struct {
 	Timestamp time.Time
 }
 
-func Test_Record(t *testing.T) {
+func Test_AuthMetrics(t *testing.T) {
 	am := newAuthMetrics(t, recordMode)
 
-	// in an ideal world, we'd issue new keys for this test and add better timestamp handling,
-	// but for now we accept that we'll have to update this test whenever it is re-recorded,
-	// which should be rarely.
-
+	// in an ideal world, we'd issue new keys for this test and delete them after, and add better timestamp
+	// handling, but for now we'll have to update this test whenever it is re-recorded,
+	// which should be pretty rare.
 	lastAuth, err := am.LastAuthTime("broad-dsde-dev", "cromwell-carbonite-user@broad-dsde-dev.iam.gserviceaccount.com", "2ac28ba60e2683441fa01ba0909f814560f5f02a")
 	require.NoError(t, err)
 	require.NotNil(t, lastAuth)
