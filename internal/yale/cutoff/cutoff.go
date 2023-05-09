@@ -25,18 +25,22 @@ var minimums = struct {
 // oneDay time.Duration representing time in a single day
 const oneDay = 24 * time.Hour
 
-type cutoffs struct {
-	gsk apiv1b1.GCPSaKey
-	now time.Time
-}
+// lastAuthSafeDisableBuffer consider a key safe to disable if it has not been used within this much time
+const lastAuthSafeDisableBuffer = 3 * oneDay
 
 type Cutoffs interface {
 	// ShouldRotate Return true if the key created at the given timestamp should be rotated
 	ShouldRotate(createdAt time.Time) bool
 	// ShouldDisable Return true if the key rotated at the given timestamp should be disabled
 	ShouldDisable(rotatedAt time.Time) bool
+	// SafeToDisable Return true if the key rotated at the given timestamp is safe to disable
+	SafeToDisable(lastAuthTime time.Time) bool
 	// ShouldDelete Return true if the key disabled at the given timestamp should be deleted
 	ShouldDelete(disabledAt time.Time) bool
+	// DisableAfterDays Number of days to wait to disable a key before rotating it (the basis for ShouldDisable)
+	DisableAfterDays() int
+	// DeleteAfterDays Number of days to wait to delete a key before rotating it (the basis for ShouldDelete)
+	DeleteAfterDays() int
 }
 
 func New(gsk apiv1b1.GCPSaKey) Cutoffs {
@@ -44,6 +48,11 @@ func New(gsk apiv1b1.GCPSaKey) Cutoffs {
 		gsk: gsk,
 		now: time.Now(),
 	}
+}
+
+type cutoffs struct {
+	gsk apiv1b1.GCPSaKey
+	now time.Time
 }
 
 // ShouldRotate Return true if the key created at the given timestamp should be rotated
@@ -55,8 +64,20 @@ func (c cutoffs) ShouldDisable(rotatedAt time.Time) bool {
 	return rotatedAt.Before(c.disableCutoff())
 }
 
+func (c cutoffs) SafeToDisable(lastAuthTime time.Time) bool {
+	return lastAuthTime.Before(c.safeToDisableCutoff())
+}
+
 func (c cutoffs) ShouldDelete(disabledAt time.Time) bool {
 	return disabledAt.Before(c.deleteCutoff())
+}
+
+func (c cutoffs) DisableAfterDays() int {
+	return c.gsk.Spec.KeyRotation.DisableAfter
+}
+
+func (c cutoffs) DeleteAfterDays() int {
+	return c.gsk.Spec.KeyRotation.DeleteAfter
 }
 
 // rotateCutoff keys created before this timestamp should be rotated
@@ -66,7 +87,12 @@ func (c cutoffs) rotateCutoff() time.Time {
 
 // disableCutoff keys rotated before this timestamp should be disabled (if they are unused)
 func (c cutoffs) disableCutoff() time.Time {
-	return c.computeCutoff(c.gsk.Spec.KeyRotation.DisableAfter, minimums.DisableAfter, "DisableAfter")
+	return c.computeCutoff(c.DisableAfterDays(), minimums.DisableAfter, "DisableAfter")
+}
+
+// safeToDisableCutoff keys last authenticated before this timestamp should be safe to disable
+func (c cutoffs) safeToDisableCutoff() time.Time {
+	return c.now.Add(-1 * lastAuthSafeDisableBuffer)
 }
 
 // deleteCutoff keys disabled before this timestamp should be deleted

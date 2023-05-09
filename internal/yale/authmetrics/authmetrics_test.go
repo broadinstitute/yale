@@ -1,4 +1,4 @@
-package main
+package authmetrics
 
 import (
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
