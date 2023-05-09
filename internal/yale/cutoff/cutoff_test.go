@@ -15,16 +15,18 @@ func Test_Cutoff_Timestamps(t *testing.T) {
 	require.NoError(t, err)
 
 	type cutoffTimes struct {
-		rotateCutoff  string
-		disableCutoff string
-		deleteCutoff  string
+		rotateCutoff        string
+		disableCutoff       string
+		safeToDisableCutoff string
+		deleteCutoff        string
 	}
 
 	type shouldChecks struct {
-		input   string
-		rotate  bool
-		disable bool
-		delete  bool
+		input       string
+		rotate      bool
+		disable     bool
+		safeDisable bool
+		delete      bool
 	}
 
 	testCases := []struct {
@@ -41,28 +43,39 @@ func Test_Cutoff_Timestamps(t *testing.T) {
 				DeleteAfter:  1,
 			},
 			expectedCutoffs: cutoffTimes{
-				rotateCutoff:  "2023-04-21T09:10:11Z",
-				disableCutoff: "2023-04-21T09:10:11Z",
-				deleteCutoff:  "2023-04-25T09:10:11Z",
+				rotateCutoff:        "2023-04-21T09:10:11Z",
+				disableCutoff:       "2023-04-21T09:10:11Z",
+				safeToDisableCutoff: "2023-04-25T09:10:11Z",
+				deleteCutoff:        "2023-04-25T09:10:11Z",
 			},
 			shouldChecks: []shouldChecks{
 				{
-					input:   "2023-04-14T09:05:11Z",
-					rotate:  true,
-					disable: true,
-					delete:  true,
+					input:       "2023-04-14T09:05:11Z",
+					rotate:      true,
+					disable:     true,
+					safeDisable: true,
+					delete:      true,
 				},
 				{
-					input:   "2023-04-21T09:15:11Z",
-					rotate:  false,
-					disable: false,
-					delete:  true,
+					input:       "2023-04-21T09:15:11Z",
+					rotate:      false,
+					disable:     false,
+					safeDisable: true,
+					delete:      true,
 				},
 				{
-					input:   "2023-04-25T09:11:11Z",
-					rotate:  false,
-					disable: false,
-					delete:  false,
+					input:       "2023-04-25T09:09:11Z",
+					rotate:      false,
+					disable:     false,
+					safeDisable: true,
+					delete:      true,
+				},
+				{
+					input:       "2023-04-25T09:11:11Z",
+					rotate:      false,
+					disable:     false,
+					safeDisable: false,
+					delete:      false,
 				},
 			},
 		},
@@ -74,34 +87,46 @@ func Test_Cutoff_Timestamps(t *testing.T) {
 				DeleteAfter:  8,
 			},
 			expectedCutoffs: cutoffTimes{
-				rotateCutoff:  "2023-04-11T09:10:11Z",
-				disableCutoff: "2023-04-12T09:10:11Z",
-				deleteCutoff:  "2023-04-20T09:10:11Z",
+				rotateCutoff:        "2023-04-11T09:10:11Z",
+				disableCutoff:       "2023-04-12T09:10:11Z",
+				safeToDisableCutoff: "2023-04-25T09:10:11Z",
+				deleteCutoff:        "2023-04-20T09:10:11Z",
 			},
 			shouldChecks: []shouldChecks{
 				{
-					input:   "2023-04-23T00:00:00Z",
-					rotate:  false,
-					disable: false,
-					delete:  false,
+					input:       "2023-04-27T00:00:00Z",
+					rotate:      false,
+					disable:     false,
+					safeDisable: false,
+					delete:      false,
 				},
 				{
-					input:   "2023-04-15T09:00:00Z",
-					rotate:  false,
-					disable: false,
-					delete:  true,
+					input:       "2023-04-23T00:00:00Z",
+					rotate:      false,
+					disable:     false,
+					safeDisable: true,
+					delete:      false,
 				},
 				{
-					input:   "2023-04-11T09:30:00Z",
-					rotate:  false,
-					disable: true,
-					delete:  true,
+					input:       "2023-04-15T09:00:00Z",
+					rotate:      false,
+					disable:     false,
+					safeDisable: true,
+					delete:      true,
 				},
 				{
-					input:   "2023-04-11T08:59:00Z",
-					rotate:  true,
-					disable: true,
-					delete:  true,
+					input:       "2023-04-11T09:30:00Z",
+					rotate:      false,
+					disable:     true,
+					safeDisable: true,
+					delete:      true,
+				},
+				{
+					input:       "2023-04-11T08:59:00Z",
+					rotate:      true,
+					disable:     true,
+					safeDisable: true,
+					delete:      true,
 				},
 			},
 		},
@@ -119,8 +144,13 @@ func Test_Cutoff_Timestamps(t *testing.T) {
 				},
 			}
 			c := &cutoffs{gsk, now}
+
+			assert.Equal(t, tc.input.DisableAfter, c.DisableAfterDays())
+			assert.Equal(t, tc.input.DeleteAfter, c.DeleteAfterDays())
+
 			assert.Equal(t, tc.expectedCutoffs.rotateCutoff, c.rotateCutoff().Format(layout))
 			assert.Equal(t, tc.expectedCutoffs.disableCutoff, c.disableCutoff().Format(layout))
+			assert.Equal(t, tc.expectedCutoffs.safeToDisableCutoff, c.safeToDisableCutoff().Format(layout))
 			assert.Equal(t, tc.expectedCutoffs.deleteCutoff, c.deleteCutoff().Format(layout))
 
 			for _, sc := range tc.shouldChecks {
@@ -129,6 +159,7 @@ func Test_Cutoff_Timestamps(t *testing.T) {
 
 				assert.Equal(t, sc.rotate, c.ShouldRotate(timestamp), "input: %q", sc.input)
 				assert.Equal(t, sc.disable, c.ShouldDisable(timestamp), "input: %q", sc.input)
+				assert.Equal(t, sc.safeDisable, c.SafeToDisable(timestamp), "input: %q", sc.input)
 				assert.Equal(t, sc.delete, c.ShouldDelete(timestamp), "input: %q", sc.input)
 			}
 		})
