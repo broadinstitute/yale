@@ -43,6 +43,24 @@ type Entry struct {
 	// DisabledKeys map key id -> timestamp representing older versions of the key that were disabled
 	// and should be deleted after a configured amount of time has passed
 	DisabledKeys map[string]time.Time
+	// SyncStatus map used to track sync status for the GcpSaKey resources that use this cache entry.
+	// Each entry in the map describes the last successful sync for a single GcpSaKey resource.
+	// The entry's key is the name of the GcpSaKey, in the form "<namespace>/<name>".
+	// The entry's value contains:
+	// * the checksum of the GcpSaKey's JSON-marshalled spec
+	// * the id of the key that was synced
+	// concatenated with a ":", in the form "<checksum>:<key id>".
+	//
+	// Yale determines if it needs to perform a sync for a particular GcpSaKey by computing this value at runtime.
+	// If the computed value does not match the stored value, it performs a key sync and updates the stored value.
+	//
+	// The advantages of this behavior are:
+	// * If Yale fails to sync a value to Vault due to, say, a permissions issue, it will return an error
+	//   and keep re-trying on every run until the sync succeeds
+	// * If a sync succeeds, Yale will not attempt to sync again until the GcpSaKey's spec changes (say, for example,
+	//   if the key needs to be synced to a different path) or the key is rotated. This avoids overwhelming Vault
+	//   (or eventually Google secrets manager) with write requests.
+	SyncStatus map[string]string
 }
 
 // only lower alphanumeric, ., and - are legal in the names of k8s resources

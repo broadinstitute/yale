@@ -4,12 +4,10 @@ import (
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"context"
 	"encoding/json"
+	"github.com/broadinstitute/yale/internal/yale/testutils"
 	"github.com/google/go-replayers/grpcreplay"
-	"github.com/google/go-replayers/httpreplay"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/api/option"
 	"net/http"
@@ -96,24 +94,8 @@ func newAuthMetricsInRecordMode(t *testing.T) *authMetrics {
 		options = append(options, option.WithGRPCDialOption(o))
 	}
 
-	// create new http recorder
-	httpRecorder, err := httpreplay.NewRecorder(httpFile, nil)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		if err := httpRecorder.Close(); err != nil {
-			t.Fatal(err)
-		}
-	})
-
-	// add Google ADC auth to the http client
-	tokenSource, err := google.DefaultTokenSource(context.Background())
-	require.NoError(t, err)
-
-	httpClient := httpRecorder.Client()
-	httpClient.Transport = &oauth2.Transport{
-		Source: tokenSource,
-		Base:   httpClient.Transport,
-	}
+	// create new recording http client
+	httpClient := testutils.NewRecordingHTTPClientWithADCAuth(t, httpFile)
 
 	return buildAuthMetrics(t, metadata, httpClient, options...)
 }
@@ -131,14 +113,9 @@ func newAuthMetricsInReplayMode(t *testing.T) *authMetrics {
 	conn, err := grpcReplayer.Connection()
 	require.NoError(t, err)
 
-	httpReplayer, err := httpreplay.NewReplayer(httpFile)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		if err := httpReplayer.Close(); err != nil {
-			t.Fatal(err)
-		}
-	})
-	return buildAuthMetrics(t, meta, httpReplayer.Client(), option.WithGRPCConn(conn))
+	httpClient := testutils.NewReplayingHTTPClient(t, httpFile)
+
+	return buildAuthMetrics(t, meta, httpClient, option.WithGRPCConn(conn))
 }
 
 // build newAuthMetrics given replayer/recorder constructors for http and grpc protocols
