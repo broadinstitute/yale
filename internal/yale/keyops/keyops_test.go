@@ -18,8 +18,8 @@ func Test_KeyCreate(t *testing.T) {
 		expect.CreateServiceAccountKey(testProject, testServiceAccount).
 			With(
 				iam.CreateServiceAccountKeyRequest{
-					KeyAlgorithm:   KEY_ALGORITHM,
-					PrivateKeyType: KEY_FORMAT,
+					KeyAlgorithm:   keyAlgorithm,
+					PrivateKeyType: keyFormat,
 				},
 			).Returns(
 			iam.ServiceAccountKey{

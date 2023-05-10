@@ -142,6 +142,7 @@ func TestPopulateCache(t *testing.T) {
 								"0001": createdAt,
 							},
 							DisabledKeys: map[string]time.Time{},
+							SyncStatus:   map[string]string{},
 						}),
 					},
 				})
@@ -173,6 +174,7 @@ func TestPopulateCache(t *testing.T) {
 							},
 							RotatedKeys:  map[string]time.Time{},
 							DisabledKeys: map[string]time.Time{},
+							SyncStatus:   map[string]string{},
 						}),
 					},
 				})

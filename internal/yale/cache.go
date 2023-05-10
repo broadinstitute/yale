@@ -65,6 +65,7 @@ func (m *Yale) PopulateCache() error {
 
 		cacheEntry.RotatedKeys = make(map[string]time.Time)
 		cacheEntry.DisabledKeys = make(map[string]time.Time)
+		cacheEntry.SyncStatus = make(map[string]string)
 
 		oldKeyName := secret.Annotations[oldServiceAccountKeyNameAnnotation]
 		if oldKeyName != "" {
