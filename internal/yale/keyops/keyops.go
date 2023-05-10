@@ -9,11 +9,11 @@ import (
 	"strings"
 )
 
-// KEY_ALGORITHM what key algorithm to use when creating new Google SA keys
-const KEY_ALGORITHM string = "KEY_ALG_RSA_2048"
+// keyAlgorithm what key algorithm to use when creating new Google SA keys
+const keyAlgorithm string = "KEY_ALG_RSA_2048"
 
-// KEY_FORMAT format to use when creating new Google SA keys
-const KEY_FORMAT string = "TYPE_GOOGLE_CREDENTIALS_FILE"
+// keyFormat format to use when creating new Google SA keys
+const keyFormat string = "TYPE_GOOGLE_CREDENTIALS_FILE"
 
 // Key represents a Google IAM service account key
 type Key struct {
@@ -53,8 +53,8 @@ func (k *keyops) Create(project string, serviceAccountEmail string) (Key, []byte
 	name := qualifiedServiceAccountName(project, serviceAccountEmail)
 	ctx := context.Background()
 	request := &iam.CreateServiceAccountKeyRequest{
-		KeyAlgorithm:   KEY_ALGORITHM,
-		PrivateKeyType: KEY_FORMAT,
+		KeyAlgorithm:   keyAlgorithm,
+		PrivateKeyType: keyFormat,
 	}
 
 	logs.Info.Printf("creating new service account for %s...", serviceAccountEmail)

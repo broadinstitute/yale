@@ -28,6 +28,7 @@ const oneDay = 24 * time.Hour
 // lastAuthSafeDisableBuffer consider a key safe to disable if it has not been used within this much time
 const lastAuthSafeDisableBuffer = 3 * oneDay
 
+// Cutoffs is responsible for determining when a service account key should be rotated, disabled, or deleted
 type Cutoffs interface {
 	// ShouldRotate Return true if the key created at the given timestamp should be rotated
 	ShouldRotate(createdAt time.Time) bool
