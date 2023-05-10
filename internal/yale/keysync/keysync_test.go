@@ -291,10 +291,6 @@ func (suite *KeySyncSuite) createSecret(secret *corev1.Secret) {
 	require.NoError(suite.T(), err)
 }
 
-func (suite *KeySyncSuite) deleteSecret(namespace string, name string) {
-	require.NoError(suite.T(), suite.k8s.CoreV1().Secrets(namespace).Delete(context.Background(), name, metav1.DeleteOptions{}))
-}
-
 func (suite *KeySyncSuite) assertK8sSecreDoesNotExist(namespace string, name string) {
 	_, err := suite.k8s.CoreV1().Secrets(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	assert.Error(suite.T(), err)
