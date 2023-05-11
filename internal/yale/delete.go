@@ -1,80 +1,45 @@
 package yale
 
 import (
-	"context"
-	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
+	"fmt"
+	"github.com/broadinstitute/yale/internal/yale/cache"
+	"github.com/broadinstitute/yale/internal/yale/cutoff"
+	"github.com/broadinstitute/yale/internal/yale/keyops"
 	"github.com/broadinstitute/yale/internal/yale/logs"
-	corev1 "k8s.io/api/core/v1"
+	"time"
 )
 
-// Removes 'oldServiceAccountKeyName' annotation
-func (m *Yale) removeOldKeyName(K8Secret *corev1.Secret) error {
-	annotations := K8Secret.GetAnnotations()
-	delete(annotations, "oldServiceAccountKeyName")
-	K8Secret.ObjectMeta.SetAnnotations(annotations)
-	_, err := m.UpdateSecret(K8Secret)
-	return err
-}
-
-// DeleteKey Holds logic to delete a single key
-func (m *Yale) DeleteKey(k8Secret *corev1.Secret, gcpSaKeySpec apiv1b1.GCPSaKeySpec) error {
-	secretAnnotations := k8Secret.GetAnnotations()
-	keyName := secretAnnotations["oldServiceAccountKeyName"]
-	saName := secretAnnotations["serviceAccountKeyName"]
-	saKey, err := m.GetSAKey(saName, keyName)
-	if err != nil {
-		return err
-	}
-	keyNameForLogs := after(saKey.serviceAccountKeyName, "serviceAccounts/")
-	logs.Info.Printf("Checking if %s should be deleted.", keyNameForLogs)
-	if saKey.disabled {
-		totalTime := gcpSaKeySpec.KeyRotation.DisableAfter + gcpSaKeySpec.KeyRotation.DeleteAfter
-		isExpired, err := IsExpired(secretAnnotations["validAfterDate"], totalTime)
-		if err != nil {
+// deleteOldKeys will delete old service account keys
+func (m *Yale) deleteOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
+	for keyId, disabledAt := range entry.DisabledKeys {
+		if err := m.deleteKey(keyId, disabledAt, entry, cutoffs); err != nil {
 			return err
 		}
-		if !isExpired {
-			return nil
-		}
-		isNotUsed, err := m.IsNotAuthenticated(totalTime, keyName, gcpSaKeySpec.GoogleServiceAccount.Project)
-		if err != nil {
-			return err
-		}
-		if isNotUsed {
-			logs.Info.Printf("%s can be deleted.", keyNameForLogs)
-			err = m.Delete(keyName)
-			if err != nil {
-				return err
-			}
-			logs.Info.Printf("Successfully deleted %s.", keyNameForLogs)
-			return m.removeOldKeyName(k8Secret)
-		}
-	} else {
-		logs.Info.Printf("%s is not disabled yet and can not be deleted.", keyNameForLogs)
 	}
 	return nil
 }
 
-// Delete key
-func (m *Yale) Delete(name string) error {
-	logs.Info.Printf("Trying to delete %s.", after(name, "serviceAccounts/"))
-	ctx := context.Background()
-	_, err := m.gcp.Projects.ServiceAccounts.Keys.Delete(name).Context(ctx).Do()
-	return err
-}
-
-// GetSAKey Returns an SA key
-func (m *Yale) GetSAKey(saName string, keyName string) (*SaKey, error) {
-	ctx := context.Background()
-	saKey, err := m.gcp.Projects.ServiceAccounts.Keys.Get(keyName).Context(ctx).Do()
-	if err != nil {
-		return nil, err
+func (m *Yale) deleteKey(keyId string, disabledAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
+	// has enough time passed since this key was disabled? if not, do nothing
+	logs.Info.Printf("key %s (service account %s) was disabled at %s, delete cutoff is %d days", keyId, entry.ServiceAccount.Email, disabledAt, cutoffs.DisableAfterDays())
+	if !cutoffs.ShouldDelete(disabledAt) {
+		logs.Info.Printf("key %s (service account %s): too early to delete", keyId, entry.ServiceAccount.Email, disabledAt, cutoffs.DisableAfterDays())
+		return nil
 	}
-	return &SaKey{
-		saKey.PrivateKeyData,
-		saKey.Name,
-		saName,
-		saKey.ValidAfterTime,
-		saKey.Disabled,
-	}, nil
+
+	logs.Info.Printf("key %s (service account %s) has reached delete cutoff; deleting it", keyId, entry.ServiceAccount.Email)
+	if err := m.keyops.Delete(keyops.Key{
+		Project:             entry.ServiceAccount.Project,
+		ServiceAccountEmail: entry.ServiceAccount.Email,
+		ID:                  keyId,
+	}); err != nil {
+		return fmt.Errorf("error deleting key %s (service account %s): %v", keyId, entry.ServiceAccount.Email, err)
+	}
+
+	delete(entry.DisabledKeys, keyId)
+	if err := m.cache.Save(entry); err != nil {
+		return fmt.Errorf("error updating cache entry for %s after key deletion: %v", entry.ServiceAccount.Email, err)
+	}
+
+	return nil
 }

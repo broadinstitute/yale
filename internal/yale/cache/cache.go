@@ -24,9 +24,14 @@ const secretKey = "value"
 const secretNamePrefix = "yale-cache-"
 
 type Cache interface {
+	// List returns all cache entries in the cache namespace
 	List() ([]*Entry, error)
+	// GetOrCreate will retrieve the cache entry for the given service account, or create a new empty
+	// cache entry if one doesn't exist
 	GetOrCreate(ServiceAccount) (*Entry, error)
+	// Save persists a cache entry to the cluster
 	Save(*Entry) error
+	// Delete deletes a cache entry from the cluster
 	Delete(*Entry) error
 }
 
@@ -53,8 +58,17 @@ func (c *cache) List() ([]*Entry, error) {
 	var entries []*Entry
 	for _, secret := range resp.Items {
 		entry := &Entry{}
-		if err := entry.unmarshalFromSecret(&secret); err != nil {
+		if err = entry.unmarshalFromSecret(&secret); err != nil {
 			return nil, fmt.Errorf("error unmarshalling cache entry secret %s: %v", secret.Name, err)
+		}
+		if entry.ServiceAccount.Email == "" {
+			return nil, fmt.Errorf("invalid cache entry secret %s: missing service account email", secret.Name)
+		}
+		if entry.ServiceAccount.Project == "" {
+			return nil, fmt.Errorf("invalid cache entry secret %s: missing service account project", secret.Name)
+		}
+		if secret.Name != entry.ServiceAccount.cacheSecretName() {
+			return nil, fmt.Errorf("invalid cache entry secret %s: secret name does not match service account, should be %s", secret.Name, entry.ServiceAccount.cacheSecretName())
 		}
 		entries = append(entries, entry)
 	}

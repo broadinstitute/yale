@@ -150,10 +150,29 @@ func Test_Cache(t *testing.T) {
 	entry, err = cache.GetOrCreate(sa1)
 	require.NoError(t, err)
 	assert.Equal(t, emptyCacheEntry(sa1), *entry)
+
+	// list should return error if a cache entry exists with invalid data
+	// create a cache entry with invalid data
+	_, err = k8s.CoreV1().Secrets(namespace).Create(context.Background(), &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "invalid-fake-cache-entry",
+			Labels: map[string]string{
+				labelKey: labelValue,
+			},
+		},
+		Data: map[string][]byte{
+			secretKey: []byte(`{}`), // no service account information!
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// list should return error
+	_, err = cache.List()
+	assert.ErrorContains(t, err, "missing service account email")
 }
 
 func Test_cacheSecretName(t *testing.T) {
-	assert.Equal(t, "yale-cache-my-sa-my-project.com", sa1.cacheSecretName())
+	assert.Equal(t, "yale-cache-my-sa1-p.com", sa1.cacheSecretName())
 }
 
 func readCacheSecret(t *testing.T, k8s kubernetes.Interface, name string) *corev1.Secret {

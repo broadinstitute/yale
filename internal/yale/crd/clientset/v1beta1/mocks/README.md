@@ -1,6 +1,3 @@
-The mocks in this directory were generated using [mockery 2](https://github.com/mockery/mockery), run from the parent (`v1` package):
+The mocks in this directory were generated using [mockery 2](https://github.com/mockery/mockery).
 
-```
-mockery --dir . --name GcpSaKeyInterface --filename gcpsakey.go
-mockery --dir . --name YaleCrdV1Interface --filename crd.go
-```
+You can generate them by running `go generate` in this directory.

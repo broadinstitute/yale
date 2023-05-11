@@ -9,7 +9,48 @@ import (
 	"time"
 )
 
-func Test_Cutoff_Timestamps(t *testing.T) {
+//
+//func Test_Cutoffs(t *testing.T) {
+//	type cutoffTimes struct {
+//		rotateCutoff        string
+//		disableCutoff       string
+//		safeToDisableCutoff string
+//		deleteCutoff        string
+//	}
+//
+//	testCases := []struct {
+//		name             string
+//		gsks             []v1beta1.GCPSaKey
+//		expectThresholds thresholds
+//		cutoffTimes      cutoffTimes
+//	}{
+//		{
+//			name: "single gsk, valid thresholds",
+//			gsks: []v1beta1.GCPSaKey{
+//				{
+//					ObjectMeta: metav1.ObjectMeta{
+//						Name:      "my-gsk",
+//						Namespace: "my-ns",
+//					},
+//					Spec: v1beta1.GCPSaKeySpec{
+//						KeyRotation: v1beta1.KeyRotation{
+//							RotateAfter:  1,
+//							DisableAfter: 2,
+//							DeleteAfter:  3,
+//						},
+//					},
+//				},
+//			},
+//			expectThresholds: thresholds{
+//				rotateAfter:  -1,
+//				disableAfter: -1,
+//				deleteAfter:  -1,
+//			},
+//		},
+//	}
+//}
+
+func Test_Cutoffs(t *testing.T) {
 	layout := time.RFC3339
 	now, err := time.Parse(layout, "2023-04-28T09:10:11Z")
 	require.NoError(t, err)
@@ -30,10 +71,11 @@ func Test_Cutoff_Timestamps(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name            string
-		input           v1beta1.KeyRotation
-		expectedCutoffs cutoffTimes
-		shouldChecks    []shouldChecks
+		name               string
+		input              v1beta1.KeyRotation
+		expectedThresholds thresholds
+		expectedCutoffs    cutoffTimes
+		shouldChecks       []shouldChecks
 	}{
 		{
 			name: "should round up to configured minimums",
@@ -41,6 +83,11 @@ func Test_Cutoff_Timestamps(t *testing.T) {
 				RotateAfter:  -1,
 				DisableAfter: 0,
 				DeleteAfter:  1,
+			},
+			expectedThresholds: thresholds{
+				rotateAfter:  7,
+				disableAfter: 7,
+				deleteAfter:  3,
 			},
 			expectedCutoffs: cutoffTimes{
 				rotateCutoff:        "2023-04-21T09:10:11Z",
@@ -85,6 +132,11 @@ func Test_Cutoff_Timestamps(t *testing.T) {
 				RotateAfter:  17,
 				DisableAfter: 16,
 				DeleteAfter:  8,
+			},
+			expectedThresholds: thresholds{
+				rotateAfter:  17,
+				disableAfter: 16,
+				deleteAfter:  8,
 			},
 			expectedCutoffs: cutoffTimes{
 				rotateCutoff:        "2023-04-11T09:10:11Z",
@@ -143,10 +195,11 @@ func Test_Cutoff_Timestamps(t *testing.T) {
 					KeyRotation: tc.input,
 				},
 			}
-			c := &cutoffs{gsk, now}
+			c := newWithCustomTime([]v1beta1.GCPSaKey{gsk}, now)
 
-			assert.Equal(t, tc.input.DisableAfter, c.DisableAfterDays())
-			assert.Equal(t, tc.input.DeleteAfter, c.DeleteAfterDays())
+			assert.Equal(t, tc.expectedThresholds.rotateAfter, c.RotateAfterDays())
+			assert.Equal(t, tc.expectedThresholds.disableAfter, c.DisableAfterDays())
+			assert.Equal(t, tc.expectedThresholds.deleteAfter, c.DeleteAfterDays())
 
 			assert.Equal(t, tc.expectedCutoffs.rotateCutoff, c.rotateCutoff().Format(layout))
 			assert.Equal(t, tc.expectedCutoffs.disableCutoff, c.disableCutoff().Format(layout))
@@ -162,6 +215,147 @@ func Test_Cutoff_Timestamps(t *testing.T) {
 				assert.Equal(t, sc.safeDisable, c.SafeToDisable(timestamp), "input: %q", sc.input)
 				assert.Equal(t, sc.delete, c.ShouldDelete(timestamp), "input: %q", sc.input)
 			}
+		})
+	}
+}
+
+func Test_computeThresholds(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    []v1beta1.GCPSaKey
+		expected thresholds
+	}{
+		{
+			name: "should return correct thresholds for a single gsk",
+			input: []v1beta1.GCPSaKey{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-gsk-1",
+						Namespace: "test-namespace",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter:  7,
+							DisableAfter: 8,
+							DeleteAfter:  9,
+						},
+						GoogleServiceAccount: v1beta1.GoogleServiceAccount{
+							Name: "my-sa@p.com",
+						},
+					},
+				},
+			},
+			expected: thresholds{
+				rotateAfter:  7,
+				disableAfter: 8,
+				deleteAfter:  9,
+			},
+		},
+		{
+			name: "should round up to configured minimums",
+			input: []v1beta1.GCPSaKey{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-gsk-1",
+						Namespace: "test-namespace",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter:  -1,
+							DisableAfter: 0,
+							DeleteAfter:  1,
+						},
+						GoogleServiceAccount: v1beta1.GoogleServiceAccount{
+							Name: "my-sa@p.com",
+						},
+					},
+				},
+			},
+			expected: thresholds{
+				rotateAfter:  7,
+				disableAfter: 7,
+				deleteAfter:  3,
+			},
+		},
+		{
+			name: "should choose minimum valid value for multiple conflicting GSK specs",
+			input: []v1beta1.GCPSaKey{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-gsk-1",
+						Namespace: "test-ns-1",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter:  7,
+							DisableAfter: 12,
+							DeleteAfter:  1,
+						},
+						GoogleServiceAccount: v1beta1.GoogleServiceAccount{
+							Name: "my-sa@p.com",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-gsk-2",
+						Namespace: "test-ns-2",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter:  6,
+							DisableAfter: 9,
+							DeleteAfter:  2,
+						},
+						GoogleServiceAccount: v1beta1.GoogleServiceAccount{
+							Name: "my-sa@p.com",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-gsk-3",
+						Namespace: "test-ns-3",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter:  8,
+							DisableAfter: 22,
+							DeleteAfter:  1,
+						},
+						GoogleServiceAccount: v1beta1.GoogleServiceAccount{
+							Name: "my-sa@p.com",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-gsk-4",
+						Namespace: "test-ns-4",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter:  2,
+							DisableAfter: 17,
+							DeleteAfter:  0,
+						},
+						GoogleServiceAccount: v1beta1.GoogleServiceAccount{
+							Name: "my-sa@p.com",
+						},
+					},
+				},
+			},
+			expected: thresholds{
+				rotateAfter:  7,
+				disableAfter: 9,
+				deleteAfter:  3,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, computeThresholds(tc.input))
 		})
 	}
 }
