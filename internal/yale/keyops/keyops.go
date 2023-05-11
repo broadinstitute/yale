@@ -25,9 +25,9 @@ type Key struct {
 	ID string
 }
 
-// Keyops peforms operations on Google service account keys. It supports
+// KeyOps peforms operations on Google service account keys. It supports
 // creating new keys, disabling, and deleting them.
-type Keyops interface {
+type KeyOps interface {
 	// Create a new service account key for the given service account
 	// returns a Key instance that includes the new key's ID as well as the key's JSON private key data
 	Create(project string, serviceAccountEmail string) (Key, []byte, error)
@@ -35,11 +35,11 @@ type Keyops interface {
 	IsDisabled(key Key) (bool, error)
 	// EnsureDisabled check if the key is enabled and if so, disable it
 	EnsureDisabled(key Key) error
-	// DeleteIfDisabled delete the service account key if it is disabled, else return an error
+	// DeleteIfDisabled if the service account key is disabled, delete it, else return an error
 	DeleteIfDisabled(key Key) error
 }
 
-func New(iamService *iam.Service) Keyops {
+func New(iamService *iam.Service) KeyOps {
 	return &keyops{
 		iam: iamService,
 	}

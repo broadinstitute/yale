@@ -63,6 +63,7 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) err
 		if err = k.syncToK8sSecret(entry, gsk); err != nil {
 			return fmt.Errorf("gsk %s in %s: error syncing to K8s secret: %v", gsk.Name, gsk.Namespace, err)
 		}
+
 		if err = k.replicateKeyToVault(entry, gsk); err != nil {
 			return fmt.Errorf("gsk %s in %s: error syncing to Vault: %v", gsk.Name, gsk.Namespace, err)
 		}
@@ -137,10 +138,19 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk apiv1b1.GCPSaKey) erro
 	} else {
 		_, err = k.k8s.CoreV1().Secrets(gsk.Namespace).Update(context.Background(), secret, metav1.UpdateOptions{})
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("error syncing service account key %s to secret %s/%s: %v", entry.CurrentKey.ID, gsk.Namespace, secret.Name, err)
+	}
+	logs.Info.Printf("synced service account key %s to secret %s/%s", entry.CurrentKey.ID, gsk.Namespace, gsk.Spec.Secret.Name)
+	return nil
 }
 
 func (k *keysync) replicateKeyToVault(entry *cache.Entry, gsk apiv1b1.GCPSaKey) error {
+	if len(gsk.Spec.VaultReplications) == 0 {
+		// no replications to perform
+		return nil
+	}
+
 	for _, spec := range gsk.Spec.VaultReplications {
 		msg := fmt.Sprintf("replicating key %s for %s to Vault (format %s, path %s, key %s)",
 			entry.CurrentKey.ID, entry.ServiceAccount.Email, spec.Format, spec.Path, spec.Key)
@@ -154,6 +164,9 @@ func (k *keysync) replicateKeyToVault(entry *cache.Entry, gsk apiv1b1.GCPSaKey) 
 			return fmt.Errorf("error %s: write failed: %v", msg, err)
 		}
 	}
+
+	logs.Info.Printf("replicated key %s for %s to %d Vault paths", entry.CurrentKey.ID, entry.ServiceAccount.Email, len(gsk.Spec.VaultReplications))
+
 	return nil
 }
 

@@ -26,12 +26,9 @@ func main() {
 	if err != nil {
 		logs.Error.Fatalf("Error building clients: %v, exiting\n", err)
 	}
-	m, err := yale.NewYale(clients, func(options *yale.Options) {
+	m := yale.NewYale(clients, func(options *yale.Options) {
 		options.CacheNamespace = args.cacheNamespace
 	})
-	if err != nil {
-		logs.Error.Fatal(err)
-	}
 	if err = m.Run(); err != nil {
 		logs.Error.Fatal(err)
 	}

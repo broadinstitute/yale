@@ -1,26 +1,30 @@
 package yale
 
 import (
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"fmt"
 	"github.com/broadinstitute/yale/internal/yale/authmetrics"
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	"github.com/broadinstitute/yale/internal/yale/client"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
+	"github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/cutoff"
 	"github.com/broadinstitute/yale/internal/yale/keyops"
 	"github.com/broadinstitute/yale/internal/yale/keysync"
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	"github.com/broadinstitute/yale/internal/yale/resourcemap"
+	vaultapi "github.com/hashicorp/vault/api"
+	"google.golang.org/api/iam/v1"
+	"k8s.io/client-go/kubernetes"
 	"time"
 )
 
 type Yale struct { // Yale config
-	options     Options
-	authmetrics authmetrics.AuthMetrics
-	keyops      keyops.Keyops
-	keysync     keysync.KeySync
 	cache       cache.Cache
 	resourcemap resourcemap.Mapper
+	keyops      keyops.KeyOps
+	keysync     keysync.KeySync
+	authmetrics authmetrics.AuthMetrics
 }
 
 type Options struct {
@@ -28,7 +32,11 @@ type Options struct {
 }
 
 // NewYale /* Construct a new Yale Manager */
-func NewYale(clients *client.Clients, opts ...func(*Options)) (*Yale, error) {
+func NewYale(clients *client.Clients, opts ...func(*Options)) *Yale {
+	return newYaleFromClients(clients.GetK8s(), clients.GetCRDs(), clients.GetIAM(), clients.GetMetrics(), clients.GetVault(), opts...)
+}
+
+func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, opts ...func(*Options)) *Yale {
 	options := Options{
 		CacheNamespace: cache.DefaultCacheNamespace,
 	}
@@ -36,16 +44,17 @@ func NewYale(clients *client.Clients, opts ...func(*Options)) (*Yale, error) {
 		opt(&options)
 	}
 
-	k8s := clients.GetK8s()
-	iam := clients.GetGCP()
-	crd := clients.GetCRDs()
-	_authmetrics := authmetrics.New(clients.GetMetrics(), iam)
+	_authmetrics := authmetrics.New(metrics, iam)
 	_keyops := keyops.New(iam)
-	_keysync := keysync.New(k8s, clients.GetVault())
+	_keysync := keysync.New(k8s, vault)
 	_cache := cache.New(k8s, options.CacheNamespace)
 	_resourcemap := resourcemap.New(crd, _cache)
 
-	return &Yale{options, _authmetrics, _keyops, _keysync, _cache, _resourcemap}, nil
+	return newYaleFromComponents(_cache, _resourcemap, _authmetrics, _keyops, _keysync)
+}
+
+func newYaleFromComponents(_cache cache.Cache, resourcemapper resourcemap.Mapper, _authmetrics authmetrics.AuthMetrics, _keyops keyops.KeyOps, _keysync keysync.KeySync) *Yale {
+	return &Yale{cache: _cache, resourcemap: resourcemapper, authmetrics: _authmetrics, keyops: _keyops, keysync: _keysync}
 }
 
 func (m *Yale) Run() error {
@@ -67,13 +76,13 @@ func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GCPSaKey
 
 	cutoffs := m.computeCutoffs(entry, gsks)
 
-	if err = m.rotateKey(entry, cutoffs, gsks); err != nil {
+	if err = m.deleteOldKeys(entry, cutoffs); err != nil {
 		return err
 	}
 	if err = m.disableOldKeys(entry, cutoffs); err != nil {
 		return err
 	}
-	if err = m.deleteOldKeys(entry, cutoffs); err != nil {
+	if err = m.rotateKey(entry, cutoffs, gsks); err != nil {
 		return err
 	}
 	if err = m.retireCacheEntryIfNeeded(entry, gsks); err != nil {
@@ -155,7 +164,7 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 }
 
 func (m *Yale) disableOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
-	for keyId, rotatedAt := range entry.DisabledKeys {
+	for keyId, rotatedAt := range entry.RotatedKeys {
 		if err := m.disableOneKey(keyId, rotatedAt, entry, cutoffs); err != nil {
 			return err
 		}

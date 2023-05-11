@@ -104,7 +104,7 @@ func Test_DeleteReturnsErrIfKeyNotDisabled(t *testing.T) {
 	assert.ErrorContains(t, err, "is not disabled")
 }
 
-func setup(t *testing.T, expectFn func(mockiam.Expect)) Keyops {
+func setup(t *testing.T, expectFn func(mockiam.Expect)) KeyOps {
 	mockIam := mockiam.NewMockIAMService(expectFn)
 
 	mockIam.Setup()
