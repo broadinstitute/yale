@@ -71,9 +71,10 @@ func (suite *YaleSuite) TestYaleSucceedsWithNoCacheEntriesOrGcpSaKeys() {
 	require.NoError(suite.T(), suite.yale.Run())
 }
 
-var eightDaysAgo = time.Now().Add(-8 * 24 * time.Hour).Round(0)
-var fourDaysAgo = time.Now().Add(-4 * 24 * time.Hour).Round(0)
-var fourHoursAgo = time.Now().Add(-4 * time.Hour).Round(0)
+var now = time.Now().UTC().Round(0)
+var eightDaysAgo = now.Add(-8 * 24 * time.Hour).Round(0)
+var fourDaysAgo = now.Add(-4 * 24 * time.Hour).Round(0)
+var fourHoursAgo = now.Add(-4 * time.Hour).Round(0)
 
 var sa1 = cache.ServiceAccount{
 	Email:   "s1@p.com",
@@ -133,7 +134,7 @@ func (suite *YaleSuite) TestYaleIssuesNewKeyForNewGcpSaKey() {
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), sa1key1.id, entry.CurrentKey.ID)
 	assert.Equal(suite.T(), sa1key1.json(), entry.CurrentKey.JSON)
-	assert.WithinDuration(suite.T(), time.Now(), entry.CurrentKey.CreatedAt, 5*time.Second)
+	suite.assertNow(entry.CurrentKey.CreatedAt)
 
 	// make sure the new key was replicated to the secret in the gsk spec
 	suite.assertSecretHasData("ns-1", "s1-secret", map[string]string{
@@ -185,7 +186,7 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNotInUse() {
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
-			CreatedAt: time.Now(),
+			CreatedAt: now,
 		},
 		RotatedKeys: map[string]time.Time{
 			sa1key1.id: eightDaysAgo,
@@ -219,7 +220,7 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNoUsageDataAvailable() {
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
-			CreatedAt: time.Now(),
+			CreatedAt: now,
 		},
 		RotatedKeys: map[string]time.Time{
 			sa1key1.id: eightDaysAgo,
@@ -253,7 +254,7 @@ func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
-			CreatedAt: time.Now(),
+			CreatedAt: now,
 		},
 		RotatedKeys: map[string]time.Time{
 			sa1key1.id: eightDaysAgo,
@@ -288,13 +289,13 @@ func (suite *YaleSuite) TestYaleDoesNotRotateDisableOrDeleteKeysThatAreNotOldEno
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key3.id,
 			JSON:      sa1key3.json(),
-			CreatedAt: time.Now(),
+			CreatedAt: now,
 		},
 		RotatedKeys: map[string]time.Time{
-			sa1key2.id: time.Now(),
+			sa1key2.id: now,
 		},
 		DisabledKeys: map[string]time.Time{
-			sa1key1.id: time.Now(),
+			sa1key1.id: now,
 		},
 	})
 
@@ -323,10 +324,10 @@ func (suite *YaleSuite) TestYaleDeletesOldKeys() {
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
-			CreatedAt: time.Now(),
+			CreatedAt: now,
 		},
 		DisabledKeys: map[string]time.Time{
-			sa1key1.id: time.Now(),
+			sa1key1.id: now,
 		},
 	})
 
@@ -456,7 +457,7 @@ func (suite *YaleSuite) assertSecretHasData(namespace string, name string, data 
 
 // assert a time.Time is within 5 seconds of now
 func (suite *YaleSuite) assertNow(t time.Time) {
-	assert.WithinDuration(suite.T(), time.Now(), t, 5*time.Second)
+	assert.WithinDuration(suite.T(), now, t, 5*time.Second)
 }
 
 func TestYaleTestSuite(t *testing.T) {
