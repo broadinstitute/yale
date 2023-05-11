@@ -64,7 +64,7 @@ func Test_Cache(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, entry, entryCopy)
 
-	now := time.Now().Round(0)
+	now := time.Now().Round(0).UTC()
 
 	// updating and saving entry should persist the changes
 	entry.CurrentKey.ID = "key-1"
