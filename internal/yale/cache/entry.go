@@ -25,6 +25,17 @@ func (sa ServiceAccount) cacheSecretName() string {
 	return secretNamePrefix + normalized
 }
 
+// CurrentKey represents the current/active service account key that will
+// be replicated to k8s secrets and Vault
+type CurrentKey struct {
+	// JSON representation of the service account key
+	JSON string
+	// ID service account key id
+	ID string
+	// CreatedAt time at which the  service account key was created
+	CreatedAt time.Time
+}
+
 func newCacheEntry(account ServiceAccount) *Entry {
 	return &Entry{
 		ServiceAccount: account,
@@ -39,14 +50,7 @@ type Entry struct {
 	ServiceAccount ServiceAccount
 	// CurrentKey represents the current/active service account key that will
 	// be replicated to k8s secrets and Vault
-	CurrentKey struct {
-		// JSON representation of the service account key
-		JSON string
-		// ID service account key id
-		ID string
-		// CreatedAt time at which the  service account key was created
-		CreatedAt time.Time
-	}
+	CurrentKey CurrentKey
 	// RotatedKeys map key id -> timestamp representing older versions of the key that were replaced
 	// and should be disabled after a configured amount of time has passed
 	RotatedKeys map[string]time.Time

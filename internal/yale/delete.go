@@ -27,19 +27,25 @@ func (m *Yale) deleteKey(keyId string, disabledAt time.Time, entry *cache.Entry,
 		return nil
 	}
 
-	logs.Info.Printf("key %s (service account %s) has reached delete cutoff; deleting it", keyId, entry.ServiceAccount.Email)
-	if err := m.keyops.Delete(keyops.Key{
+	key := keyops.Key{
 		Project:             entry.ServiceAccount.Project,
 		ServiceAccountEmail: entry.ServiceAccount.Email,
 		ID:                  keyId,
-	}); err != nil {
+	}
+
+	// delete key from GCP
+	logs.Info.Printf("key %s (service account %s) has reached delete cutoff; deleting it", key.ID, key.ServiceAccountEmail)
+	if err := m.keyops.DeleteIfDisabled(key); err != nil {
 		return fmt.Errorf("error deleting key %s (service account %s): %v", keyId, entry.ServiceAccount.Email, err)
 	}
 
+	// delete key from cache entry
 	delete(entry.DisabledKeys, keyId)
 	if err := m.cache.Save(entry); err != nil {
 		return fmt.Errorf("error updating cache entry for %s after key deletion: %v", entry.ServiceAccount.Email, err)
 	}
+
+	logs.Info.Printf("deleted key %s (service account %s)", key.ID, key.ServiceAccountEmail)
 
 	return nil
 }

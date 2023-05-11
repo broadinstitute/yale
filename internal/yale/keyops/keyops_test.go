@@ -72,16 +72,36 @@ func Test_EnsureDisabledDoesNotDisableKeyIfAlreadyDisabled(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func Test_Delete(t *testing.T) {
+func Test_DeleteDeletesKeyIfDisabled(t *testing.T) {
 	ko := setup(t, func(expect mockiam.Expect) {
+		expect.GetServiceAccountKey(testProject, testServiceAccount, testKeyId).Returns(iam.ServiceAccountKey{
+			Name:     qualifiedKeyName(testProject, testServiceAccount, testKeyId),
+			Disabled: true,
+		})
 		expect.DeleteServiceAccountKey(testProject, testServiceAccount, testKeyId).Returns()
 	})
-	err := ko.Delete(Key{
+	err := ko.DeleteIfDisabled(Key{
 		Project:             testProject,
 		ServiceAccountEmail: testServiceAccount,
 		ID:                  testKeyId,
 	})
 	assert.NoError(t, err)
+}
+
+func Test_DeleteReturnsErrIfKeyNotDisabled(t *testing.T) {
+	ko := setup(t, func(expect mockiam.Expect) {
+		expect.GetServiceAccountKey(testProject, testServiceAccount, testKeyId).Returns(iam.ServiceAccountKey{
+			Name:     qualifiedKeyName(testProject, testServiceAccount, testKeyId),
+			Disabled: false,
+		})
+	})
+	err := ko.DeleteIfDisabled(Key{
+		Project:             testProject,
+		ServiceAccountEmail: testServiceAccount,
+		ID:                  testKeyId,
+	})
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, "is not disabled")
 }
 
 func setup(t *testing.T, expectFn func(mockiam.Expect)) Keyops {

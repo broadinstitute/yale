@@ -34,7 +34,7 @@ func (_m *Cache) Delete(_a0 *cache.Entry) error {
 	return r0
 }
 
-// Cache_Delete_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Delete'
+// Cache_Delete_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteIfDisabled'
 type Cache_Delete_Call struct {
 	*mock.Call
 }

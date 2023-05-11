@@ -35,8 +35,8 @@ type Keyops interface {
 	IsDisabled(key Key) (bool, error)
 	// EnsureDisabled check if the key is enabled and if so, disable it
 	EnsureDisabled(key Key) error
-	// Delete the service account key
-	Delete(key Key) error
+	// DeleteIfDisabled delete the service account key if it is disabled, else return an error
+	DeleteIfDisabled(key Key) error
 }
 
 func New(iamService *iam.Service) Keyops {
@@ -106,9 +106,18 @@ func (k *keyops) EnsureDisabled(key Key) error {
 	return nil
 }
 
-func (k *keyops) Delete(key Key) error {
+func (k *keyops) DeleteIfDisabled(key Key) error {
+	disabled, err := k.IsDisabled(key)
+	if err != nil {
+		return err
+	}
+
+	if !disabled {
+		return fmt.Errorf("key %s is not disabled; please manually verify it is not in use and disable it", key.qualifiedKeyName())
+	}
+
 	logs.Info.Printf("deleting %s", key.qualifiedKeyName())
-	_, err := k.iam.Projects.ServiceAccounts.Keys.Delete(key.qualifiedKeyName()).Context(context.Background()).Do()
+	_, err = k.iam.Projects.ServiceAccounts.Keys.Delete(key.qualifiedKeyName()).Context(context.Background()).Do()
 	return err
 }
 

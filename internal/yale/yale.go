@@ -9,6 +9,7 @@ import (
 	"github.com/broadinstitute/yale/internal/yale/cutoff"
 	"github.com/broadinstitute/yale/internal/yale/keyops"
 	"github.com/broadinstitute/yale/internal/yale/keysync"
+	"github.com/broadinstitute/yale/internal/yale/logs"
 	"github.com/broadinstitute/yale/internal/yale/resourcemap"
 )
 
@@ -63,18 +64,49 @@ func (m *Yale) Run() error {
 func (m *Yale) processServiceAccount(email string, entry *cache.Entry, gsks []v1beta1.GCPSaKey) error {
 	var err error
 
-	cutoffs := cutoff.New(gsks...)
+	cutoffs := m.computeCutoffs(entry, gsks)
 
 	if err = m.rotateKey(entry, cutoffs, gsks); err != nil {
 		return err
 	}
-
 	if err = m.disableOldKeys(entry, cutoffs); err != nil {
 		return err
 	}
 	if err = m.deleteOldKeys(entry, cutoffs); err != nil {
 		return err
 	}
+	if err = m.retireCacheEntryIfNeeded(entry, gsks); err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func (m *Yale) computeCutoffs(entry *cache.Entry, gsks []v1beta1.GCPSaKey) cutoff.Cutoffs {
+	if len(gsks) == 0 {
+		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will use Yale's default cutoffs to retire old keys", entry.ServiceAccount.Email)
+		return cutoff.NewWithDefaults()
+	}
+	return cutoff.New(gsks...)
+}
+
+func (m *Yale) retireCacheEntryIfNeeded(entry *cache.Entry, gsks []v1beta1.GCPSaKey) error {
+	if len(gsks) > 0 {
+		return nil
+	}
+	if len(entry.CurrentKey.ID) > 0 {
+		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will not delete it because it still has a current key", entry.ServiceAccount.Email)
+		return nil
+	}
+	if len(entry.RotatedKeys) > 0 {
+		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will not delete it because it still has keys to disable", entry.ServiceAccount.Email)
+		return nil
+	}
+	if len(entry.DisabledKeys) > 0 {
+		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will not delete it because it still has keys to delete", entry.ServiceAccount.Email)
+		return nil
+	}
+
+	logs.Info.Printf("cache entry for %s is empty and has no corresponding GcpSaKey resources in the cluster; deleting it", entry.ServiceAccount.Email)
+	return m.cache.Delete(entry)
 }
