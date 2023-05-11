@@ -118,7 +118,7 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 	project := entry.ServiceAccount.Project
 
 	if entry.CurrentKey.ID != "" {
-		logs.Info.Printf("service account %s: checking if current key %s needs rotation (created at %s; rotation age is %s days)", email, entry.CurrentKey.ID, entry.CurrentKey.CreatedAt, cutoffs.RotateAfterDays())
+		logs.Info.Printf("service account %s: checking if current key %s needs rotation (created at %s; rotation age is %d days)", email, entry.CurrentKey.ID, entry.CurrentKey.CreatedAt, cutoffs.RotateAfterDays())
 
 		if cutoffs.ShouldRotate(entry.CurrentKey.CreatedAt) {
 			logs.Info.Printf("service account %s: rotating key %s", email, entry.CurrentKey.ID)
@@ -167,7 +167,7 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 	// has enough time passed since rotation? if not, do nothing
 	logs.Info.Printf("key %s (service account %s) was rotated at %s, disable cutoff is %d days", keyId, entry.ServiceAccount.Email, rotatedAt, cutoffs.DisableAfterDays())
 	if !cutoffs.ShouldDisable(rotatedAt) {
-		logs.Info.Printf("key %s (service account %s): too early to disable", keyId, entry.ServiceAccount.Email, rotatedAt, cutoffs.DisableAfterDays())
+		logs.Info.Printf("key %s (service account %s): too early to disable", keyId, entry.ServiceAccount.Email)
 		return nil
 	}
 
@@ -219,7 +219,7 @@ func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Ent
 	// has enough time passed since this key was disabled? if not, do nothing
 	logs.Info.Printf("key %s (service account %s) was disabled at %s, delete cutoff is %d days", keyId, entry.ServiceAccount.Email, disabledAt, cutoffs.DisableAfterDays())
 	if !cutoffs.ShouldDelete(disabledAt) {
-		logs.Info.Printf("key %s (service account %s): too early to delete", keyId, entry.ServiceAccount.Email, disabledAt, cutoffs.DisableAfterDays())
+		logs.Info.Printf("key %s (service account %s): too early to delete", keyId, entry.ServiceAccount.Email)
 		return nil
 	}
 

@@ -117,6 +117,7 @@ func Test_Cache(t *testing.T) {
 
 	// make sure all entries appear in the list
 	entries, err = cache.List()
+	require.NoError(t, err)
 	assert.Len(t, entries, 3)
 	assert.Equal(t, entry, entries[0])
 	assert.Equal(t, entry2, entries[1])
@@ -125,6 +126,7 @@ func Test_Cache(t *testing.T) {
 	// delete entry2
 	require.NoError(t, cache.Delete(entry2))
 	entries, err = cache.List()
+	require.NoError(t, err)
 
 	// make sure entry and entry3 appear in the list
 	assert.Len(t, entries, 2)
@@ -136,6 +138,7 @@ func Test_Cache(t *testing.T) {
 
 	// make sure just entry3 appears in the list
 	entries, err = cache.List()
+	require.NoError(t, err)
 	assert.Len(t, entries, 1)
 	assert.Equal(t, entry3, entries[0])
 
@@ -144,6 +147,7 @@ func Test_Cache(t *testing.T) {
 
 	// make sure list is empty again
 	entries, err = cache.List()
+	require.NoError(t, err)
 	assert.Len(t, entries, 0)
 
 	// get or create new entry for the same sa as a deleted entry should create a new empty entry

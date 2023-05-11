@@ -172,6 +172,28 @@ func Test_Build(t *testing.T) {
 			},
 		},
 		{
+			name:                 "broken cache entry should lead service account to be skipped",
+			gsks:                 []v1beta1.GCPSaKey{gsk1a, gsk2a, gsk2b},
+			existingCacheEntries: []*cache.Entry{entry1, entry2Broken},
+			expected: map[string]*Bundle{
+				"sa-1@p.com": {
+					Entry: entry1,
+					GSKs:  []v1beta1.GCPSaKey{gsk1a},
+				},
+			},
+		},
+		{
+			name:                 "broken gsk should lead service account to be skipped",
+			gsks:                 []v1beta1.GCPSaKey{gsk1a, gsk1b, gsk2a, gsk2bBroken},
+			existingCacheEntries: []*cache.Entry{entry1, entry2},
+			expected: map[string]*Bundle{
+				"sa-1@p.com": {
+					Entry: entry1,
+					GSKs:  []v1beta1.GCPSaKey{gsk1a, gsk1b},
+				},
+			},
+		},
+		{
 			name:                 "multiple entries and gsks",
 			gsks:                 []v1beta1.GCPSaKey{gsk1a, gsk1b, gsk2a, gsk2b, gsk4a},
 			existingCacheEntries: []*cache.Entry{entry1, entry2, entry3},

@@ -125,11 +125,6 @@ func (c cutoffs) deleteCutoff() time.Time {
 	return c.daysAgo(c.DeleteAfterDays())
 }
 
-// computeCutoff compute a cutoff date N days in the past
-func (c cutoffs) computeCutoff(ageDays int) time.Time {
-	return c.daysAgo(ageDays)
-}
-
 // daysAgo return a timestamp that is n days in the past
 func (c cutoffs) daysAgo(n int) time.Time {
 	return c.now.Add(-1 * time.Duration(int64(n)*int64(oneDay)))
