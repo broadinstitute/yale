@@ -9,47 +9,6 @@ import (
 	"time"
 )
 
-//
-//func Test_Cutoffs(t *testing.T) {
-//	type cutoffTimes struct {
-//		rotateCutoff        string
-//		disableCutoff       string
-//		safeToDisableCutoff string
-//		deleteCutoff        string
-//	}
-//
-//	testCases := []struct {
-//		name             string
-//		gsks             []v1beta1.GCPSaKey
-//		expectThresholds thresholds
-//		cutoffTimes      cutoffTimes
-//	}{
-//		{
-//			name: "single gsk, valid thresholds",
-//			gsks: []v1beta1.GCPSaKey{
-//				{
-//					ObjectMeta: metav1.ObjectMeta{
-//						Name:      "my-gsk",
-//						Namespace: "my-ns",
-//					},
-//					Spec: v1beta1.GCPSaKeySpec{
-//						KeyRotation: v1beta1.KeyRotation{
-//							RotateAfter:  1,
-//							DisableAfter: 2,
-//							DeleteAfter:  3,
-//						},
-//					},
-//				},
-//			},
-//			expectThresholds: thresholds{
-//				rotateAfter:  -1,
-//				disableAfter: -1,
-//				deleteAfter:  -1,
-//			},
-//		},
-//	}
-//}
-
 func Test_Cutoffs(t *testing.T) {
 	layout := time.RFC3339
 	now, err := time.Parse(layout, "2023-04-28T09:10:11Z")
