@@ -46,8 +46,8 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 
 	_authmetrics := authmetrics.New(metrics, iam)
 	_keyops := keyops.New(iam)
-	_keysync := keysync.New(k8s, vault)
 	_cache := cache.New(k8s, options.CacheNamespace)
+	_keysync := keysync.New(k8s, vault, _cache)
 	_resourcemap := resourcemap.New(crd, _cache)
 
 	return newYaleFromComponents(_cache, _resourcemap, _authmetrics, _keyops, _keysync)
@@ -110,9 +110,6 @@ func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv
 		return err
 	}
 	if err = m.keysync.SyncIfNeeded(entry, gsks...); err != nil {
-		return err
-	}
-	if err = m.cache.Save(entry); err != nil {
 		return err
 	}
 

@@ -29,21 +29,23 @@ type KeySync interface {
 	SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) error
 }
 
-func New(k8s kubernetes.Interface, vault *vaultapi.Client) KeySync {
+func New(k8s kubernetes.Interface, vault *vaultapi.Client, cache cache.Cache) KeySync {
 	return &keysync{
 		k8s:   k8s,
 		vault: vault,
+		cache: cache,
 	}
 }
 
 type keysync struct {
 	vault *vaultapi.Client
 	k8s   kubernetes.Interface
+	cache cache.Cache
 }
 
 func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) error {
 	for _, gsk := range gsks {
-		mapKey := gsk.Namespace + "/" + gsk.Name
+		mapKey := statusKey(gsk)
 		data, err := json.Marshal(gsk.Spec)
 		if err != nil {
 			return fmt.Errorf("gsk %s in %s: error marshalling gsk spec to JSON: %v", gsk.Name, gsk.Namespace, err)
@@ -63,11 +65,16 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) err
 		if err = k.syncToK8sSecret(entry, gsk); err != nil {
 			return fmt.Errorf("gsk %s in %s: error syncing to K8s secret: %v", gsk.Name, gsk.Namespace, err)
 		}
-
 		if err = k.replicateKeyToVault(entry, gsk); err != nil {
 			return fmt.Errorf("gsk %s in %s: error syncing to Vault: %v", gsk.Name, gsk.Namespace, err)
 		}
 		entry.SyncStatus[mapKey] = expected
+	}
+
+	pruneOldSyncStatuses(entry, gsks...)
+
+	if err := k.cache.Save(entry); err != nil {
+		return fmt.Errorf("error saving cache entry for %s after key sync: %v", entry.ServiceAccount.Email, err)
 	}
 
 	return nil
@@ -225,4 +232,46 @@ func extractPemKey(entry *cache.Entry) (string, error) {
 		return "", fmt.Errorf("failed to decode key %s (%s) from JSON: %v", entry.CurrentKey.ID, entry.ServiceAccount.Email, err)
 	}
 	return k.PrivateKey, nil
+}
+
+// prune references to old gsks that no longer exists from the sync status map
+// We do this because K8s imposes a size limit of 1mb on secrets, and in
+// BEE clusters new BEEs with unique names are constantly being created and deleted
+func pruneOldSyncStatuses(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) {
+	keepKeys := make(map[string]struct{})
+
+	// build a map of keys for gsks that currently exist in the cluster
+	for _, gsk := range gsks {
+		key := statusKey(gsk)
+		keepKeys[key] = struct{}{}
+	}
+
+	// prune old
+	for key, _ := range entry.SyncStatus {
+		_, exists := keepKeys[key]
+		if !exists {
+			delete(entry.SyncStatus, key)
+		}
+	}
+}
+
+// compute the expected status map value for a given gsk, which is the sha256 checksum
+// of the gsk's spec, concatenated with the ID of the cache entry's current service account key
+// eg. "<sha-256-sum>:<key-id>"
+func computeStatusValue(entry *cache.Entry, gsk apiv1b1.GCPSaKey) (string, error) {
+	data, err := json.Marshal(gsk.Spec)
+	if err != nil {
+		return "", fmt.Errorf("gsk %s in %s: error marshalling gsk spec to JSON: %v", gsk.Name, gsk.Namespace, err)
+	}
+	checksum, err := sha256Sum(data)
+	if err != nil {
+		return "", fmt.Errorf("gsk %s in %s: error computing sha265sum for gsk spec: %v", gsk.Name, gsk.Namespace, err)
+	}
+	return checksum + ":" + entry.CurrentKey.ID, nil
+}
+
+// return the key for a gsk in the sync status map
+// eg. "<namespace>/<name>"
+func statusKey(gsk apiv1b1.GCPSaKey) string {
+	return gsk.Namespace + "/" + gsk.Name
 }

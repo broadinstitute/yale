@@ -62,7 +62,7 @@ func (suite *YaleSuite) SetupTest() {
 
 	// use real keysync so we can verify the state of Vault server/K8s secrets
 	// after the yale run finishes, without mocking every individual call
-	suite.keysync = keysync.New(suite.k8s, suite.vaultServer.NewClient())
+	suite.keysync = keysync.New(suite.k8s, suite.vaultServer.NewClient(), suite.cache)
 	suite.yale = newYaleFromComponents(suite.cache, suite.resourcemapper, suite.authmetrics, suite.keyops, suite.keysync)
 }
 

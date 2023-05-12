@@ -3,6 +3,7 @@ package keysync
 import (
 	"context"
 	"github.com/broadinstitute/yale/internal/yale/cache"
+	cachemocks "github.com/broadinstitute/yale/internal/yale/cache/mocks"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	vaultutils "github.com/broadinstitute/yale/internal/yale/keysync/testutils/vault"
 	"github.com/broadinstitute/yale/internal/yale/testutils"
@@ -36,6 +37,7 @@ type KeySyncSuite struct {
 	suite.Suite
 	k8s         kubernetes.Interface
 	vaultServer *vaultutils.FakeVaultServer
+	cache       *cachemocks.Cache
 	keysync     KeySync
 }
 
@@ -46,7 +48,8 @@ func TestKeySyncSuite(t *testing.T) {
 func (suite *KeySyncSuite) SetupTest() {
 	suite.k8s = testutils.NewFakeK8sClient(suite.T())
 	suite.vaultServer = vaultutils.NewFakeVaultServer(suite.T())
-	suite.keysync = New(suite.k8s, suite.vaultServer.NewClient())
+	suite.cache = cachemocks.NewCache(suite.T())
+	suite.keysync = New(suite.k8s, suite.vaultServer.NewClient(), suite.cache)
 }
 
 func (suite *KeySyncSuite) Test_KeySync_CreatesK8sSecret() {
@@ -73,6 +76,8 @@ func (suite *KeySyncSuite) Test_KeySync_CreatesK8sSecret() {
 			VaultReplications: []apiv1b1.VaultReplication{},
 		},
 	}
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
 
 	suite.assertK8sSecreDoesNotExist("my-namespace", "my-secret")
 
@@ -142,6 +147,8 @@ func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
 			"extra-data": []byte("this should be ignored"),
 		},
 	})
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
 
 	// run a key sync to create the secret once
 	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, gsk))
@@ -214,6 +221,8 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications()
 		},
 	}
 
+	suite.cache.EXPECT().Save(entry).Return(nil)
+
 	// run a key sync to create the K8s secret and perform the vault replications
 	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, gsk))
 
@@ -269,6 +278,8 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 			VaultReplications: []apiv1b1.VaultReplication{},
 		},
 	}
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
 
 	// run a key sync to create the secret once
 	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, gsk))
