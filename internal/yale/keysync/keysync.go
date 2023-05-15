@@ -46,15 +46,7 @@ type keysync struct {
 func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) error {
 	for _, gsk := range gsks {
 		mapKey := statusKey(gsk)
-		data, err := json.Marshal(gsk.Spec)
-		if err != nil {
-			return fmt.Errorf("gsk %s in %s: error marshalling gsk spec to JSON: %v", gsk.Name, gsk.Namespace, err)
-		}
-		checksum, err := sha256Sum(data)
-		if err != nil {
-			return fmt.Errorf("gsk %s in %s: error computing sha265sum for gsk spec: %v", gsk.Name, gsk.Namespace, err)
-		}
-		expected := checksum + ":" + entry.CurrentKey.ID
+		expected, err := computeStatusValue(entry, gsk)
 		actual := entry.SyncStatus[mapKey]
 
 		logs.Info.Printf("gsk %s in %s: sync status should be %q, is %q", gsk.Name, gsk.Namespace, expected, actual)
@@ -210,16 +202,6 @@ func prepareVaultSecret(entry *cache.Entry, spec apiv1b1.VaultReplication) (map[
 	return secret, nil
 }
 
-// compute a sha256 checksum and return in hex string form, eg.
-// "b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c"
-func sha256Sum(data []byte) (string, error) {
-	hash := sha256.New()
-	if _, err := hash.Write(data); err != nil {
-		return "", fmt.Errorf("error computing checksum: %v", err)
-	}
-	return fmt.Sprintf("%x", hash.Sum(nil)), nil
-}
-
 // return the PEM-formatted private_key field from a cache entry's JSON-formatted SA key
 func extractPemKey(entry *cache.Entry) (string, error) {
 	asJson := []byte(entry.CurrentKey.JSON)
@@ -268,6 +250,16 @@ func computeStatusValue(entry *cache.Entry, gsk apiv1b1.GCPSaKey) (string, error
 		return "", fmt.Errorf("gsk %s in %s: error computing sha265sum for gsk spec: %v", gsk.Name, gsk.Namespace, err)
 	}
 	return checksum + ":" + entry.CurrentKey.ID, nil
+}
+
+// compute a sha256 checksum and return in hex string form, eg.
+// "b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c"
+func sha256Sum(data []byte) (string, error) {
+	hash := sha256.New()
+	if _, err := hash.Write(data); err != nil {
+		return "", fmt.Errorf("error computing checksum: %v", err)
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
 // return the key for a gsk in the sync status map

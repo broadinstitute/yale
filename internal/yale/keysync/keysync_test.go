@@ -288,6 +288,41 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 	suite.assertK8sSecreDoesNotExist("my-namespace", "my-secret")
 }
 
+func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
+	entry := &cache.Entry{}
+	entry.CurrentKey.JSON = key1.json
+	entry.CurrentKey.ID = key1.id
+	entry.SyncStatus = map[string]string{
+		"my-namespace/my-gsk":         "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id, // should not be deleted
+		"my-namespace/deleted-gsk":    "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id, // should be deleted
+		"other-namespace/deleted-gsk": "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id, // should be deleted
+	}
+
+	gsk := apiv1b1.GCPSaKey{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-gsk",
+			Namespace: "my-namespace",
+		},
+		Spec: apiv1b1.GCPSaKeySpec{
+			Secret: apiv1b1.Secret{
+				Name:        "my-secret",
+				PemKeyName:  "my-key.pem",
+				JsonKeyName: "my-key.json",
+			},
+			VaultReplications: []apiv1b1.VaultReplication{},
+		},
+	}
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
+
+	// run a key sync
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, gsk))
+
+	// make sure the cache entry's sync status map has exactly one record was updated with correct key-sync records
+	assert.Len(suite.T(), entry.SyncStatus, 1) // length should b
+	assert.Equal(suite.T(), "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+}
+
 func (suite *KeySyncSuite) assertVaultServerHasSecret(path string, content map[string]interface{}) {
 	data := suite.vaultServer.GetSecret(path)
 	assert.Equal(suite.T(), content, data)
