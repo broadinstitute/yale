@@ -3,6 +3,7 @@ package keysync
 import (
 	"context"
 	"github.com/broadinstitute/yale/internal/yale/cache"
+	cachemocks "github.com/broadinstitute/yale/internal/yale/cache/mocks"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	vaultutils "github.com/broadinstitute/yale/internal/yale/keysync/testutils/vault"
 	"github.com/broadinstitute/yale/internal/yale/testutils"
@@ -36,6 +37,7 @@ type KeySyncSuite struct {
 	suite.Suite
 	k8s         kubernetes.Interface
 	vaultServer *vaultutils.FakeVaultServer
+	cache       *cachemocks.Cache
 	keysync     KeySync
 }
 
@@ -46,7 +48,8 @@ func TestKeySyncSuite(t *testing.T) {
 func (suite *KeySyncSuite) SetupTest() {
 	suite.k8s = testutils.NewFakeK8sClient(suite.T())
 	suite.vaultServer = vaultutils.NewFakeVaultServer(suite.T())
-	suite.keysync = New(suite.k8s, suite.vaultServer.NewClient())
+	suite.cache = cachemocks.NewCache(suite.T())
+	suite.keysync = New(suite.k8s, suite.vaultServer.NewClient(), suite.cache)
 }
 
 func (suite *KeySyncSuite) Test_KeySync_CreatesK8sSecret() {
@@ -73,6 +76,8 @@ func (suite *KeySyncSuite) Test_KeySync_CreatesK8sSecret() {
 			VaultReplications: []apiv1b1.VaultReplication{},
 		},
 	}
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
 
 	suite.assertK8sSecreDoesNotExist("my-namespace", "my-secret")
 
@@ -142,6 +147,8 @@ func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
 			"extra-data": []byte("this should be ignored"),
 		},
 	})
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
 
 	// run a key sync to create the secret once
 	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, gsk))
@@ -214,6 +221,8 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications()
 		},
 	}
 
+	suite.cache.EXPECT().Save(entry).Return(nil)
+
 	// run a key sync to create the K8s secret and perform the vault replications
 	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, gsk))
 
@@ -270,11 +279,48 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 		},
 	}
 
+	suite.cache.EXPECT().Save(entry).Return(nil)
+
 	// run a key sync to create the secret once
 	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, gsk))
 
 	// make sure the secret was not created
 	suite.assertK8sSecreDoesNotExist("my-namespace", "my-secret")
+}
+
+func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
+	entry := &cache.Entry{}
+	entry.CurrentKey.JSON = key1.json
+	entry.CurrentKey.ID = key1.id
+	entry.SyncStatus = map[string]string{
+		"my-namespace/my-gsk":         "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id, // should not be deleted
+		"my-namespace/deleted-gsk":    "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id, // should be deleted
+		"other-namespace/deleted-gsk": "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id, // should be deleted
+	}
+
+	gsk := apiv1b1.GCPSaKey{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-gsk",
+			Namespace: "my-namespace",
+		},
+		Spec: apiv1b1.GCPSaKeySpec{
+			Secret: apiv1b1.Secret{
+				Name:        "my-secret",
+				PemKeyName:  "my-key.pem",
+				JsonKeyName: "my-key.json",
+			},
+			VaultReplications: []apiv1b1.VaultReplication{},
+		},
+	}
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
+
+	// run a key sync
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, gsk))
+
+	// make sure the cache entry's sync status map has exactly one record was updated with correct key-sync records
+	assert.Len(suite.T(), entry.SyncStatus, 1) // length should b
+	assert.Equal(suite.T(), "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
 }
 
 func (suite *KeySyncSuite) assertVaultServerHasSecret(path string, content map[string]interface{}) {

@@ -15,5 +15,3 @@ coverage:
     patch:
       default:
         informational: true
-ignore:
-  - "internal/**/seed.go"

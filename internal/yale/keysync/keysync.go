@@ -29,30 +29,27 @@ type KeySync interface {
 	SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) error
 }
 
-func New(k8s kubernetes.Interface, vault *vaultapi.Client) KeySync {
+func New(k8s kubernetes.Interface, vault *vaultapi.Client, cache cache.Cache) KeySync {
 	return &keysync{
 		k8s:   k8s,
 		vault: vault,
+		cache: cache,
 	}
 }
 
 type keysync struct {
 	vault *vaultapi.Client
 	k8s   kubernetes.Interface
+	cache cache.Cache
 }
 
 func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) error {
 	for _, gsk := range gsks {
-		mapKey := gsk.Namespace + "/" + gsk.Name
-		data, err := json.Marshal(gsk.Spec)
+		mapKey := statusKey(gsk)
+		expected, err := computeStatusValue(entry, gsk)
 		if err != nil {
-			return fmt.Errorf("gsk %s in %s: error marshalling gsk spec to JSON: %v", gsk.Name, gsk.Namespace, err)
+			return err
 		}
-		checksum, err := sha256Sum(data)
-		if err != nil {
-			return fmt.Errorf("gsk %s in %s: error computing sha265sum for gsk spec: %v", gsk.Name, gsk.Namespace, err)
-		}
-		expected := checksum + ":" + entry.CurrentKey.ID
 		actual := entry.SyncStatus[mapKey]
 
 		logs.Info.Printf("gsk %s in %s: sync status should be %q, is %q", gsk.Name, gsk.Namespace, expected, actual)
@@ -67,6 +64,12 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) err
 			return fmt.Errorf("gsk %s in %s: error syncing to Vault: %v", gsk.Name, gsk.Namespace, err)
 		}
 		entry.SyncStatus[mapKey] = expected
+	}
+
+	pruneOldSyncStatuses(entry, gsks...)
+
+	if err := k.cache.Save(entry); err != nil {
+		return fmt.Errorf("error saving cache entry for %s after key sync: %v", entry.ServiceAccount.Email, err)
 	}
 
 	return nil
@@ -137,10 +140,19 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk apiv1b1.GCPSaKey) erro
 	} else {
 		_, err = k.k8s.CoreV1().Secrets(gsk.Namespace).Update(context.Background(), secret, metav1.UpdateOptions{})
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("error syncing service account key %s to secret %s/%s: %v", entry.CurrentKey.ID, gsk.Namespace, secret.Name, err)
+	}
+	logs.Info.Printf("synced service account key %s to secret %s/%s", entry.CurrentKey.ID, gsk.Namespace, gsk.Spec.Secret.Name)
+	return nil
 }
 
 func (k *keysync) replicateKeyToVault(entry *cache.Entry, gsk apiv1b1.GCPSaKey) error {
+	if len(gsk.Spec.VaultReplications) == 0 {
+		// no replications to perform
+		return nil
+	}
+
 	for _, spec := range gsk.Spec.VaultReplications {
 		msg := fmt.Sprintf("replicating key %s for %s to Vault (format %s, path %s, key %s)",
 			entry.CurrentKey.ID, entry.ServiceAccount.Email, spec.Format, spec.Path, spec.Key)
@@ -154,6 +166,9 @@ func (k *keysync) replicateKeyToVault(entry *cache.Entry, gsk apiv1b1.GCPSaKey) 
 			return fmt.Errorf("error %s: write failed: %v", msg, err)
 		}
 	}
+
+	logs.Info.Printf("replicated key %s for %s to %d Vault paths", entry.CurrentKey.ID, entry.ServiceAccount.Email, len(gsk.Spec.VaultReplications))
+
 	return nil
 }
 
@@ -190,16 +205,6 @@ func prepareVaultSecret(entry *cache.Entry, spec apiv1b1.VaultReplication) (map[
 	return secret, nil
 }
 
-// compute a sha256 checksum and return in hex string form, eg.
-// "b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c"
-func sha256Sum(data []byte) (string, error) {
-	hash := sha256.New()
-	if _, err := hash.Write(data); err != nil {
-		return "", fmt.Errorf("error computing checksum: %v", err)
-	}
-	return fmt.Sprintf("%x", hash.Sum(nil)), nil
-}
-
 // return the PEM-formatted private_key field from a cache entry's JSON-formatted SA key
 func extractPemKey(entry *cache.Entry) (string, error) {
 	asJson := []byte(entry.CurrentKey.JSON)
@@ -212,4 +217,56 @@ func extractPemKey(entry *cache.Entry) (string, error) {
 		return "", fmt.Errorf("failed to decode key %s (%s) from JSON: %v", entry.CurrentKey.ID, entry.ServiceAccount.Email, err)
 	}
 	return k.PrivateKey, nil
+}
+
+// prune references to old gsks that no longer exists from the sync status map
+// We do this because K8s imposes a size limit of 1mb on secrets, and in
+// BEE clusters new BEEs with unique names are constantly being created and deleted
+func pruneOldSyncStatuses(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) {
+	keepKeys := make(map[string]struct{})
+
+	// build a map of keys for gsks that currently exist in the cluster
+	for _, gsk := range gsks {
+		key := statusKey(gsk)
+		keepKeys[key] = struct{}{}
+	}
+
+	// prune old
+	for key := range entry.SyncStatus {
+		_, exists := keepKeys[key]
+		if !exists {
+			delete(entry.SyncStatus, key)
+		}
+	}
+}
+
+// compute the expected status map value for a given gsk, which is the sha256 checksum
+// of the gsk's spec, concatenated with the ID of the cache entry's current service account key
+// eg. "<sha-256-sum>:<key-id>"
+func computeStatusValue(entry *cache.Entry, gsk apiv1b1.GCPSaKey) (string, error) {
+	data, err := json.Marshal(gsk.Spec)
+	if err != nil {
+		return "", fmt.Errorf("gsk %s in %s: error marshalling gsk spec to JSON: %v", gsk.Name, gsk.Namespace, err)
+	}
+	checksum, err := sha256Sum(data)
+	if err != nil {
+		return "", fmt.Errorf("gsk %s in %s: error computing sha265sum for gsk spec: %v", gsk.Name, gsk.Namespace, err)
+	}
+	return checksum + ":" + entry.CurrentKey.ID, nil
+}
+
+// compute a sha256 checksum and return in hex string form, eg.
+// "b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c"
+func sha256Sum(data []byte) (string, error) {
+	hash := sha256.New()
+	if _, err := hash.Write(data); err != nil {
+		return "", fmt.Errorf("error computing checksum: %v", err)
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+// return the key for a gsk in the sync status map
+// eg. "<namespace>/<name>"
+func statusKey(gsk apiv1b1.GCPSaKey) string {
+	return gsk.Namespace + "/" + gsk.Name
 }
