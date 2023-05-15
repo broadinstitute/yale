@@ -16,6 +16,7 @@ import (
 	vaultapi "github.com/hashicorp/vault/api"
 	"google.golang.org/api/iam/v1"
 	"k8s.io/client-go/kubernetes"
+	"strings"
 	"time"
 )
 
@@ -63,11 +64,22 @@ func (m *Yale) Run() error {
 		return fmt.Errorf("error inspecting cluster for cache entries and GcpSaKey resources: %v", err)
 	}
 
-	for _, bundle := range resources {
+	errors := make(map[string]error)
+	for email, bundle := range resources {
 		if err = m.processServiceAccount(bundle.Entry, bundle.GSKs); err != nil {
-			return err
+			logs.Error.Printf("error processing service account %s: %v", email, err)
+			errors[email] = err
 		}
 	}
+
+	if len(errors) > 0 {
+		var sb strings.Builder
+		for email, eerr := range errors {
+			sb.WriteString(fmt.Sprintf("%s: %v\n", email, eerr))
+		}
+		return fmt.Errorf("error processing GcpSaKeys for %d service accounts: %s", len(errors), sb.String())
+	}
+
 	return nil
 }
 
@@ -76,6 +88,9 @@ func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GCPSaKey
 
 	cutoffs := m.computeCutoffs(entry, gsks)
 
+	if err = m.syncKeyIfReady(entry, gsks); err != nil {
+		return err
+	}
 	if err = m.deleteOldKeys(entry, cutoffs); err != nil {
 		return err
 	}
@@ -102,24 +117,33 @@ func (m *Yale) computeCutoffs(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) cutof
 	return cutoff.New(gsks...)
 }
 
+// syncKeyIfReady if cache entry has a current/active key, perform a keysync
+func (m *Yale) syncKeyIfReady(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) error {
+	if len(entry.CurrentKey.ID) == 0 {
+		// nothing to sync yet
+		return nil
+	}
+	return m.keysync.SyncIfNeeded(entry, gsks...)
+}
+
 // rotateKey rotates the current active key for the service account, if needed.
 func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GCPSaKey) error {
-	var err error
-
-	if err = m.issueNewKeyIfNeeded(entry, cutoffs, gsks); err != nil {
+	rotated, err := m.issueNewKeyIfNeeded(entry, cutoffs, gsks)
+	if err != nil {
 		return err
 	}
-	if err = m.keysync.SyncIfNeeded(entry, gsks...); err != nil {
-		return err
+	if !rotated {
+		return nil
 	}
-
-	return nil
+	return m.keysync.SyncIfNeeded(entry, gsks...)
 }
 
 // issueNewKeyIfNeed given cache entry and gsk, checks if the entry's current active key needs to be rotated.
 // if a rotation is needed (or the cache entry is new/empty), it issues a new sa key, adds it
 // to the cache entry, then saves the updated cache entry to k8s.
-func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GCPSaKey) error {
+// returns a boolean that will be true if a new key was issued, false otherwise
+func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GCPSaKey) (bool, error) {
+	rotated := false
 	email := entry.ServiceAccount.Email
 	project := entry.ServiceAccount.Project
 
@@ -142,22 +166,22 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 			logs.Info.Printf("service account %s: issuing new key", email)
 			newKey, json, err := m.keyops.Create(project, email)
 			if err != nil {
-				return fmt.Errorf("error issuing new service account key for %s: %v", email, err)
+				return false, fmt.Errorf("error issuing new service account key for %s: %v", email, err)
 			}
 
 			logs.Info.Printf("created new service account key %s for %s", newKey.ID, email)
-
 			entry.CurrentKey.ID = newKey.ID
 			entry.CurrentKey.JSON = string(json)
 			entry.CurrentKey.CreatedAt = time.Now()
+			rotated = true
 		}
 	}
 
 	if err := m.cache.Save(entry); err != nil {
-		return fmt.Errorf("error saving cache entry for %s after key rotation: %v", email, err)
+		return false, fmt.Errorf("error saving cache entry for %s after key rotation: %v", email, err)
 	}
 
-	return nil
+	return rotated, nil
 }
 
 func (m *Yale) disableOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error {

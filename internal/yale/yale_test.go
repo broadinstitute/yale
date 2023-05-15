@@ -2,6 +2,7 @@ package yale
 
 import (
 	"context"
+	"fmt"
 	authmetricsmocks "github.com/broadinstitute/yale/internal/yale/authmetrics/mocks"
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
@@ -81,6 +82,16 @@ var sa1 = cache.ServiceAccount{
 	Project: "p",
 }
 
+var sa2 = cache.ServiceAccount{
+	Email:   "s2@p.com",
+	Project: "p.com",
+}
+
+var sa3 = cache.ServiceAccount{
+	Email:   "s3@p.com",
+	Project: "p.com",
+}
+
 var sa1key1 = key{
 	id:  "s1-key1",
 	sa:  sa1,
@@ -97,6 +108,18 @@ var sa1key3 = key{
 	id:  "s1-key3",
 	sa:  sa1,
 	pem: "baz",
+}
+
+var sa2key1 = key{
+	id:  "s2-key1",
+	sa:  sa2,
+	pem: "cat",
+}
+
+var sa3key1 = key{
+	id:  "s3-key1",
+	sa:  sa3,
+	pem: "dog",
 }
 
 var gsk1 = apiv1b1.GCPSaKey{
@@ -116,6 +139,52 @@ var gsk1 = apiv1b1.GCPSaKey{
 		},
 		Secret: apiv1b1.Secret{
 			Name:        "s1-secret",
+			PemKeyName:  "key.pem",
+			JsonKeyName: "key.json",
+		},
+	},
+}
+
+var gsk2 = apiv1b1.GCPSaKey{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "s2-gsk",
+		Namespace: "ns-2",
+	},
+	Spec: apiv1b1.GCPSaKeySpec{
+		GoogleServiceAccount: apiv1b1.GoogleServiceAccount{
+			Name:    sa2.Email,
+			Project: sa2.Project,
+		},
+		KeyRotation: apiv1b1.KeyRotation{
+			RotateAfter:  7,
+			DisableAfter: 7,
+			DeleteAfter:  3,
+		},
+		Secret: apiv1b1.Secret{
+			Name:        "s2-secret",
+			PemKeyName:  "key.pem",
+			JsonKeyName: "key.json",
+		},
+	},
+}
+
+var gsk3 = apiv1b1.GCPSaKey{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "s3-gsk",
+		Namespace: "ns-3",
+	},
+	Spec: apiv1b1.GCPSaKeySpec{
+		GoogleServiceAccount: apiv1b1.GoogleServiceAccount{
+			Name:    sa3.Email,
+			Project: sa3.Project,
+		},
+		KeyRotation: apiv1b1.KeyRotation{
+			RotateAfter:  7,
+			DisableAfter: 7,
+			DeleteAfter:  3,
+		},
+		Secret: apiv1b1.Secret{
+			Name:        "s3-secret",
 			PemKeyName:  "key.pem",
 			JsonKeyName: "key.json",
 		},
@@ -409,6 +478,32 @@ func (suite *YaleSuite) TestYaleCorrectlyRetiresCacheEntryWithNoMatchingGcpSaKey
 	assert.Empty(suite.T(), entries)
 }
 
+func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
+	suite.seedGsks(gsk1, gsk2, gsk3)
+
+	suite.expectCreateKeyReturnsErr(sa1key1, fmt.Errorf("uh-oh"))
+	suite.expectCreateKey(sa2key1)
+	suite.expectCreateKeyReturnsErr(sa3key1, fmt.Errorf("oh noes"))
+
+	err := suite.yale.Run()
+	require.Error(suite.T(), err)
+	assert.ErrorContains(suite.T(), err, "s1@p.com: uh-oh")
+	assert.ErrorContains(suite.T(), err, "s3@p.com: oh noes")
+
+	// make sure the cache contains the new keys for sa2
+	entry, err := suite.cache.GetOrCreate(sa2)
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), sa2key1.id, entry.CurrentKey.ID)
+	assert.Equal(suite.T(), sa2key1.json(), entry.CurrentKey.JSON)
+	suite.assertNow(entry.CurrentKey.CreatedAt)
+
+	// make sure the new keys were replicated to the secret in the gsk spec
+	suite.assertSecretHasData("ns-2", "s2-secret", map[string]string{
+		"key.pem":  sa2key1.pem,
+		"key.json": sa2key1.json(),
+	})
+}
+
 func (suite *YaleSuite) seedGsks(gsks ...apiv1b1.GCPSaKey) {
 	suite.gskEndpoint.EXPECT().List(mock.Anything, metav1.ListOptions{}).Return(&apiv1b1.GCPSaKeyList{
 		Items: gsks,
@@ -424,6 +519,10 @@ func (suite *YaleSuite) seedCacheEntries(entries ...*cache.Entry) {
 		err = suite.cache.Save(e)
 		require.NoError(suite.T(), err)
 	}
+}
+
+func (suite *YaleSuite) expectCreateKeyReturnsErr(k key, err error) {
+	suite.keyops.EXPECT().Create(k.sa.Project, k.sa.Email).Return(k.keyopsFormat(), []byte(k.json()), err)
 }
 
 func (suite *YaleSuite) expectCreateKey(k key) {
