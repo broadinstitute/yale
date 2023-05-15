@@ -47,6 +47,9 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) err
 	for _, gsk := range gsks {
 		mapKey := statusKey(gsk)
 		expected, err := computeStatusValue(entry, gsk)
+		if err != nil {
+			return err
+		}
 		actual := entry.SyncStatus[mapKey]
 
 		logs.Info.Printf("gsk %s in %s: sync status should be %q, is %q", gsk.Name, gsk.Namespace, expected, actual)
@@ -229,7 +232,7 @@ func pruneOldSyncStatuses(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) {
 	}
 
 	// prune old
-	for key, _ := range entry.SyncStatus {
+	for key := range entry.SyncStatus {
 		_, exists := keepKeys[key]
 		if !exists {
 			delete(entry.SyncStatus, key)
