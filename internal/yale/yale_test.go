@@ -396,9 +396,11 @@ func (suite *YaleSuite) TestYaleDeletesOldKeys() {
 			CreatedAt: now,
 		},
 		DisabledKeys: map[string]time.Time{
-			sa1key1.id: now,
+			sa1key1.id: eightDaysAgo,
 		},
 	})
+
+	suite.expectDeleteKey(sa1key1)
 
 	require.NoError(suite.T(), suite.yale.Run())
 
@@ -406,10 +408,8 @@ func (suite *YaleSuite) TestYaleDeletesOldKeys() {
 	entry, err := suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
 
-	// make sure the cache entry's disabled section still includes key1
-	t, exists := entry.DisabledKeys[sa1key1.id]
-	assert.True(suite.T(), exists)
-	suite.assertNow(t)
+	// make sure the cache entry's disabled section is empty
+	assert.Empty(suite.T(), entry.DisabledKeys)
 }
 
 func (suite *YaleSuite) TestYaleCorrectlyProcessesCacheEntryWithNoMatchingGcpSaKeys() {
