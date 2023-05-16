@@ -15,6 +15,7 @@ type args struct {
 	local          bool
 	kubeconfig     string
 	cacheNamespace string
+	checkInUse     bool
 }
 
 func main() {
@@ -28,6 +29,7 @@ func main() {
 	}
 	m := yale.NewYale(clients, func(options *yale.Options) {
 		options.CacheNamespace = args.cacheNamespace
+		options.CheckInUseBeforeDisabling = args.checkInUse
 	})
 	if err = m.Run(); err != nil {
 		logs.Error.Fatal(err)
@@ -43,6 +45,7 @@ func parseArgs() *args {
 	}
 	local := flag.Bool("local", false, "use this flag when running locally (outside of cluster to use local kube config")
 	cacheNamespace := flag.String("cachenamespace", cache.DefaultCacheNamespace, "namespace where yale should cache service account keys")
+	checkInUse := flag.Bool("checkinuse", true, "check if service account is in use before disabling")
 	flag.Parse()
-	return &args{*local, *kubeconfig, *cacheNamespace}
+	return &args{*local, *kubeconfig, *cacheNamespace, *checkInUse}
 }
