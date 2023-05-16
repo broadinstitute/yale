@@ -21,6 +21,7 @@ import (
 )
 
 type Yale struct { // Yale config
+	options     Options
 	cache       cache.Cache
 	resourcemap resourcemap.Mapper
 	keyops      keyops.KeyOps
@@ -29,7 +30,10 @@ type Yale struct { // Yale config
 }
 
 type Options struct {
+	// CacheNamespace namespace where Yale will store its cache entries
 	CacheNamespace string
+	// CheckInUseBeforeDisabling if true, Yale will check if a service account is in use before disabling it
+	CheckInUseBeforeDisabling bool
 }
 
 // NewYale /* Construct a new Yale Manager */
@@ -39,7 +43,8 @@ func NewYale(clients *client.Clients, opts ...func(*Options)) *Yale {
 
 func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, opts ...func(*Options)) *Yale {
 	options := Options{
-		CacheNamespace: cache.DefaultCacheNamespace,
+		CacheNamespace:            cache.DefaultCacheNamespace,
+		CheckInUseBeforeDisabling: true,
 	}
 	for _, opt := range opts {
 		opt(&options)
@@ -51,11 +56,11 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 	_keysync := keysync.New(k8s, vault, _cache)
 	_resourcemap := resourcemap.New(crd, _cache)
 
-	return newYaleFromComponents(_cache, _resourcemap, _authmetrics, _keyops, _keysync)
+	return newYaleFromComponents(options, _cache, _resourcemap, _authmetrics, _keyops, _keysync)
 }
 
-func newYaleFromComponents(_cache cache.Cache, resourcemapper resourcemap.Mapper, _authmetrics authmetrics.AuthMetrics, _keyops keyops.KeyOps, _keysync keysync.KeySync) *Yale {
-	return &Yale{cache: _cache, resourcemap: resourcemapper, authmetrics: _authmetrics, keyops: _keyops, keysync: _keysync}
+func newYaleFromComponents(options Options, _cache cache.Cache, resourcemapper resourcemap.Mapper, _authmetrics authmetrics.AuthMetrics, _keyops keyops.KeyOps, _keysync keysync.KeySync) *Yale {
+	return &Yale{options: options, cache: _cache, resourcemap: resourcemapper, authmetrics: _authmetrics, keyops: _keyops, keysync: _keysync}
 }
 
 func (m *Yale) Run() error {
@@ -202,15 +207,11 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 	}
 
 	// check if the key is still in use
-	logs.Info.Printf("key %s (service account %s) has reached disable cutoff; checking if still in use", keyId, entry.ServiceAccount.Email)
-	lastAuthTime, err := m.authmetrics.LastAuthTime(entry.ServiceAccount.Project, entry.ServiceAccount.Email, keyId)
+	lastAuthTime, err := m.lastAuthTime(keyId, entry)
 	if err != nil {
-		return fmt.Errorf("error determining last authentication time for key %s (service account %s): %v", keyId, entry.ServiceAccount.Email, err)
+		return err
 	}
-	if lastAuthTime == nil {
-		logs.Info.Printf("could not identify last authentication time for key %s (service account %s); assuming key is not in use", keyId, entry.ServiceAccount.Email)
-	} else {
-		logs.Info.Printf("last authentication time for key %s (service account %s): %s", keyId, entry.ServiceAccount.Email, *lastAuthTime)
+	if lastAuthTime != nil {
 		if !cutoffs.SafeToDisable(*lastAuthTime) {
 			return fmt.Errorf("key %s (service account %s) was rotated at %s but was last used to authenticate at %s; please find out what's still using this key and fix it", keyId, entry.ServiceAccount.Email, rotatedAt, *lastAuthTime)
 		}
@@ -233,6 +234,24 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 		return fmt.Errorf("error saving cache entry after key disable: %v", err)
 	}
 	return nil
+}
+
+func (m *Yale) lastAuthTime(keyId string, entry *cache.Entry) (*time.Time, error) {
+	if !m.options.CheckInUseBeforeDisabling {
+		return nil, nil
+	}
+
+	logs.Info.Printf("key %s (service account %s) has reached disable cutoff; checking if still in use", keyId, entry.ServiceAccount.Email)
+	lastAuthTime, err := m.authmetrics.LastAuthTime(entry.ServiceAccount.Project, entry.ServiceAccount.Email, keyId)
+	if err != nil {
+		return nil, fmt.Errorf("error determining last authentication time for key %s (service account %s): %v", keyId, entry.ServiceAccount.Email, err)
+	}
+	if lastAuthTime == nil {
+		logs.Info.Printf("could not identify last authentication time for key %s (service account %s); assuming key is not in use", keyId, entry.ServiceAccount.Email)
+		return nil, nil
+	}
+	logs.Info.Printf("last authentication time for key %s (service account %s): %s", keyId, entry.ServiceAccount.Email, *lastAuthTime)
+	return lastAuthTime, nil
 }
 
 // deleteOldKeys will delete old service account keys

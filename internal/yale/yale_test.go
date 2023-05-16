@@ -64,7 +64,10 @@ func (suite *YaleSuite) SetupTest() {
 	// use real keysync so we can verify the state of Vault server/K8s secrets
 	// after the yale run finishes, without mocking every individual call
 	suite.keysync = keysync.New(suite.k8s, suite.vaultServer.NewClient(), suite.cache)
-	suite.yale = newYaleFromComponents(suite.cache, suite.resourcemapper, suite.authmetrics, suite.keyops, suite.keysync)
+	suite.yale = newYaleFromComponents(Options{
+		CacheNamespace:            cache.DefaultCacheNamespace,
+		CheckInUseBeforeDisabling: true,
+	}, suite.cache, suite.resourcemapper, suite.authmetrics, suite.keyops, suite.keysync)
 }
 
 func (suite *YaleSuite) TestYaleSucceedsWithNoCacheEntriesOrGcpSaKeys() {
@@ -348,6 +351,47 @@ func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 	// make sure the cache entry's disabled section includes the old key
 	_, exists = entry.DisabledKeys[sa1key1.id]
 	assert.False(suite.T(), exists)
+}
+
+func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfCheckInUseOptionIsFalse() {
+	// overwrite default yale instance with one where CheckInUseBeforeDisabling is false
+	suite.yale = newYaleFromComponents(Options{
+		CacheNamespace:            cache.DefaultCacheNamespace,
+		CheckInUseBeforeDisabling: false,
+	}, suite.cache, suite.resourcemapper, suite.authmetrics, suite.keyops, suite.keysync)
+
+	suite.seedGsks(gsk1)
+
+	suite.seedCacheEntries(&cache.Entry{
+		ServiceAccount: sa1,
+		CurrentKey: cache.CurrentKey{
+			ID:        sa1key2.id,
+			JSON:      sa1key2.json(),
+			CreatedAt: now,
+		},
+		RotatedKeys: map[string]time.Time{
+			sa1key1.id: eightDaysAgo,
+		},
+	})
+
+	// note: we intentionally don't use suite.expectLastAuthTime to set up a mock - we expect it to NOT be called it
+	suite.expectDisableKey(sa1key1)
+
+	err := suite.yale.Run()
+	require.NoError(suite.T(), err)
+
+	// make sure the cache has this key in the disabled section, not rotated
+	entry, err := suite.cache.GetOrCreate(sa1)
+	require.NoError(suite.T(), err)
+
+	// make sure the cache entry's rotated section does not include the old key
+	_, exists := entry.RotatedKeys[sa1key1.id]
+	assert.False(suite.T(), exists)
+
+	// make sure the cache entry's disabled section includes the old key
+	t, exists := entry.DisabledKeys[sa1key1.id]
+	assert.True(suite.T(), exists)
+	suite.assertNow(t)
 }
 
 func (suite *YaleSuite) TestYaleDoesNotRotateDisableOrDeleteKeysThatAreNotOldEnough() {
