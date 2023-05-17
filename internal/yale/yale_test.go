@@ -12,6 +12,7 @@ import (
 	"github.com/broadinstitute/yale/internal/yale/keysync"
 	vaultutils "github.com/broadinstitute/yale/internal/yale/keysync/testutils/vault"
 	"github.com/broadinstitute/yale/internal/yale/resourcemap"
+	"github.com/broadinstitute/yale/internal/yale/slack"
 	"github.com/broadinstitute/yale/internal/yale/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -38,6 +39,7 @@ type YaleSuite struct {
 	authmetrics    *authmetricsmocks.AuthMetrics
 	keyops         *keyopsmocks.KeyOps
 	keysync        keysync.KeySync
+	slack          slack.SlackNotifier
 	yale           *Yale
 }
 
@@ -64,10 +66,22 @@ func (suite *YaleSuite) SetupTest() {
 	// use real keysync so we can verify the state of Vault server/K8s secrets
 	// after the yale run finishes, without mocking every individual call
 	suite.keysync = keysync.New(suite.k8s, suite.vaultServer.NewClient(), suite.cache)
-	suite.yale = newYaleFromComponents(Options{
-		CacheNamespace:            cache.DefaultCacheNamespace,
-		CheckInUseBeforeDisabling: true,
-	}, suite.cache, suite.resourcemapper, suite.authmetrics, suite.keyops, suite.keysync)
+
+	// use noop slack notifier
+	suite.slack = slack.New("")
+
+	suite.yale = newYaleFromComponents(
+		Options{
+			CacheNamespace:            cache.DefaultCacheNamespace,
+			CheckInUseBeforeDisabling: true,
+		},
+		suite.cache,
+		suite.resourcemapper,
+		suite.authmetrics,
+		suite.keyops,
+		suite.keysync,
+		suite.slack,
+	)
 }
 
 func (suite *YaleSuite) TestYaleSucceedsWithNoCacheEntriesOrGcpSaKeys() {
@@ -355,10 +369,18 @@ func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 
 func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfCheckInUseOptionIsFalse() {
 	// overwrite default yale instance with one where CheckInUseBeforeDisabling is false
-	suite.yale = newYaleFromComponents(Options{
-		CacheNamespace:            cache.DefaultCacheNamespace,
-		CheckInUseBeforeDisabling: false,
-	}, suite.cache, suite.resourcemapper, suite.authmetrics, suite.keyops, suite.keysync)
+	suite.yale = newYaleFromComponents(
+		Options{
+			CacheNamespace:            cache.DefaultCacheNamespace,
+			CheckInUseBeforeDisabling: false,
+		},
+		suite.cache,
+		suite.resourcemapper,
+		suite.authmetrics,
+		suite.keyops,
+		suite.keysync,
+		suite.slack,
+	)
 
 	suite.seedGsks(gsk1)
 

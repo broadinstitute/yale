@@ -13,6 +13,7 @@ import (
 	"github.com/broadinstitute/yale/internal/yale/keysync"
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	"github.com/broadinstitute/yale/internal/yale/resourcemap"
+	"github.com/broadinstitute/yale/internal/yale/slack"
 	vaultapi "github.com/hashicorp/vault/api"
 	"google.golang.org/api/iam/v1"
 	"k8s.io/client-go/kubernetes"
@@ -27,6 +28,7 @@ type Yale struct { // Yale config
 	keyops      keyops.KeyOps
 	keysync     keysync.KeySync
 	authmetrics authmetrics.AuthMetrics
+	slack       slack.SlackNotifier
 }
 
 type Options struct {
@@ -34,6 +36,8 @@ type Options struct {
 	CacheNamespace string
 	// CheckInUseBeforeDisabling if true, Yale will check if a service account is in use before disabling it
 	CheckInUseBeforeDisabling bool
+	// SlackWebhookUrl if set, Yale will send slack notifications to this webhook
+	SlackWebhookUrl string
 }
 
 // NewYale /* Construct a new Yale Manager */
@@ -55,12 +59,21 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 	_cache := cache.New(k8s, options.CacheNamespace)
 	_keysync := keysync.New(k8s, vault, _cache)
 	_resourcemap := resourcemap.New(crd, _cache)
+	_slack := slack.New(options.SlackWebhookUrl)
 
-	return newYaleFromComponents(options, _cache, _resourcemap, _authmetrics, _keyops, _keysync)
+	return newYaleFromComponents(options, _cache, _resourcemap, _authmetrics, _keyops, _keysync, _slack)
 }
 
-func newYaleFromComponents(options Options, _cache cache.Cache, resourcemapper resourcemap.Mapper, _authmetrics authmetrics.AuthMetrics, _keyops keyops.KeyOps, _keysync keysync.KeySync) *Yale {
-	return &Yale{options: options, cache: _cache, resourcemap: resourcemapper, authmetrics: _authmetrics, keyops: _keyops, keysync: _keysync}
+func newYaleFromComponents(options Options, _cache cache.Cache, resourcemapper resourcemap.Mapper, _authmetrics authmetrics.AuthMetrics, _keyops keyops.KeyOps, _keysync keysync.KeySync, _slack slack.SlackNotifier) *Yale {
+	return &Yale{
+		options:     options,
+		cache:       _cache,
+		resourcemap: resourcemapper,
+		authmetrics: _authmetrics,
+		keyops:      _keyops,
+		keysync:     _keysync,
+		slack:       _slack,
+	}
 }
 
 func (m *Yale) Run() error {
@@ -148,7 +161,7 @@ func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv
 // to the cache entry, then saves the updated cache entry to k8s.
 // returns a boolean that will be true if a new key was issued, false otherwise
 func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GCPSaKey) (bool, error) {
-	rotated := false
+	issued := false
 	email := entry.ServiceAccount.Email
 	project := entry.ServiceAccount.Project
 
@@ -178,7 +191,7 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 			entry.CurrentKey.ID = newKey.ID
 			entry.CurrentKey.JSON = string(json)
 			entry.CurrentKey.CreatedAt = time.Now()
-			rotated = true
+			issued = true
 		}
 	}
 
@@ -186,7 +199,13 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 		return false, fmt.Errorf("error saving cache entry for %s after key rotation: %v", email, err)
 	}
 
-	return rotated, nil
+	if issued {
+		if err := m.slack.KeyIssued(entry, entry.CurrentKey.ID); err != nil {
+			return false, err
+		}
+	}
+
+	return issued, nil
 }
 
 func (m *Yale) disableOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
@@ -233,7 +252,8 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 	if err = m.cache.Save(entry); err != nil {
 		return fmt.Errorf("error saving cache entry after key disable: %v", err)
 	}
-	return nil
+
+	return m.slack.KeyDisabled(entry, keyId)
 }
 
 func (m *Yale) lastAuthTime(keyId string, entry *cache.Entry) (*time.Time, error) {
@@ -291,8 +311,7 @@ func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Ent
 	}
 
 	logs.Info.Printf("deleted key %s (service account %s)", key.ID, key.ServiceAccountEmail)
-
-	return nil
+	return m.slack.KeyDeleted(entry, key.ID)
 }
 
 func (m *Yale) retireCacheEntryIfNeeded(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) error {
