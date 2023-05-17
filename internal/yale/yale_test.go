@@ -567,18 +567,16 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 	suite.expectCreateKey(sa2key1)
 	suite.expectCreateKeyReturnsErr(sa3key1, fmt.Errorf("oh noes"))
 
-	lastReported := now.Add(-20 * time.Minute)
+	lastNotification := now.Add(-20 * time.Minute)
 	suite.seedCacheEntries(&cache.Entry{
 		ServiceAccount: sa3,
 		CurrentKey:     cache.CurrentKey{},
 		RotatedKeys:    map[string]time.Time{},
 		DisabledKeys:   map[string]time.Time{},
 		LastError: cache.LastError{
-			Message:         "error issuing new service account key for s3@p.com: oh noes",
-			Count:           3,
-			FirstOccurrence: eightDaysAgo,
-			LastOccurrence:  lastReported,
-			LastReportedAt:  lastReported,
+			Message:            "error issuing new service account key for s3@p.com: oh noes",
+			Timestamp:          lastNotification,
+			LastNotificationAt: lastNotification,
 		},
 	})
 
@@ -612,19 +610,15 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 	entry, err = suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "error issuing new service account key for s1@p.com: uh-oh", entry.LastError.Message)
-	suite.assertNow(entry.LastError.FirstOccurrence)
-	suite.assertNow(entry.LastError.LastOccurrence)
-	suite.assertNow(entry.LastError.LastReportedAt)
-	assert.Equal(suite.T(), 1, entry.LastError.Count)
+	suite.assertNow(entry.LastError.Timestamp)
+	suite.assertNow(entry.LastError.LastNotificationAt)
 
 	// s3 should NOT have sent an error, because it was already sent recently
 	entry, err = suite.cache.GetOrCreate(sa3)
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "error issuing new service account key for s3@p.com: oh noes", entry.LastError.Message)
-	assert.Equal(suite.T(), eightDaysAgo, entry.LastError.FirstOccurrence)
-	suite.assertNow(entry.LastError.LastOccurrence)
-	assert.Equal(suite.T(), lastReported, entry.LastError.LastReportedAt)
-	assert.Equal(suite.T(), 4, entry.LastError.Count)
+	suite.assertNow(entry.LastError.Timestamp)
+	assert.Equal(suite.T(), lastNotification, entry.LastError.LastNotificationAt)
 }
 
 func (suite *YaleSuite) seedGsks(gsks ...apiv1b1.GCPSaKey) {

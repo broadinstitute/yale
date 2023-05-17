@@ -351,31 +351,23 @@ const errorRepostDuration = 4 * time.Hour
 func (m *Yale) reportError(entry *cache.Entry, err error) error {
 	now := currentTime()
 
-	if entry.LastError.Message != err.Error() {
-		// this is a new error, so reset the LastError field
-		entry.LastError = cache.LastError{
-			Message:         err.Error(),
-			FirstOccurrence: now,
-			Count:           0,
-		}
-	}
-	entry.LastError.Count++
-	entry.LastError.LastOccurrence = now
+	entry.LastError.Message = err.Error()
+	entry.LastError.Timestamp = now
 
 	if err = m.cache.Save(entry); err != nil {
 		return fmt.Errorf("error saving cache entry after recording error: %v", err)
 	}
 
-	if time.Since(entry.LastError.LastReportedAt) < errorRepostDuration {
+	if time.Since(entry.LastError.LastNotificationAt) < errorRepostDuration {
 		return nil
 	}
 
-	msg := fmt.Sprintf("error processing service account %s (count: %d, first occurrence: %s, last occurrence: %s): %s", entry.ServiceAccount.Email, entry.LastError.Count, entry.LastError.FirstOccurrence, entry.LastError.LastOccurrence, entry.LastError.Message)
+	msg := fmt.Sprintf("error processing service account %s: %s", entry.ServiceAccount.Email, entry.LastError.Message)
 	if err = m.slack.Error(entry, msg); err != nil {
 		return fmt.Errorf("error reporting error to Slack: %v", err)
 	}
 
-	entry.LastError.LastReportedAt = now
+	entry.LastError.LastNotificationAt = now
 	if err = m.cache.Save(entry); err != nil {
 		return fmt.Errorf("error saving cache entry after reporting error: %v", err)
 	}

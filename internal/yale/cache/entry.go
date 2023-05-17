@@ -27,11 +27,12 @@ func (sa ServiceAccount) cacheSecretName() string {
 
 // LastError information relating to the last error that occurred while processing this cache entry/service account
 type LastError struct {
-	Message         string
-	Count           int
-	FirstOccurrence time.Time
-	LastOccurrence  time.Time
-	LastReportedAt  time.Time
+	// Message is the last error message
+	Message string
+	// Timestamp is the timestamp at which the last error occurred
+	Timestamp time.Time
+	// LastNotificationAt is the timestamp at which the last error notification was sent for this cache entry
+	LastNotificationAt time.Time
 }
 
 // CurrentKey represents the current/active service account key that will
