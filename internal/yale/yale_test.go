@@ -6,13 +6,14 @@ import (
 	authmetricsmocks "github.com/broadinstitute/yale/internal/yale/authmetrics/mocks"
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
-	"github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1/mocks"
+	crdmocks "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1/mocks"
 	"github.com/broadinstitute/yale/internal/yale/keyops"
 	keyopsmocks "github.com/broadinstitute/yale/internal/yale/keyops/mocks"
 	"github.com/broadinstitute/yale/internal/yale/keysync"
 	vaultutils "github.com/broadinstitute/yale/internal/yale/keysync/testutils/vault"
 	"github.com/broadinstitute/yale/internal/yale/resourcemap"
 	"github.com/broadinstitute/yale/internal/yale/slack"
+	slackmocks "github.com/broadinstitute/yale/internal/yale/slack/mocks"
 	"github.com/broadinstitute/yale/internal/yale/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -20,6 +21,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"strings"
 	"testing"
 	"time"
 )
@@ -32,7 +34,7 @@ const cacheNamespace = cache.DefaultCacheNamespace
 type YaleSuite struct {
 	suite.Suite
 	k8s            kubernetes.Interface
-	gskEndpoint    *mocks.GcpSaKeyInterface
+	gskEndpoint    *crdmocks.GcpSaKeyInterface
 	vaultServer    *vaultutils.FakeVaultServer
 	cache          cache.Cache
 	resourcemapper resourcemap.Mapper
@@ -46,8 +48,8 @@ type YaleSuite struct {
 func (suite *YaleSuite) SetupTest() {
 	// create kubernetes clients - fake k8s client, mock gsk endpoint
 	suite.k8s = testutils.NewFakeK8sClient(suite.T())
-	suite.gskEndpoint = mocks.NewGcpSaKeyInterface(suite.T())
-	crd := mocks.NewYaleCRDInterface(suite.T())
+	suite.gskEndpoint = crdmocks.NewGcpSaKeyInterface(suite.T())
+	crd := crdmocks.NewYaleCRDInterface(suite.T())
 	crd.EXPECT().GcpSaKeys().Return(suite.gskEndpoint)
 
 	suite.vaultServer = vaultutils.NewFakeVaultServer(suite.T())
@@ -89,7 +91,7 @@ func (suite *YaleSuite) TestYaleSucceedsWithNoCacheEntriesOrGcpSaKeys() {
 	require.NoError(suite.T(), suite.yale.Run())
 }
 
-var now = time.Now().UTC().Round(0)
+var now = currentTime()
 var eightDaysAgo = now.Add(-8 * 24 * time.Hour).Round(0)
 var fourDaysAgo = now.Add(-4 * 24 * time.Hour).Round(0)
 var fourHoursAgo = now.Add(-4 * time.Hour).Round(0)
@@ -545,11 +547,47 @@ func (suite *YaleSuite) TestYaleCorrectlyRetiresCacheEntryWithNoMatchingGcpSaKey
 }
 
 func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
+	// overwrite default yale instance with one where slack client is a mock
+	_slack := slackmocks.NewSlackNotifier(suite.T())
+	suite.yale = newYaleFromComponents(
+		Options{
+			CacheNamespace:            cache.DefaultCacheNamespace,
+			CheckInUseBeforeDisabling: false,
+		},
+		suite.cache,
+		suite.resourcemapper,
+		suite.authmetrics,
+		suite.keyops,
+		suite.keysync,
+		_slack,
+	)
 	suite.seedGsks(gsk1, gsk2, gsk3)
 
 	suite.expectCreateKeyReturnsErr(sa1key1, fmt.Errorf("uh-oh"))
 	suite.expectCreateKey(sa2key1)
 	suite.expectCreateKeyReturnsErr(sa3key1, fmt.Errorf("oh noes"))
+
+	lastReported := now.Add(-20 * time.Minute)
+	suite.seedCacheEntries(&cache.Entry{
+		ServiceAccount: sa3,
+		CurrentKey:     cache.CurrentKey{},
+		RotatedKeys:    map[string]time.Time{},
+		DisabledKeys:   map[string]time.Time{},
+		LastError: cache.LastError{
+			Message:         "error issuing new service account key for s3@p.com: oh noes",
+			Count:           3,
+			FirstOccurrence: eightDaysAgo,
+			LastOccurrence:  lastReported,
+			LastReportedAt:  lastReported,
+		},
+	})
+
+	// expect that a key issue notification is sent for sa2key1
+	_slack.EXPECT().KeyIssued(mock.Anything, sa2key1.id).Return(nil)
+	// set expectation that yale notifies for the s1 error (but not s3)
+	_slack.EXPECT().Error(mock.Anything, mock.MatchedBy(func(s string) bool {
+		return strings.HasSuffix(s, "error issuing new service account key for s1@p.com: uh-oh")
+	})).Return(nil)
 
 	err := suite.yale.Run()
 	require.Error(suite.T(), err)
@@ -562,12 +600,31 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 	assert.Equal(suite.T(), sa2key1.id, entry.CurrentKey.ID)
 	assert.Equal(suite.T(), sa2key1.json(), entry.CurrentKey.JSON)
 	suite.assertNow(entry.CurrentKey.CreatedAt)
+	assert.Empty(suite.T(), entry.LastError)
 
-	// make sure the new keys were replicated to the secret in the gsk spec
+	// make sure the new key were replicated to the secret in the gsk spec
 	suite.assertSecretHasData("ns-2", "s2-secret", map[string]string{
 		"key.pem":  sa2key1.pem,
 		"key.json": sa2key1.json(),
 	})
+
+	// make sure the cache entries for s1 and s3 have error information
+	entry, err = suite.cache.GetOrCreate(sa1)
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), "error issuing new service account key for s1@p.com: uh-oh", entry.LastError.Message)
+	suite.assertNow(entry.LastError.FirstOccurrence)
+	suite.assertNow(entry.LastError.LastOccurrence)
+	suite.assertNow(entry.LastError.LastReportedAt)
+	assert.Equal(suite.T(), 1, entry.LastError.Count)
+
+	// s3 should NOT have sent an error, because it was already sent recently
+	entry, err = suite.cache.GetOrCreate(sa3)
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), "error issuing new service account key for s3@p.com: oh noes", entry.LastError.Message)
+	assert.Equal(suite.T(), eightDaysAgo, entry.LastError.FirstOccurrence)
+	suite.assertNow(entry.LastError.LastOccurrence)
+	assert.Equal(suite.T(), lastReported, entry.LastError.LastReportedAt)
+	assert.Equal(suite.T(), 4, entry.LastError.Count)
 }
 
 func (suite *YaleSuite) seedGsks(gsks ...apiv1b1.GCPSaKey) {

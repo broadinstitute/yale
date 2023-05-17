@@ -25,6 +25,15 @@ func (sa ServiceAccount) cacheSecretName() string {
 	return secretNamePrefix + normalized
 }
 
+// LastError information relating to the last error that occurred while processing this cache entry/service account
+type LastError struct {
+	Message         string
+	Count           int
+	FirstOccurrence time.Time
+	LastOccurrence  time.Time
+	LastReportedAt  time.Time
+}
+
 // CurrentKey represents the current/active service account key that will
 // be replicated to k8s secrets and Vault
 type CurrentKey struct {
@@ -75,6 +84,8 @@ type Entry struct {
 	//   if the key needs to be synced to a different path) or the key is rotated. This avoids overwhelming Vault
 	//   (or eventually Google secrets manager) with write requests.
 	SyncStatus map[string]string
+	// LastError information about the most recent error to occur while processing this cache entry
+	LastError LastError
 }
 
 func (c *Entry) marshalToSecret(s *corev1.Secret) error {

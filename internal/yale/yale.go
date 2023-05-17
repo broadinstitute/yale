@@ -84,7 +84,7 @@ func (m *Yale) Run() error {
 
 	errors := make(map[string]error)
 	for email, bundle := range resources {
-		if err = m.processServiceAccount(bundle.Entry, bundle.GSKs); err != nil {
+		if err = m.processServiceAccountAndReportErrors(bundle.Entry, bundle.GSKs); err != nil {
 			logs.Error.Printf("error processing service account %s: %v", email, err)
 			errors[email] = err
 		}
@@ -98,6 +98,16 @@ func (m *Yale) Run() error {
 		return fmt.Errorf("error processing GcpSaKeys for %d service accounts: %s", len(errors), sb.String())
 	}
 
+	return nil
+}
+
+func (m *Yale) processServiceAccountAndReportErrors(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) error {
+	if err := m.processServiceAccount(entry, gsks); err != nil {
+		if reportErr := m.reportError(entry, err); reportErr != nil {
+			logs.Error.Printf("error reporting error for service account %s: %v", entry.ServiceAccount.Email, reportErr)
+		}
+		return err
+	}
 	return nil
 }
 
@@ -170,7 +180,7 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 
 		if cutoffs.ShouldRotate(entry.CurrentKey.CreatedAt) {
 			logs.Info.Printf("service account %s: rotating key %s", email, entry.CurrentKey.ID)
-			entry.RotatedKeys[entry.CurrentKey.ID] = time.Now()
+			entry.RotatedKeys[entry.CurrentKey.ID] = currentTime()
 			entry.CurrentKey = cache.CurrentKey{}
 		} else {
 			logs.Info.Printf("service account %s: current key %s does not need rotation", email, entry.CurrentKey.ID)
@@ -190,7 +200,7 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 			logs.Info.Printf("created new service account key %s for %s", newKey.ID, email)
 			entry.CurrentKey.ID = newKey.ID
 			entry.CurrentKey.JSON = string(json)
-			entry.CurrentKey.CreatedAt = time.Now()
+			entry.CurrentKey.CreatedAt = currentTime()
 			issued = true
 		}
 	}
@@ -248,7 +258,7 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 
 	// update cache entry to reflect that the key was successfully disabled
 	delete(entry.RotatedKeys, keyId)
-	entry.DisabledKeys[keyId] = time.Now()
+	entry.DisabledKeys[keyId] = currentTime()
 	if err = m.cache.Save(entry); err != nil {
 		return fmt.Errorf("error saving cache entry after key disable: %v", err)
 	}
@@ -333,4 +343,47 @@ func (m *Yale) retireCacheEntryIfNeeded(entry *cache.Entry, gsks []apiv1b1.GCPSa
 
 	logs.Info.Printf("cache entry for %s is empty and has no corresponding GcpSaKey resources in the cluster; deleting it", entry.ServiceAccount.Email)
 	return m.cache.Delete(entry)
+}
+
+const errorRepostDuration = 4 * time.Hour
+
+// reportError report an error on Slack
+func (m *Yale) reportError(entry *cache.Entry, err error) error {
+	now := currentTime()
+
+	if entry.LastError.Message != err.Error() {
+		// this is a new error, so reset the LastError field
+		entry.LastError = cache.LastError{
+			Message:         err.Error(),
+			FirstOccurrence: now,
+			Count:           0,
+		}
+	}
+	entry.LastError.Count++
+	entry.LastError.LastOccurrence = now
+
+	if err = m.cache.Save(entry); err != nil {
+		return fmt.Errorf("error saving cache entry after recording error: %v", err)
+	}
+
+	if time.Since(entry.LastError.LastReportedAt) < errorRepostDuration {
+		return nil
+	}
+
+	msg := fmt.Sprintf("error processing service account %s (count: %d, first occurrence: %s, last occurrence: %s): %s", entry.ServiceAccount.Email, entry.LastError.Count, entry.LastError.FirstOccurrence, entry.LastError.LastOccurrence, entry.LastError.Message)
+	if err = m.slack.Error(entry, msg); err != nil {
+		return fmt.Errorf("error reporting error to Slack: %v", err)
+	}
+
+	entry.LastError.LastReportedAt = now
+	if err = m.cache.Save(entry); err != nil {
+		return fmt.Errorf("error saving cache entry after reporting error: %v", err)
+	}
+
+	return nil
+}
+
+// time.Now, but in a standard way that is nicer-looking in log messages and easier to test
+func currentTime() time.Time {
+	return time.Now().UTC().Round(0)
 }
