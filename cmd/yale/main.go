@@ -6,7 +6,9 @@ import (
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	"github.com/broadinstitute/yale/internal/yale/client"
 	"github.com/broadinstitute/yale/internal/yale/logs"
+	"github.com/broadinstitute/yale/internal/yale/slack"
 	"k8s.io/client-go/util/homedir"
+	"os"
 	"path/filepath"
 )
 
@@ -30,6 +32,7 @@ func main() {
 	m := yale.NewYale(clients, func(options *yale.Options) {
 		options.CacheNamespace = args.cacheNamespace
 		options.CheckInUseBeforeDisabling = args.checkInUse
+		options.SlackWebhookUrl = os.Getenv(slack.WebhookEnvVar)
 	})
 	if err = m.Run(); err != nil {
 		logs.Error.Fatal(err)

@@ -13,6 +13,7 @@ import (
 	"github.com/broadinstitute/yale/internal/yale/keysync"
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	"github.com/broadinstitute/yale/internal/yale/resourcemap"
+	"github.com/broadinstitute/yale/internal/yale/slack"
 	vaultapi "github.com/hashicorp/vault/api"
 	"google.golang.org/api/iam/v1"
 	"k8s.io/client-go/kubernetes"
@@ -27,6 +28,7 @@ type Yale struct { // Yale config
 	keyops      keyops.KeyOps
 	keysync     keysync.KeySync
 	authmetrics authmetrics.AuthMetrics
+	slack       slack.SlackNotifier
 }
 
 type Options struct {
@@ -34,6 +36,8 @@ type Options struct {
 	CacheNamespace string
 	// CheckInUseBeforeDisabling if true, Yale will check if a service account is in use before disabling it
 	CheckInUseBeforeDisabling bool
+	// SlackWebhookUrl if set, Yale will send slack notifications to this webhook
+	SlackWebhookUrl string
 }
 
 // NewYale /* Construct a new Yale Manager */
@@ -55,12 +59,21 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 	_cache := cache.New(k8s, options.CacheNamespace)
 	_keysync := keysync.New(k8s, vault, _cache)
 	_resourcemap := resourcemap.New(crd, _cache)
+	_slack := slack.New(options.SlackWebhookUrl)
 
-	return newYaleFromComponents(options, _cache, _resourcemap, _authmetrics, _keyops, _keysync)
+	return newYaleFromComponents(options, _cache, _resourcemap, _authmetrics, _keyops, _keysync, _slack)
 }
 
-func newYaleFromComponents(options Options, _cache cache.Cache, resourcemapper resourcemap.Mapper, _authmetrics authmetrics.AuthMetrics, _keyops keyops.KeyOps, _keysync keysync.KeySync) *Yale {
-	return &Yale{options: options, cache: _cache, resourcemap: resourcemapper, authmetrics: _authmetrics, keyops: _keyops, keysync: _keysync}
+func newYaleFromComponents(options Options, _cache cache.Cache, resourcemapper resourcemap.Mapper, _authmetrics authmetrics.AuthMetrics, _keyops keyops.KeyOps, _keysync keysync.KeySync, _slack slack.SlackNotifier) *Yale {
+	return &Yale{
+		options:     options,
+		cache:       _cache,
+		resourcemap: resourcemapper,
+		authmetrics: _authmetrics,
+		keyops:      _keyops,
+		keysync:     _keysync,
+		slack:       _slack,
+	}
 }
 
 func (m *Yale) Run() error {
@@ -71,7 +84,7 @@ func (m *Yale) Run() error {
 
 	errors := make(map[string]error)
 	for email, bundle := range resources {
-		if err = m.processServiceAccount(bundle.Entry, bundle.GSKs); err != nil {
+		if err = m.processServiceAccountAndReportErrors(bundle.Entry, bundle.GSKs); err != nil {
 			logs.Error.Printf("error processing service account %s: %v", email, err)
 			errors[email] = err
 		}
@@ -85,6 +98,16 @@ func (m *Yale) Run() error {
 		return fmt.Errorf("error processing GcpSaKeys for %d service accounts: %s", len(errors), sb.String())
 	}
 
+	return nil
+}
+
+func (m *Yale) processServiceAccountAndReportErrors(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) error {
+	if err := m.processServiceAccount(entry, gsks); err != nil {
+		if reportErr := m.reportError(entry, err); reportErr != nil {
+			logs.Error.Printf("error reporting error for service account %s: %v", entry.ServiceAccount.Email, reportErr)
+		}
+		return err
+	}
 	return nil
 }
 
@@ -148,7 +171,7 @@ func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv
 // to the cache entry, then saves the updated cache entry to k8s.
 // returns a boolean that will be true if a new key was issued, false otherwise
 func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GCPSaKey) (bool, error) {
-	rotated := false
+	issued := false
 	email := entry.ServiceAccount.Email
 	project := entry.ServiceAccount.Project
 
@@ -157,7 +180,7 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 
 		if cutoffs.ShouldRotate(entry.CurrentKey.CreatedAt) {
 			logs.Info.Printf("service account %s: rotating key %s", email, entry.CurrentKey.ID)
-			entry.RotatedKeys[entry.CurrentKey.ID] = time.Now()
+			entry.RotatedKeys[entry.CurrentKey.ID] = currentTime()
 			entry.CurrentKey = cache.CurrentKey{}
 		} else {
 			logs.Info.Printf("service account %s: current key %s does not need rotation", email, entry.CurrentKey.ID)
@@ -177,8 +200,8 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 			logs.Info.Printf("created new service account key %s for %s", newKey.ID, email)
 			entry.CurrentKey.ID = newKey.ID
 			entry.CurrentKey.JSON = string(json)
-			entry.CurrentKey.CreatedAt = time.Now()
-			rotated = true
+			entry.CurrentKey.CreatedAt = currentTime()
+			issued = true
 		}
 	}
 
@@ -186,7 +209,13 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 		return false, fmt.Errorf("error saving cache entry for %s after key rotation: %v", email, err)
 	}
 
-	return rotated, nil
+	if issued {
+		if err := m.slack.KeyIssued(entry, entry.CurrentKey.ID); err != nil {
+			return false, err
+		}
+	}
+
+	return issued, nil
 }
 
 func (m *Yale) disableOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
@@ -229,11 +258,12 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 
 	// update cache entry to reflect that the key was successfully disabled
 	delete(entry.RotatedKeys, keyId)
-	entry.DisabledKeys[keyId] = time.Now()
+	entry.DisabledKeys[keyId] = currentTime()
 	if err = m.cache.Save(entry); err != nil {
 		return fmt.Errorf("error saving cache entry after key disable: %v", err)
 	}
-	return nil
+
+	return m.slack.KeyDisabled(entry, keyId)
 }
 
 func (m *Yale) lastAuthTime(keyId string, entry *cache.Entry) (*time.Time, error) {
@@ -291,8 +321,7 @@ func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Ent
 	}
 
 	logs.Info.Printf("deleted key %s (service account %s)", key.ID, key.ServiceAccountEmail)
-
-	return nil
+	return m.slack.KeyDeleted(entry, key.ID)
 }
 
 func (m *Yale) retireCacheEntryIfNeeded(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) error {
@@ -314,4 +343,47 @@ func (m *Yale) retireCacheEntryIfNeeded(entry *cache.Entry, gsks []apiv1b1.GCPSa
 
 	logs.Info.Printf("cache entry for %s is empty and has no corresponding GcpSaKey resources in the cluster; deleting it", entry.ServiceAccount.Email)
 	return m.cache.Delete(entry)
+}
+
+const errorRepostDuration = 4 * time.Hour
+
+// reportError report an error on Slack
+func (m *Yale) reportError(entry *cache.Entry, err error) error {
+	now := currentTime()
+
+	if entry.LastError.Message != err.Error() {
+		// this is a new error, so reset the LastError field
+		entry.LastError = cache.LastError{
+			Message:         err.Error(),
+			FirstOccurrence: now,
+			Count:           0,
+		}
+	}
+	entry.LastError.Count++
+	entry.LastError.LastOccurrence = now
+
+	if err = m.cache.Save(entry); err != nil {
+		return fmt.Errorf("error saving cache entry after recording error: %v", err)
+	}
+
+	if time.Since(entry.LastError.LastReportedAt) < errorRepostDuration {
+		return nil
+	}
+
+	msg := fmt.Sprintf("error processing service account %s (count: %d, first occurrence: %s, last occurrence: %s): %s", entry.ServiceAccount.Email, entry.LastError.Count, entry.LastError.FirstOccurrence, entry.LastError.LastOccurrence, entry.LastError.Message)
+	if err = m.slack.Error(entry, msg); err != nil {
+		return fmt.Errorf("error reporting error to Slack: %v", err)
+	}
+
+	entry.LastError.LastReportedAt = now
+	if err = m.cache.Save(entry); err != nil {
+		return fmt.Errorf("error saving cache entry after reporting error: %v", err)
+	}
+
+	return nil
+}
+
+// time.Now, but in a standard way that is nicer-looking in log messages and easier to test
+func currentTime() time.Time {
+	return time.Now().UTC().Round(0)
 }
