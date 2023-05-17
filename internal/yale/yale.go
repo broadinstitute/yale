@@ -362,8 +362,7 @@ func (m *Yale) reportError(entry *cache.Entry, err error) error {
 		return nil
 	}
 
-	msg := fmt.Sprintf("error processing service account %s: %s", entry.ServiceAccount.Email, entry.LastError.Message)
-	if err = m.slack.Error(entry, msg); err != nil {
+	if err = m.slack.Error(entry, entry.LastError.Message); err != nil {
 		return fmt.Errorf("error reporting error to Slack: %v", err)
 	}
 
