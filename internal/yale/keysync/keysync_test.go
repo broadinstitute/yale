@@ -103,9 +103,8 @@ func (suite *KeySyncSuite) Test_KeySync_CreatesK8sSecret() {
 	assert.Equal(suite.T(), key1.json, string(secret.Data["my-key.json"]))
 	assert.Equal(suite.T(), key1.pem, string(secret.Data["my-key.pem"]))
 
-	// make sure the cache entry was updated with correct key-sync record
-	assert.Len(suite.T(), entry.SyncStatus, 1)
-	assert.Equal(suite.T(), "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	// syncs for just k8s secrets should not update the sync status map
+	assert.Len(suite.T(), entry.SyncStatus, 0)
 }
 
 func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
@@ -171,9 +170,8 @@ func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
 	assert.Equal(suite.T(), key1.pem, string(secret.Data["my-key.pem"]))
 	assert.Equal(suite.T(), "this should be ignored", string(secret.Data["extra-data"]))
 
-	// make sure the cache entry was updated with correct key-sync record
-	assert.Len(suite.T(), entry.SyncStatus, 1)
-	assert.Equal(suite.T(), "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	// syncs for just k8s secrets should not update the sync status map
+	assert.Len(suite.T(), entry.SyncStatus, 0)
 }
 
 func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications() {
@@ -250,14 +248,14 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications()
 	assert.Equal(suite.T(), "89fee4211aee14f33a50bfd71bd47b2459560693a4548ca079a4c9d3d6b48337:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
 }
 
-func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDate() {
+func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformAVaultReplicationIfSyncStatusIsUpToDate() {
 	entry := &cache.Entry{}
 	entry.CurrentKey.JSON = key1.json
 	entry.CurrentKey.ID = key1.id
 
-	// pretend cache entry has already been synced for this gsk
+	// pretend vault replication has already been performed for this gsk
 	entry.SyncStatus = map[string]string{
-		"my-namespace/my-gsk": "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id,
+		"my-namespace/my-gsk": "72dfa54afa563a20c64dc5612af020b0db0502e29a0daedcf9592bcdc00ea2e5:" + key1.id,
 	}
 
 	gsk := apiv1b1.GCPSaKey{
@@ -275,7 +273,13 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 				PemKeyName:  "my-key.pem",
 				JsonKeyName: "my-key.json",
 			},
-			VaultReplications: []apiv1b1.VaultReplication{},
+			VaultReplications: []apiv1b1.VaultReplication{
+				{
+					Path:   "secret/foo/test/json",
+					Format: apiv1b1.JSON,
+					Key:    "key.json",
+				},
+			},
 		},
 	}
 
@@ -284,8 +288,12 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 	// run a key sync to create the secret once
 	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, gsk))
 
-	// make sure the secret was not created
-	suite.assertK8sSecreDoesNotExist("my-namespace", "my-secret")
+	// verify K8s secret was created
+	_, err := suite.getSecret("my-namespace", "my-secret")
+	require.NoError(suite.T(), err)
+
+	// verify the vault replication was NOT performed
+	suite.assertVaultServerDoesNotHaveSecretAtPath("secret/foo/test/json")
 }
 
 func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
@@ -321,6 +329,11 @@ func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
 	// make sure the cache entry's sync status map has exactly one record was updated with correct key-sync records
 	assert.Len(suite.T(), entry.SyncStatus, 1) // length should b
 	assert.Equal(suite.T(), "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+}
+
+func (suite *KeySyncSuite) assertVaultServerDoesNotHaveSecretAtPath(path string) {
+	data := suite.vaultServer.GetSecret(path)
+	assert.Empty(suite.T(), data)
 }
 
 func (suite *KeySyncSuite) assertVaultServerHasSecret(path string, content map[string]interface{}) {

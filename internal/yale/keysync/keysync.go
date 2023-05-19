@@ -44,34 +44,29 @@ type keysync struct {
 }
 
 func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) error {
-	for _, gsk := range gsks {
-		mapKey := statusKey(gsk)
-		expected, err := computeStatusValue(entry, gsk)
-		if err != nil {
-			return err
-		}
-		actual := entry.SyncStatus[mapKey]
-
-		logs.Info.Printf("gsk %s in %s: sync status should be %q, is %q", gsk.Name, gsk.Namespace, expected, actual)
-		if actual == expected {
-			continue
-		}
-		logs.Info.Printf("gsk %s in %s: starting key sync", gsk.Name, gsk.Namespace)
-		if err = k.syncToK8sSecret(entry, gsk); err != nil {
-			return fmt.Errorf("gsk %s in %s: error syncing to K8s secret: %v", gsk.Name, gsk.Namespace, err)
-		}
-		if err = k.replicateKeyToVault(entry, gsk); err != nil {
-			return fmt.Errorf("gsk %s in %s: error syncing to Vault: %v", gsk.Name, gsk.Namespace, err)
-		}
-		entry.SyncStatus[mapKey] = expected
+	if err := k.syncAllToK8s(entry, gsks...); err != nil {
+		return err
 	}
 
-	pruneOldSyncStatuses(entry, gsks...)
+	if err := k.syncAllToVault(entry, gsks...); err != nil {
+		return err
+	}
 
 	if err := k.cache.Save(entry); err != nil {
 		return fmt.Errorf("error saving cache entry for %s after key sync: %v", entry.ServiceAccount.Email, err)
 	}
 
+	return nil
+}
+
+func (k *keysync) syncAllToK8s(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) error {
+	for _, gsk := range gsks {
+		var err error
+		logs.Info.Printf("gsk %s in %s: syncing K8s secret %s", gsk.Name, gsk.Namespace, gsk.Spec.Secret.Name)
+		if err = k.syncToK8sSecret(entry, gsk); err != nil {
+			return fmt.Errorf("gsk %s in %s: error syncing to K8s secret: %v", gsk.Name, gsk.Namespace, err)
+		}
+	}
 	return nil
 }
 
@@ -144,6 +139,43 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk apiv1b1.GCPSaKey) erro
 		return fmt.Errorf("error syncing service account key %s to secret %s/%s: %v", entry.CurrentKey.ID, gsk.Namespace, secret.Name, err)
 	}
 	logs.Info.Printf("synced service account key %s to secret %s/%s", entry.CurrentKey.ID, gsk.Namespace, gsk.Spec.Secret.Name)
+	return nil
+}
+
+func (k *keysync) syncAllToVault(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) error {
+	for _, gsk := range gsks {
+		var err error
+		if err = k.syncToVaultIfNeeded(entry, gsk); err != nil {
+			return fmt.Errorf("gsk %s in %s: error syncing to Vault: %v", gsk.Name, gsk.Namespace, err)
+		}
+	}
+
+	pruneOldSyncStatuses(entry, gsks...)
+	return nil
+}
+
+func (k *keysync) syncToVaultIfNeeded(entry *cache.Entry, gsk apiv1b1.GCPSaKey) error {
+	if len(gsk.Spec.VaultReplications) == 0 {
+		// no replications to perform
+		return nil
+	}
+
+	mapKey := statusKey(gsk)
+	expected, err := computeStatusValue(entry, gsk)
+	if err != nil {
+		return err
+	}
+	actual := entry.SyncStatus[mapKey]
+
+	logs.Info.Printf("gsk %s in %s: sync status should be %q, is %q", gsk.Name, gsk.Namespace, expected, actual)
+	if actual == expected {
+		return nil
+	}
+
+	if err = k.replicateKeyToVault(entry, gsk); err != nil {
+		return fmt.Errorf("gsk %s in %s: error syncing to Vault: %v", gsk.Name, gsk.Namespace, err)
+	}
+	entry.SyncStatus[mapKey] = expected
 	return nil
 }
 
