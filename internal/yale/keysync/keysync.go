@@ -344,6 +344,7 @@ func (k *keysync) getClusterSecrets() (map[string]struct{}, error) {
 		return k.clusterSecrets, nil
 	}
 
+	// we intentionally use `""` for the namespace here, because we want to list all secrets in all namespaces
 	list, err := k.k8s.CoreV1().Secrets("").List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("keysync: error listing secrets in cluster: %v", err)
