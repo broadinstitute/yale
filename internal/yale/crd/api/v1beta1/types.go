@@ -26,9 +26,10 @@ type Secret struct {
 }
 
 type KeyRotation struct {
-	RotateAfter  int `json:"rotateAfter"`
-	DeleteAfter  int `json:"deleteAfter"`
-	DisableAfter int `json:"disableAfter"`
+	RotateAfter        int  `json:"rotateAfter"`
+	DeleteAfter        int  `json:"deleteAfter"`
+	DisableAfter       int  `json:"disableAfter"`
+	IgnoreUsageMetrics bool `json:"ignoreUsageMetrics"`
 }
 
 type VaultReplication struct {

@@ -7,9 +7,10 @@ import (
 )
 
 type thresholds struct {
-	rotateAfter  int
-	disableAfter int
-	deleteAfter  int
+	rotateAfter        int
+	disableAfter       int
+	deleteAfter        int
+	ignoreUsageMetrics bool
 }
 
 // minimums - the minimum supported value for a GSK's RotateAfter/DisableAfter/DeleteAfter
@@ -86,6 +87,9 @@ func (c cutoffs) ShouldDisable(rotatedAt time.Time) bool {
 }
 
 func (c cutoffs) SafeToDisable(lastAuthTime time.Time) bool {
+	if c.thresholds.ignoreUsageMetrics {
+		return true
+	}
 	return lastAuthTime.Before(c.safeToDisableCutoff())
 }
 
@@ -142,6 +146,7 @@ func computeThresholds(gsks []apiv1b1.GCPSaKey) thresholds {
 		deleteAfter: computeThreshold(gsks, func(gsk apiv1b1.GCPSaKey) int {
 			return gsk.Spec.KeyRotation.DeleteAfter
 		}, minimums.deleteAfter, "DeleteAfter"),
+		ignoreUsageMetrics: computeIgnoreUsageMetrics(gsks),
 	}
 	if len(gsks) > 1 {
 		logs.Info.Printf("computed key rotation thresholds for %s from %d GSKs: rotate after %d days, disable after %d days, delete after %d days", gsks[0].Spec.GoogleServiceAccount.Name, len(gsks), t.rotateAfter, t.disableAfter, t.deleteAfter)
@@ -168,4 +173,18 @@ func computeThreshold(gsks []apiv1b1.GCPSaKey, fieldFn func(apiv1b1.GCPSaKey) in
 		return floor
 	}
 	return minV
+}
+
+func computeIgnoreUsageMetrics(gsks []apiv1b1.GCPSaKey) bool {
+	if len(gsks) == 0 {
+		return false
+	}
+	first := gsks[0]
+	for _, gsk := range gsks {
+		if gsk.Spec.KeyRotation.IgnoreUsageMetrics != first.Spec.KeyRotation.IgnoreUsageMetrics {
+			logs.Warn.Printf("`IgnoreUsageMetrics` field differs between GcpSaKey resources for %s: %s/%s=%t and %s/%s=%t; usage metrics will not be ignored", gsk.Spec.GoogleServiceAccount.Name, first.Namespace, first.Name, first.Spec.KeyRotation.IgnoreUsageMetrics, gsk.Namespace, gsk.Name, gsk.Spec.KeyRotation.IgnoreUsageMetrics)
+			return false
+		}
+	}
+	return first.Spec.KeyRotation.IgnoreUsageMetrics
 }

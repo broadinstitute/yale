@@ -74,8 +74,8 @@ func (suite *YaleSuite) SetupTest() {
 
 	suite.yale = newYaleFromComponents(
 		Options{
-			CacheNamespace:            cache.DefaultCacheNamespace,
-			CheckInUseBeforeDisabling: true,
+			CacheNamespace:     cache.DefaultCacheNamespace,
+			IgnoreUsageMetrics: false,
 		},
 		suite.cache,
 		suite.resourcemapper,
@@ -369,12 +369,12 @@ func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 	assert.False(suite.T(), exists)
 }
 
-func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfCheckInUseOptionIsFalse() {
-	// overwrite default yale instance with one where CheckInUseBeforeDisabling is false
+func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfIgnoreUsageMetricsIsTrue() {
+	// overwrite default yale instance with one where IgnoreUsageMetrics is true
 	suite.yale = newYaleFromComponents(
 		Options{
-			CacheNamespace:            cache.DefaultCacheNamespace,
-			CheckInUseBeforeDisabling: false,
+			CacheNamespace:     cache.DefaultCacheNamespace,
+			IgnoreUsageMetrics: true,
 		},
 		suite.cache,
 		suite.resourcemapper,
@@ -551,8 +551,8 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 	_slack := slackmocks.NewSlackNotifier(suite.T())
 	suite.yale = newYaleFromComponents(
 		Options{
-			CacheNamespace:            cache.DefaultCacheNamespace,
-			CheckInUseBeforeDisabling: false,
+			CacheNamespace:     cache.DefaultCacheNamespace,
+			IgnoreUsageMetrics: false,
 		},
 		suite.cache,
 		suite.resourcemapper,

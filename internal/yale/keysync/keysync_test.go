@@ -105,7 +105,7 @@ func (suite *KeySyncSuite) Test_KeySync_CreatesK8sSecret() {
 
 	// make sure the cache entry was updated with correct key-sync record
 	assert.Len(suite.T(), entry.SyncStatus, 1)
-	assert.Equal(suite.T(), "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "bcb8be041cfe2fc4da92ced123f56cb2cc1d6eeb10175d2b4e4348a16c2c235f:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
 }
 
 func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
@@ -173,7 +173,7 @@ func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
 
 	// make sure the cache entry was updated with correct key-sync record
 	assert.Len(suite.T(), entry.SyncStatus, 1)
-	assert.Equal(suite.T(), "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "bcb8be041cfe2fc4da92ced123f56cb2cc1d6eeb10175d2b4e4348a16c2c235f:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
 }
 
 func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications() {
@@ -247,7 +247,7 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications()
 
 	// make sure the cache entry was updated with correct key-sync record
 	assert.Len(suite.T(), entry.SyncStatus, 1)
-	assert.Equal(suite.T(), "89fee4211aee14f33a50bfd71bd47b2459560693a4548ca079a4c9d3d6b48337:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "729c209216257d3d2651002acbac6131be54431d6e9914e58821187262e389f8:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
 }
 
 func (suite *KeySyncSuite) Test_KeySync_PerformsASyncIfSyncStatusIsUpToDateButSecretIsMissing() {
@@ -299,7 +299,7 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 
 	// pretend cache entry has already been synced for this gsk
 	entry.SyncStatus = map[string]string{
-		"my-namespace/my-gsk": "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id,
+		"my-namespace/my-gsk": "bcb8be041cfe2fc4da92ced123f56cb2cc1d6eeb10175d2b4e4348a16c2c235f:" + key1.id,
 	}
 
 	gsk := apiv1b1.GCPSaKey{
@@ -347,9 +347,9 @@ func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
 	entry.CurrentKey.JSON = key1.json
 	entry.CurrentKey.ID = key1.id
 	entry.SyncStatus = map[string]string{
-		"my-namespace/my-gsk":         "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id, // should not be deleted
-		"my-namespace/deleted-gsk":    "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id, // should be deleted
-		"other-namespace/deleted-gsk": "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id, // should be deleted
+		"my-namespace/my-gsk":         "bcb8be041cfe2fc4da92ced123f56cb2cc1d6eeb10175d2b4e4348a16c2c235f:" + key1.id, // should not be deleted
+		"my-namespace/deleted-gsk":    "bcb8be041cfe2fc4da92ced123f56cb2cc1d6eeb10175d2b4e4348a16c2c235f:" + key1.id, // should be deleted
+		"other-namespace/deleted-gsk": "bcb8be041cfe2fc4da92ced123f56cb2cc1d6eeb10175d2b4e4348a16c2c235f:" + key1.id, // should be deleted
 	}
 
 	gsk := apiv1b1.GCPSaKey{
@@ -374,7 +374,7 @@ func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
 
 	// make sure the cache entry's sync status map has exactly one record was updated with correct key-sync records
 	assert.Len(suite.T(), entry.SyncStatus, 1) // length should b
-	assert.Equal(suite.T(), "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "bcb8be041cfe2fc4da92ced123f56cb2cc1d6eeb10175d2b4e4348a16c2c235f:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
 }
 
 func (suite *KeySyncSuite) assertVaultServerHasSecret(path string, content map[string]interface{}) {

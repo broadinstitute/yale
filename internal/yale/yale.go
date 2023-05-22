@@ -34,8 +34,8 @@ type Yale struct { // Yale config
 type Options struct {
 	// CacheNamespace namespace where Yale will store its cache entries
 	CacheNamespace string
-	// CheckInUseBeforeDisabling if true, Yale will check if a service account is in use before disabling it
-	CheckInUseBeforeDisabling bool
+	// IgnoreUsageMetrics if true, Yale will NOT check if a service account is in use before disabling it
+	IgnoreUsageMetrics bool
 	// SlackWebhookUrl if set, Yale will send slack notifications to this webhook
 	SlackWebhookUrl string
 }
@@ -47,8 +47,8 @@ func NewYale(clients *client.Clients, opts ...func(*Options)) *Yale {
 
 func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, opts ...func(*Options)) *Yale {
 	options := Options{
-		CacheNamespace:            cache.DefaultCacheNamespace,
-		CheckInUseBeforeDisabling: true,
+		CacheNamespace:     cache.DefaultCacheNamespace,
+		IgnoreUsageMetrics: false,
 	}
 	for _, opt := range opts {
 		opt(&options)
@@ -267,7 +267,7 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 }
 
 func (m *Yale) lastAuthTime(keyId string, entry *cache.Entry) (*time.Time, error) {
-	if !m.options.CheckInUseBeforeDisabling {
+	if m.options.IgnoreUsageMetrics {
 		return nil, nil
 	}
 
