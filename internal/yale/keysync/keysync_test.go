@@ -250,7 +250,7 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications()
 	assert.Equal(suite.T(), "89fee4211aee14f33a50bfd71bd47b2459560693a4548ca079a4c9d3d6b48337:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
 }
 
-func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDate() {
+func (suite *KeySyncSuite) Test_KeySync_PerformsASyncIfSyncStatusIsUpToDateButSecretIsMissing() {
 	entry := &cache.Entry{}
 	entry.CurrentKey.JSON = key1.json
 	entry.CurrentKey.ID = key1.id
@@ -284,8 +284,62 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 	// run a key sync to create the secret once
 	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, gsk))
 
-	// make sure the secret was not created
-	suite.assertK8sSecreDoesNotExist("my-namespace", "my-secret")
+	secret, err := suite.getSecret("my-namespace", "my-secret")
+	require.NoError(suite.T(), err)
+
+	// make sure secret has expected data
+	assert.Equal(suite.T(), key1.json, string(secret.Data["my-key.json"]))
+	assert.Equal(suite.T(), key1.pem, string(secret.Data["my-key.pem"]))
+}
+
+func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDateAndSecretExists() {
+	entry := &cache.Entry{}
+	entry.CurrentKey.JSON = key1.json
+	entry.CurrentKey.ID = key1.id
+
+	// pretend cache entry has already been synced for this gsk
+	entry.SyncStatus = map[string]string{
+		"my-namespace/my-gsk": "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id,
+	}
+
+	gsk := apiv1b1.GCPSaKey{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-gsk",
+			Namespace: "my-namespace",
+			Labels: map[string]string{
+				"label1": "value1",
+				"label2": "value2",
+			},
+		},
+		Spec: apiv1b1.GCPSaKeySpec{
+			Secret: apiv1b1.Secret{
+				Name:        "my-secret",
+				PemKeyName:  "my-key.pem",
+				JsonKeyName: "my-key.json",
+			},
+			VaultReplications: []apiv1b1.VaultReplication{},
+		},
+	}
+
+	// create the gsk's secret - this should prevent the key sync from running, even the secret does not have
+	// the key data in it
+	suite.createSecret(&corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-secret",
+			Namespace: "my-namespace",
+		},
+	})
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
+
+	// run a key sync to create the secret once
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, gsk))
+
+	secret, err := suite.getSecret("my-namespace", "my-secret")
+	require.NoError(suite.T(), err)
+
+	// make sure secret is empty
+	assert.Empty(suite.T(), secret.Data)
 }
 
 func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {

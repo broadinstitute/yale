@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"sync"
 )
 
 const defaultVaultReplicationSecretKey = "sa-key"
@@ -38,22 +39,20 @@ func New(k8s kubernetes.Interface, vault *vaultapi.Client, cache cache.Cache) Ke
 }
 
 type keysync struct {
-	vault *vaultapi.Client
-	k8s   kubernetes.Interface
-	cache cache.Cache
+	vault          *vaultapi.Client
+	k8s            kubernetes.Interface
+	cache          cache.Cache
+	mutex          sync.Mutex
+	clusterSecrets map[string]struct{}
 }
 
 func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) error {
 	for _, gsk := range gsks {
-		mapKey := statusKey(gsk)
-		expected, err := computeStatusValue(entry, gsk)
+		syncRequired, statusHash, err := k.syncRequired(entry, gsk)
 		if err != nil {
 			return err
 		}
-		actual := entry.SyncStatus[mapKey]
-
-		logs.Info.Printf("gsk %s in %s: sync status should be %q, is %q", gsk.Name, gsk.Namespace, expected, actual)
-		if actual == expected {
+		if !syncRequired {
 			continue
 		}
 		logs.Info.Printf("gsk %s in %s: starting key sync", gsk.Name, gsk.Namespace)
@@ -63,7 +62,7 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) err
 		if err = k.replicateKeyToVault(entry, gsk); err != nil {
 			return fmt.Errorf("gsk %s in %s: error syncing to Vault: %v", gsk.Name, gsk.Namespace, err)
 		}
-		entry.SyncStatus[mapKey] = expected
+		entry.SyncStatus[statusKey(gsk)] = statusHash
 	}
 
 	pruneOldSyncStatuses(entry, gsks...)
@@ -73,6 +72,44 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) err
 	}
 
 	return nil
+}
+
+// syncRequired determine if a gsk needs to be synced from its cache entry to its k8s secret.
+// this is true if:
+// - the secret does not exist
+// - the secret exists, but the gsk's spec has changed since the last sync
+// - the secret exists, but the service account key has been rotated since the last sync
+//
+// note that the latter two conditions are detected by computing the gsk's status hash and comparing
+// it to the one stored in the cache entry's status map.
+//
+// this method also returns the computed status hash, which is used to update the cache entry's SyncStatus map
+// after a successful sync
+func (k *keysync) syncRequired(entry *cache.Entry, gsk apiv1b1.GCPSaKey) (bool, string, error) {
+	// compute the statusHash for the gsk
+	computedHash, err := computeStatusHash(entry, gsk)
+	if err != nil {
+		return false, "", err
+	}
+
+	// first, check if the secret exists. If it was deleted (eg. manually in the UI),
+	// Yale should absolutely perform a sync
+	secretExists, err := k.clusterHasSecret(gsk)
+	if err != nil {
+		return false, "", err
+	}
+	if !secretExists {
+		logs.Info.Printf("gsk %s in %s: secret %s does not exist, key sync is needed", gsk.Name, gsk.Namespace, gsk.Spec.Secret.Name)
+		return true, computedHash, nil
+	}
+
+	cachedHash := entry.SyncStatus[statusKey(gsk)]
+
+	logs.Info.Printf("gsk %s in %s: sync status should be %q, is %q", gsk.Name, gsk.Namespace, computedHash, cachedHash)
+	if cachedHash == computedHash {
+		return false, computedHash, nil
+	}
+	return true, computedHash, nil
 }
 
 func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk apiv1b1.GCPSaKey) error {
@@ -243,7 +280,7 @@ func pruneOldSyncStatuses(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) {
 // compute the expected status map value for a given gsk, which is the sha256 checksum
 // of the gsk's spec, concatenated with the ID of the cache entry's current service account key
 // eg. "<sha-256-sum>:<key-id>"
-func computeStatusValue(entry *cache.Entry, gsk apiv1b1.GCPSaKey) (string, error) {
+func computeStatusHash(entry *cache.Entry, gsk apiv1b1.GCPSaKey) (string, error) {
 	data, err := json.Marshal(gsk.Spec)
 	if err != nil {
 		return "", fmt.Errorf("gsk %s in %s: error marshalling gsk spec to JSON: %v", gsk.Name, gsk.Namespace, err)
@@ -268,5 +305,56 @@ func sha256Sum(data []byte) (string, error) {
 // return the key for a gsk in the sync status map
 // eg. "<namespace>/<name>"
 func statusKey(gsk apiv1b1.GCPSaKey) string {
-	return gsk.Namespace + "/" + gsk.Name
+	return qualifiedName(gsk.Namespace, gsk.Name)
+}
+
+// return the key for a secret in the secrets map in the form "<namespace>/<name>"
+func secretKeyForGsk(gsk apiv1b1.GCPSaKey) string {
+	return qualifiedName(gsk.Namespace, gsk.Spec.Secret.Name)
+}
+
+// return the key for a secret in the secrets map in the form "<namespace>/<name>"
+func secretKey(secret corev1.Secret) string {
+	return qualifiedName(secret.Namespace, secret.Name)
+}
+
+// return a qualified name for a k8s resource in the form "<namespace>/<name>"
+func qualifiedName(namespace string, name string) string {
+	return namespace + "/" + name
+}
+
+// clusterHasSecret returns true if the secret specified in the gsk's secret spec
+// exists in the cluster, false otherwise
+func (k *keysync) clusterHasSecret(gsk apiv1b1.GCPSaKey) (bool, error) {
+	secrets, err := k.getClusterSecrets()
+	if err != nil {
+		return false, err
+	}
+	_, exists := secrets[secretKeyForGsk(gsk)]
+	return exists, nil
+}
+
+// getClusterSecrets memoized method that returns a set of the names of all secrets in the cluster,
+// as a map with keys in the form "<namespace>/<name>"
+func (k *keysync) getClusterSecrets() (map[string]struct{}, error) {
+	k.mutex.Lock()
+	defer k.mutex.Unlock()
+
+	if k.clusterSecrets != nil {
+		return k.clusterSecrets, nil
+	}
+
+	// we intentionally use `""` for the namespace here, because we want to list all secrets in all namespaces
+	list, err := k.k8s.CoreV1().Secrets("").List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("keysync: error listing secrets in cluster: %v", err)
+	}
+
+	m := make(map[string]struct{})
+	for _, secret := range list.Items {
+		m[secretKey(secret)] = struct{}{}
+	}
+	k.clusterSecrets = m
+
+	return m, nil
 }
