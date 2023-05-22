@@ -141,6 +141,35 @@ func Test_Cutoffs(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "should always return safe to disable if ignore usage metrics is true",
+			input: v1beta1.KeyRotation{
+				RotateAfter:        7,
+				DisableAfter:       7,
+				DeleteAfter:        3,
+				IgnoreUsageMetrics: true,
+			},
+			expectedThresholds: thresholds{
+				rotateAfter:  7,
+				disableAfter: 7,
+				deleteAfter:  3,
+			},
+			expectedCutoffs: cutoffTimes{
+				rotateCutoff:        "2023-04-21T09:10:11Z",
+				disableCutoff:       "2023-04-21T09:10:11Z",
+				safeToDisableCutoff: "2023-04-25T09:10:11Z",
+				deleteCutoff:        "2023-04-25T09:10:11Z",
+			},
+			shouldChecks: []shouldChecks{
+				{
+					input:       "2023-04-27T00:00:00Z",
+					rotate:      false,
+					disable:     false,
+					safeDisable: true,
+					delete:      false,
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
