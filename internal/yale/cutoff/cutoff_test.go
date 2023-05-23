@@ -141,6 +141,35 @@ func Test_Cutoffs(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "should always return safe to disable if ignore usage metrics is true",
+			input: v1beta1.KeyRotation{
+				RotateAfter:        7,
+				DisableAfter:       7,
+				DeleteAfter:        3,
+				IgnoreUsageMetrics: true,
+			},
+			expectedThresholds: thresholds{
+				rotateAfter:  7,
+				disableAfter: 7,
+				deleteAfter:  3,
+			},
+			expectedCutoffs: cutoffTimes{
+				rotateCutoff:        "2023-04-21T09:10:11Z",
+				disableCutoff:       "2023-04-21T09:10:11Z",
+				safeToDisableCutoff: "2023-04-25T09:10:11Z",
+				deleteCutoff:        "2023-04-25T09:10:11Z",
+			},
+			shouldChecks: []shouldChecks{
+				{
+					input:       "2023-04-27T00:00:00Z",
+					rotate:      false,
+					disable:     false,
+					safeDisable: true,
+					delete:      false,
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -315,6 +344,177 @@ func Test_computeThresholds(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, computeThresholds(tc.input))
+		})
+	}
+}
+
+func Test_computeIgnoreUsageMetrics(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    []v1beta1.GCPSaKey
+		expected bool
+	}{
+		{
+			name:     "empty",
+			input:    []v1beta1.GCPSaKey{},
+			expected: false,
+		},
+		{
+			name: "single gsk with ignoreUsageMetrics set to false",
+			input: []v1beta1.GCPSaKey{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-1",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: false,
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "single gsk with ignoreUsageMetrics set to true",
+			input: []v1beta1.GCPSaKey{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-1",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: true,
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "multiple gsks with ignoreUsageMetrics set to true",
+			input: []v1beta1.GCPSaKey{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-1",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: true,
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-2",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: true,
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-3",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: true,
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "multiple gsks with ignoreUsageMetrics set to false",
+			input: []v1beta1.GCPSaKey{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-1",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: false,
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-2",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: false,
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-3",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: false,
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "multiple gsks with ignoreUsageMetrics set to true and false",
+			input: []v1beta1.GCPSaKey{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-1",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: true,
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-2",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: false,
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-3",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.GCPSaKeySpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: true,
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, computeIgnoreUsageMetrics(tc.input))
 		})
 	}
 }
