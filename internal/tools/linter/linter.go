@@ -24,18 +24,6 @@ type resource[T any] struct {
 	annotations map[string]string
 }
 
-type reference struct {
-	filename string
-	lineno   int
-	kind     string
-	name     string
-	secret   string
-}
-
-func (r reference) summarize() string {
-	return fmt.Sprintf("%s:%d -- %s %s references Yale secret %s", r.filename, r.lineno, r.kind, r.name, r.secret)
-}
-
 type secret struct {
 	name   string
 	regexp *regexp.Regexp
@@ -108,7 +96,7 @@ func scan[T any](r resource[T], secrets []secret) []reference {
 	reloader := parseReloaderAnnotations(r.annotations)
 
 	scanner := bufio.NewScanner(bytes.NewReader(r.document.content))
-	lineoffset := 0
+	var lineoffset int
 	for scanner.Scan() {
 		for _, s := range secrets {
 			line := scanner.Bytes()

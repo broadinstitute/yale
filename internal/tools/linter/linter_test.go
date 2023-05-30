@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func Test_scanning(t *testing.T) {
+func Test_Linter(t *testing.T) {
 	testCases := []struct {
 		name     string
 		expected []reference
@@ -79,14 +79,14 @@ func Test_scanning(t *testing.T) {
 				},
 				{
 					filename: "testdata/complex-missing/deployment.yaml",
-					lineno:   91,
+					lineno:   97,
 					kind:     "Deployment",
 					name:     "deployment-5",
 					secret:   "gsk-1-secret",
 				},
 				{
 					filename: "testdata/complex-missing/deployment.yaml",
-					lineno:   97,
+					lineno:   103,
 					kind:     "Deployment",
 					name:     "deployment-5",
 					secret:   "gsk-2-secret",

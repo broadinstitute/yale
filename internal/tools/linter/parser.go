@@ -16,6 +16,8 @@ import (
 
 var yamlExts = []string{".yaml", ".yml"}
 
+// parser scans a directory of YAML files and parses them into resource objects, classified
+// by type.
 type parser struct {
 	decoder runtime.Decoder
 }

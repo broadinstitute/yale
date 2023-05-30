@@ -76,6 +76,12 @@ spec:
             - secretRef:
                 name: gsk-2-secret
 ---
+#
+# here is an empty doc for fun
+#
+
+# yep, still empty
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:

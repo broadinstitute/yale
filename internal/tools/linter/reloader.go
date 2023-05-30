@@ -9,7 +9,7 @@ const autoAnnotation = "reloader.stakater.com/auto"
 // (Yale adds this annotation to secrets it creates)
 const searchAnnotation = "reloader.stakater.com/search"
 
-// if "true", reloader will reload on a configured list of Secrets used by the Deployment/StatefulSet
+// reloader will reload on a configured list of Secrets used by the Deployment/StatefulSet
 const secretListAnnotation = "secret.reloader.stakater.com/reload"
 
 type reloaderCfg struct {

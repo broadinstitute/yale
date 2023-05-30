@@ -37,7 +37,7 @@ causing an outage.
 	}
 
 	if err := cmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err.Error())
+		_, _ = fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 }
