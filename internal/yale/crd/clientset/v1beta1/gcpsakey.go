@@ -13,7 +13,7 @@ const endpoint = "gcpsakeys"
 // GcpSaKeyInterface client interface fir interacting with GCP SA keys
 type GcpSaKeyInterface interface {
 	List(ctx context.Context, opts metav1.ListOptions) (*v1.GCPSaKeyList, error)
-	Get(ctx context.Context, name string, options metav1.GetOptions) (*v1.GCPSaKey, error)
+	Get(ctx context.Context, name string, options metav1.GetOptions) (*v1.GcpSaKey, error)
 }
 
 type gcpsakeyClient struct {
@@ -32,8 +32,8 @@ func (c *gcpsakeyClient) List(ctx context.Context, opts metav1.ListOptions) (*v1
 	return &result, err
 }
 
-func (c *gcpsakeyClient) Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.GCPSaKey, error) {
-	result := v1.GCPSaKey{}
+func (c *gcpsakeyClient) Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.GcpSaKey, error) {
+	result := v1.GcpSaKey{}
 	err := c.restClient.
 		Get().
 		Resource(endpoint).

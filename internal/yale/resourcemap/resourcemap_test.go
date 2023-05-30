@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-var gsk1a = v1beta1.GCPSaKey{
+var gsk1a = v1beta1.GcpSaKey{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "gsk-1",
 		Namespace: "ns-a",
@@ -25,7 +25,7 @@ var gsk1a = v1beta1.GCPSaKey{
 	},
 }
 
-var gsk1b = v1beta1.GCPSaKey{
+var gsk1b = v1beta1.GcpSaKey{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "gsk-1",
 		Namespace: "ns-a",
@@ -38,7 +38,7 @@ var gsk1b = v1beta1.GCPSaKey{
 	},
 }
 
-var gsk2a = v1beta1.GCPSaKey{
+var gsk2a = v1beta1.GcpSaKey{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "gsk-2",
 		Namespace: "ns-a",
@@ -51,7 +51,7 @@ var gsk2a = v1beta1.GCPSaKey{
 	},
 }
 
-var gsk2b = v1beta1.GCPSaKey{
+var gsk2b = v1beta1.GcpSaKey{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "gsk-2",
 		Namespace: "ns-b",
@@ -64,7 +64,7 @@ var gsk2b = v1beta1.GCPSaKey{
 	},
 }
 
-var gsk2bBroken = v1beta1.GCPSaKey{
+var gsk2bBroken = v1beta1.GcpSaKey{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "gsk-2",
 		Namespace: "ns-b",
@@ -77,7 +77,7 @@ var gsk2bBroken = v1beta1.GCPSaKey{
 	},
 }
 
-var gsk4a = v1beta1.GCPSaKey{
+var gsk4a = v1beta1.GcpSaKey{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "gsk-4",
 		Namespace: "ns-a",
@@ -130,7 +130,7 @@ func Test_Build(t *testing.T) {
 		name                 string
 		existingCacheEntries []*cache.Entry
 		newCacheEntries      []*cache.Entry
-		gsks                 []v1beta1.GCPSaKey
+		gsks                 []v1beta1.GcpSaKey
 		expected             map[string]*Bundle
 		expectErr            string
 	}{
@@ -140,72 +140,72 @@ func Test_Build(t *testing.T) {
 		},
 		{
 			name:            "empty cache, one gsk in cluster",
-			gsks:            []v1beta1.GCPSaKey{gsk1a},
+			gsks:            []v1beta1.GcpSaKey{gsk1a},
 			newCacheEntries: []*cache.Entry{entry1},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
 					Entry: entry1, // new entry created for sa-1
-					GSKs:  []v1beta1.GCPSaKey{gsk1a},
+					GSKs:  []v1beta1.GcpSaKey{gsk1a},
 				},
 			},
 		},
 		{
 			name:                 "one cache entry cache, matches one gsk in cluster",
-			gsks:                 []v1beta1.GCPSaKey{gsk1a},
+			gsks:                 []v1beta1.GcpSaKey{gsk1a},
 			existingCacheEntries: []*cache.Entry{entry1},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
 					Entry: entry1,
-					GSKs:  []v1beta1.GCPSaKey{gsk1a},
+					GSKs:  []v1beta1.GcpSaKey{gsk1a},
 				},
 			},
 		},
 		{
 			name:                 "one cache entry cache, matches two gsks in cluster",
-			gsks:                 []v1beta1.GCPSaKey{gsk1a, gsk1b},
+			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk1b},
 			existingCacheEntries: []*cache.Entry{entry1},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
 					Entry: entry1,
-					GSKs:  []v1beta1.GCPSaKey{gsk1a, gsk1b},
+					GSKs:  []v1beta1.GcpSaKey{gsk1a, gsk1b},
 				},
 			},
 		},
 		{
 			name:                 "broken cache entry should lead service account to be skipped",
-			gsks:                 []v1beta1.GCPSaKey{gsk1a, gsk2a, gsk2b},
+			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk2a, gsk2b},
 			existingCacheEntries: []*cache.Entry{entry1, entry2Broken},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
 					Entry: entry1,
-					GSKs:  []v1beta1.GCPSaKey{gsk1a},
+					GSKs:  []v1beta1.GcpSaKey{gsk1a},
 				},
 			},
 		},
 		{
 			name:                 "broken gsk should lead service account to be skipped",
-			gsks:                 []v1beta1.GCPSaKey{gsk1a, gsk1b, gsk2a, gsk2bBroken},
+			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk1b, gsk2a, gsk2bBroken},
 			existingCacheEntries: []*cache.Entry{entry1, entry2},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
 					Entry: entry1,
-					GSKs:  []v1beta1.GCPSaKey{gsk1a, gsk1b},
+					GSKs:  []v1beta1.GcpSaKey{gsk1a, gsk1b},
 				},
 			},
 		},
 		{
 			name:                 "multiple entries and gsks",
-			gsks:                 []v1beta1.GCPSaKey{gsk1a, gsk1b, gsk2a, gsk2b, gsk4a},
+			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk1b, gsk2a, gsk2b, gsk4a},
 			existingCacheEntries: []*cache.Entry{entry1, entry2, entry3},
 			newCacheEntries:      []*cache.Entry{entry4},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
 					Entry: entry1,
-					GSKs:  []v1beta1.GCPSaKey{gsk1a, gsk1b},
+					GSKs:  []v1beta1.GcpSaKey{gsk1a, gsk1b},
 				},
 				"sa-2@p.com": {
 					Entry: entry2,
-					GSKs:  []v1beta1.GCPSaKey{gsk2a, gsk2b},
+					GSKs:  []v1beta1.GcpSaKey{gsk2a, gsk2b},
 				},
 				"sa-3@p.com": {
 					Entry: entry3,
@@ -213,7 +213,7 @@ func Test_Build(t *testing.T) {
 				},
 				"sa-4@p.com": {
 					Entry: entry4, // new entry created for sa-4
-					GSKs:  []v1beta1.GCPSaKey{gsk4a},
+					GSKs:  []v1beta1.GcpSaKey{gsk4a},
 				},
 			},
 		},
@@ -275,7 +275,7 @@ func Test_validateResourceBundle(t *testing.T) {
 		{
 			name: "should not error if bundle has gsk only",
 			input: &Bundle{
-				GSKs: []v1beta1.GCPSaKey{
+				GSKs: []v1beta1.GcpSaKey{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "gsk-1",
@@ -300,7 +300,7 @@ func Test_validateResourceBundle(t *testing.T) {
 						Project: "p",
 					},
 				},
-				GSKs: []v1beta1.GCPSaKey{
+				GSKs: []v1beta1.GcpSaKey{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "gsk-1",
@@ -325,7 +325,7 @@ func Test_validateResourceBundle(t *testing.T) {
 						Project: "p",
 					},
 				},
-				GSKs: []v1beta1.GCPSaKey{
+				GSKs: []v1beta1.GcpSaKey{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "gsk-1",
@@ -361,7 +361,7 @@ func Test_validateResourceBundle(t *testing.T) {
 						Project: "p",
 					},
 				},
-				GSKs: []v1beta1.GCPSaKey{
+				GSKs: []v1beta1.GcpSaKey{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "gsk-1",
@@ -386,7 +386,7 @@ func Test_validateResourceBundle(t *testing.T) {
 						Project: "p",
 					},
 				},
-				GSKs: []v1beta1.GCPSaKey{
+				GSKs: []v1beta1.GcpSaKey{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "gsk-1",

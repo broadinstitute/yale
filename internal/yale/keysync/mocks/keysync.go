@@ -24,7 +24,7 @@ func (_m *KeySync) EXPECT() *KeySync_Expecter {
 }
 
 // SyncIfNeeded provides a mock function with given fields: entry, gsks
-func (_m *KeySync) SyncIfNeeded(entry *cache.Entry, gsks ...v1beta1.GCPSaKey) error {
+func (_m *KeySync) SyncIfNeeded(entry *cache.Entry, gsks ...v1beta1.GcpSaKey) error {
 	_va := make([]interface{}, len(gsks))
 	for _i := range gsks {
 		_va[_i] = gsks[_i]
@@ -35,7 +35,7 @@ func (_m *KeySync) SyncIfNeeded(entry *cache.Entry, gsks ...v1beta1.GCPSaKey) er
 	ret := _m.Called(_ca...)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*cache.Entry, ...v1beta1.GCPSaKey) error); ok {
+	if rf, ok := ret.Get(0).(func(*cache.Entry, ...v1beta1.GcpSaKey) error); ok {
 		r0 = rf(entry, gsks...)
 	} else {
 		r0 = ret.Error(0)
@@ -51,18 +51,18 @@ type KeySync_SyncIfNeeded_Call struct {
 
 // SyncIfNeeded is a helper method to define mock.On call
 //   - entry *cache.Entry
-//   - gsks ...v1beta1.GCPSaKey
+//   - gsks ...v1beta1.GcpSaKey
 func (_e *KeySync_Expecter) SyncIfNeeded(entry interface{}, gsks ...interface{}) *KeySync_SyncIfNeeded_Call {
 	return &KeySync_SyncIfNeeded_Call{Call: _e.mock.On("SyncIfNeeded",
 		append([]interface{}{entry}, gsks...)...)}
 }
 
-func (_c *KeySync_SyncIfNeeded_Call) Run(run func(entry *cache.Entry, gsks ...v1beta1.GCPSaKey)) *KeySync_SyncIfNeeded_Call {
+func (_c *KeySync_SyncIfNeeded_Call) Run(run func(entry *cache.Entry, gsks ...v1beta1.GcpSaKey)) *KeySync_SyncIfNeeded_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		variadicArgs := make([]v1beta1.GCPSaKey, len(args)-1)
+		variadicArgs := make([]v1beta1.GcpSaKey, len(args)-1)
 		for i, a := range args[1:] {
 			if a != nil {
-				variadicArgs[i] = a.(v1beta1.GCPSaKey)
+				variadicArgs[i] = a.(v1beta1.GcpSaKey)
 			}
 		}
 		run(args[0].(*cache.Entry), variadicArgs...)
@@ -75,7 +75,7 @@ func (_c *KeySync_SyncIfNeeded_Call) Return(_a0 error) *KeySync_SyncIfNeeded_Cal
 	return _c
 }
 
-func (_c *KeySync_SyncIfNeeded_Call) RunAndReturn(run func(*cache.Entry, ...v1beta1.GCPSaKey) error) *KeySync_SyncIfNeeded_Call {
+func (_c *KeySync_SyncIfNeeded_Call) RunAndReturn(run func(*cache.Entry, ...v1beta1.GcpSaKey) error) *KeySync_SyncIfNeeded_Call {
 	_c.Call.Return(run)
 	return _c
 }

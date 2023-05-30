@@ -53,11 +53,11 @@ func NewWithDefaults() Cutoffs {
 	return newWithThresholds(minimums, time.Now())
 }
 
-func New(gsks ...apiv1b1.GCPSaKey) Cutoffs {
+func New(gsks ...apiv1b1.GcpSaKey) Cutoffs {
 	return newWithCustomTime(gsks, time.Now())
 }
 
-func newWithCustomTime(gsks []apiv1b1.GCPSaKey, now time.Time) cutoffs {
+func newWithCustomTime(gsks []apiv1b1.GcpSaKey, now time.Time) cutoffs {
 	if len(gsks) < 1 {
 		panic("at least one GcpSaKey must be supplied in order to compute cutoffs")
 	}
@@ -135,15 +135,15 @@ func (c cutoffs) daysAgo(n int) time.Time {
 }
 
 // computeThresholds take a set of gsks and collapse them into a set of agreed-upon thresholds
-func computeThresholds(gsks []apiv1b1.GCPSaKey) thresholds {
+func computeThresholds(gsks []apiv1b1.GcpSaKey) thresholds {
 	t := thresholds{
-		rotateAfter: computeThreshold(gsks, func(gsk apiv1b1.GCPSaKey) int {
+		rotateAfter: computeThreshold(gsks, func(gsk apiv1b1.GcpSaKey) int {
 			return gsk.Spec.KeyRotation.RotateAfter
 		}, minimums.rotateAfter, "RotateAfter"),
-		disableAfter: computeThreshold(gsks, func(gsk apiv1b1.GCPSaKey) int {
+		disableAfter: computeThreshold(gsks, func(gsk apiv1b1.GcpSaKey) int {
 			return gsk.Spec.KeyRotation.DisableAfter
 		}, minimums.disableAfter, "DisableAfter"),
-		deleteAfter: computeThreshold(gsks, func(gsk apiv1b1.GCPSaKey) int {
+		deleteAfter: computeThreshold(gsks, func(gsk apiv1b1.GcpSaKey) int {
 			return gsk.Spec.KeyRotation.DeleteAfter
 		}, minimums.deleteAfter, "DeleteAfter"),
 		ignoreUsageMetrics: computeIgnoreUsageMetrics(gsks),
@@ -156,7 +156,7 @@ func computeThresholds(gsks []apiv1b1.GCPSaKey) thresholds {
 
 // computeThreshold take the rotate/disable/delete days values from a list of GSKs and return the lowest value,
 // rounding up to the hardcoded minimums/floors for each attribute if necessary
-func computeThreshold(gsks []apiv1b1.GCPSaKey, fieldFn func(apiv1b1.GCPSaKey) int, floor int, fieldName string) int {
+func computeThreshold(gsks []apiv1b1.GcpSaKey, fieldFn func(apiv1b1.GcpSaKey) int, floor int, fieldName string) int {
 	min := gsks[0]
 	for _, gsk := range gsks {
 		v := fieldFn(gsk)
@@ -175,7 +175,7 @@ func computeThreshold(gsks []apiv1b1.GCPSaKey, fieldFn func(apiv1b1.GCPSaKey) in
 	return minV
 }
 
-func computeIgnoreUsageMetrics(gsks []apiv1b1.GCPSaKey) bool {
+func computeIgnoreUsageMetrics(gsks []apiv1b1.GcpSaKey) bool {
 	if len(gsks) == 0 {
 		return false
 	}

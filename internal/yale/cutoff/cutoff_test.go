@@ -174,7 +174,7 @@ func Test_Cutoffs(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			gsk := v1beta1.GCPSaKey{
+			gsk := v1beta1.GcpSaKey{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-gsk",
 					Namespace: "test-namespace",
@@ -183,7 +183,7 @@ func Test_Cutoffs(t *testing.T) {
 					KeyRotation: tc.input,
 				},
 			}
-			c := newWithCustomTime([]v1beta1.GCPSaKey{gsk}, now)
+			c := newWithCustomTime([]v1beta1.GcpSaKey{gsk}, now)
 
 			assert.Equal(t, tc.expectedThresholds.rotateAfter, c.RotateAfterDays())
 			assert.Equal(t, tc.expectedThresholds.disableAfter, c.DisableAfterDays())
@@ -210,12 +210,12 @@ func Test_Cutoffs(t *testing.T) {
 func Test_computeThresholds(t *testing.T) {
 	testCases := []struct {
 		name     string
-		input    []v1beta1.GCPSaKey
+		input    []v1beta1.GcpSaKey
 		expected thresholds
 	}{
 		{
 			name: "should return correct thresholds for a single gsk",
-			input: []v1beta1.GCPSaKey{
+			input: []v1beta1.GcpSaKey{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-gsk-1",
@@ -241,7 +241,7 @@ func Test_computeThresholds(t *testing.T) {
 		},
 		{
 			name: "should round up to configured minimums",
-			input: []v1beta1.GCPSaKey{
+			input: []v1beta1.GcpSaKey{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-gsk-1",
@@ -267,7 +267,7 @@ func Test_computeThresholds(t *testing.T) {
 		},
 		{
 			name: "should choose minimum valid value for multiple conflicting GSK specs",
-			input: []v1beta1.GCPSaKey{
+			input: []v1beta1.GcpSaKey{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test-gsk-1",
@@ -351,17 +351,17 @@ func Test_computeThresholds(t *testing.T) {
 func Test_computeIgnoreUsageMetrics(t *testing.T) {
 	testCases := []struct {
 		name     string
-		input    []v1beta1.GCPSaKey
+		input    []v1beta1.GcpSaKey
 		expected bool
 	}{
 		{
 			name:     "empty",
-			input:    []v1beta1.GCPSaKey{},
+			input:    []v1beta1.GcpSaKey{},
 			expected: false,
 		},
 		{
 			name: "single gsk with ignoreUsageMetrics set to false",
-			input: []v1beta1.GCPSaKey{
+			input: []v1beta1.GcpSaKey{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "gsk-1",
@@ -378,7 +378,7 @@ func Test_computeIgnoreUsageMetrics(t *testing.T) {
 		},
 		{
 			name: "single gsk with ignoreUsageMetrics set to true",
-			input: []v1beta1.GCPSaKey{
+			input: []v1beta1.GcpSaKey{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "gsk-1",
@@ -395,7 +395,7 @@ func Test_computeIgnoreUsageMetrics(t *testing.T) {
 		},
 		{
 			name: "multiple gsks with ignoreUsageMetrics set to true",
-			input: []v1beta1.GCPSaKey{
+			input: []v1beta1.GcpSaKey{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "gsk-1",
@@ -434,7 +434,7 @@ func Test_computeIgnoreUsageMetrics(t *testing.T) {
 		},
 		{
 			name: "multiple gsks with ignoreUsageMetrics set to false",
-			input: []v1beta1.GCPSaKey{
+			input: []v1beta1.GcpSaKey{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "gsk-1",
@@ -473,7 +473,7 @@ func Test_computeIgnoreUsageMetrics(t *testing.T) {
 		},
 		{
 			name: "multiple gsks with ignoreUsageMetrics set to true and false",
-			input: []v1beta1.GCPSaKey{
+			input: []v1beta1.GcpSaKey{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "gsk-1",

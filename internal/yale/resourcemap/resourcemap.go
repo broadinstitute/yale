@@ -13,7 +13,7 @@ import (
 // Bundle represents a bundle of resources associated with a specific service account
 type Bundle struct {
 	Entry *cache.Entry
-	GSKs  []v1beta1.GCPSaKey
+	GSKs  []v1beta1.GcpSaKey
 }
 
 // Mapper inspects all the GcpSaKeys and Cache entries in the cluster and organizes
@@ -102,13 +102,13 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 }
 
 // listGcpSaKeys retrieves a list of GcpSaKey resources in the cluster, discaring any invalid ones
-func (m *mapper) listGcpSaKeys() ([]v1beta1.GCPSaKey, error) {
+func (m *mapper) listGcpSaKeys() ([]v1beta1.GcpSaKey, error) {
 	list, err := m.crd.GcpSaKeys().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving list of Yale CRDs from cluster: %v", err)
 	}
 
-	var result []v1beta1.GCPSaKey
+	var result []v1beta1.GcpSaKey
 
 	for _, gsk := range list.Items {
 		if gsk.Spec.GoogleServiceAccount.Name == "" {
