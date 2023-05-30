@@ -1,0 +1,15 @@
+apiVersion: yale.broadinstitute.org/v1beta1
+kind: GcpSaKey
+metadata:
+  name: gsk-1
+spec:
+  secret:
+    name: gsk-1-secret
+---
+apiVersion: yale.broadinstitute.org/v1beta1
+kind: GcpSaKey
+metadata:
+  name: gsk-2
+spec:
+  secret:
+    name: gsk-2-secret

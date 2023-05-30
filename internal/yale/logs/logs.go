@@ -6,6 +6,8 @@ import (
 )
 
 var (
+	// Debug Poor man's info level logger
+	Debug = log.New(os.Stdout, "[DEBUG] ", log.Ldate|log.Ltime)
 	// Info Poor man's info level logger
 	Info = log.New(os.Stdout, "[INFO] ", log.Ldate|log.Ltime)
 	// Error Poor man's error level logger
