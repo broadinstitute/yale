@@ -25,19 +25,19 @@ func (_m *GcpSaKeyInterface) EXPECT() *GcpSaKeyInterface_Expecter {
 }
 
 // Get provides a mock function with given fields: ctx, name, options
-func (_m *GcpSaKeyInterface) Get(ctx context.Context, name string, options v1.GetOptions) (*v1beta1.GCPSaKey, error) {
+func (_m *GcpSaKeyInterface) Get(ctx context.Context, name string, options v1.GetOptions) (*v1beta1.GcpSaKey, error) {
 	ret := _m.Called(ctx, name, options)
 
-	var r0 *v1beta1.GCPSaKey
+	var r0 *v1beta1.GcpSaKey
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, v1.GetOptions) (*v1beta1.GCPSaKey, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, v1.GetOptions) (*v1beta1.GcpSaKey, error)); ok {
 		return rf(ctx, name, options)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, v1.GetOptions) *v1beta1.GCPSaKey); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, v1.GetOptions) *v1beta1.GcpSaKey); ok {
 		r0 = rf(ctx, name, options)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*v1beta1.GCPSaKey)
+			r0 = ret.Get(0).(*v1beta1.GcpSaKey)
 		}
 	}
 
@@ -70,12 +70,12 @@ func (_c *GcpSaKeyInterface_Get_Call) Run(run func(ctx context.Context, name str
 	return _c
 }
 
-func (_c *GcpSaKeyInterface_Get_Call) Return(_a0 *v1beta1.GCPSaKey, _a1 error) *GcpSaKeyInterface_Get_Call {
+func (_c *GcpSaKeyInterface_Get_Call) Return(_a0 *v1beta1.GcpSaKey, _a1 error) *GcpSaKeyInterface_Get_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *GcpSaKeyInterface_Get_Call) RunAndReturn(run func(context.Context, string, v1.GetOptions) (*v1beta1.GCPSaKey, error)) *GcpSaKeyInterface_Get_Call {
+func (_c *GcpSaKeyInterface_Get_Call) RunAndReturn(run func(context.Context, string, v1.GetOptions) (*v1beta1.GcpSaKey, error)) *GcpSaKeyInterface_Get_Call {
 	_c.Call.Return(run)
 	return _c
 }

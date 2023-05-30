@@ -101,7 +101,7 @@ func (m *Yale) Run() error {
 	return nil
 }
 
-func (m *Yale) processServiceAccountAndReportErrors(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) error {
+func (m *Yale) processServiceAccountAndReportErrors(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
 	if err := m.processServiceAccount(entry, gsks); err != nil {
 		if reportErr := m.reportError(entry, err); reportErr != nil {
 			logs.Error.Printf("error reporting error for service account %s: %v", entry.ServiceAccount.Email, reportErr)
@@ -111,7 +111,7 @@ func (m *Yale) processServiceAccountAndReportErrors(entry *cache.Entry, gsks []a
 	return nil
 }
 
-func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) error {
+func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
 	var err error
 
 	cutoffs := m.computeCutoffs(entry, gsks)
@@ -137,7 +137,7 @@ func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GCPSaKey
 
 // computeCutoffs computes the cutoffs for key rotation/disabling/deletion based on the GcpSaKey resources
 // for this service account
-func (m *Yale) computeCutoffs(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) cutoff.Cutoffs {
+func (m *Yale) computeCutoffs(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) cutoff.Cutoffs {
 	if len(gsks) == 0 {
 		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will use Yale's default cutoffs to retire old keys", entry.ServiceAccount.Email)
 		return cutoff.NewWithDefaults()
@@ -146,7 +146,7 @@ func (m *Yale) computeCutoffs(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) cutof
 }
 
 // syncKeyIfReady if cache entry has a current/active key, perform a keysync
-func (m *Yale) syncKeyIfReady(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) error {
+func (m *Yale) syncKeyIfReady(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
 	if len(entry.CurrentKey.ID) == 0 {
 		// nothing to sync yet
 		return nil
@@ -155,7 +155,7 @@ func (m *Yale) syncKeyIfReady(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) error
 }
 
 // rotateKey rotates the current active key for the service account, if needed.
-func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GCPSaKey) error {
+func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GcpSaKey) error {
 	rotated, err := m.issueNewKeyIfNeeded(entry, cutoffs, gsks)
 	if err != nil {
 		return err
@@ -170,7 +170,7 @@ func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv
 // if a rotation is needed (or the cache entry is new/empty), it issues a new sa key, adds it
 // to the cache entry, then saves the updated cache entry to k8s.
 // returns a boolean that will be true if a new key was issued, false otherwise
-func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GCPSaKey) (bool, error) {
+func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GcpSaKey) (bool, error) {
 	issued := false
 	email := entry.ServiceAccount.Email
 	project := entry.ServiceAccount.Project
@@ -324,7 +324,7 @@ func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Ent
 	return m.slack.KeyDeleted(entry, key.ID)
 }
 
-func (m *Yale) retireCacheEntryIfNeeded(entry *cache.Entry, gsks []apiv1b1.GCPSaKey) error {
+func (m *Yale) retireCacheEntryIfNeeded(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
 	if len(gsks) > 0 {
 		return nil
 	}

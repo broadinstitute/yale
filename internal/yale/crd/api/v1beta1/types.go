@@ -95,7 +95,7 @@ func (v *VaultReplicationFormat) UnmarshalText(data []byte) error {
 	}
 }
 
-type GCPSaKey struct {
+type GcpSaKey struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
@@ -106,12 +106,12 @@ type GCPSaKeyList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 
-	Items []GCPSaKey `json:"items"`
+	Items []GcpSaKey `json:"items"`
 }
 
 // DeepCopyInto copies all properties of this object into another object of the
 // same type that is provided as a pointer.
-func (in *GCPSaKey) DeepCopyInto(out *GCPSaKey) {
+func (in *GcpSaKey) DeepCopyInto(out *GcpSaKey) {
 	out.TypeMeta = in.TypeMeta
 	out.ObjectMeta = in.ObjectMeta
 	out.Spec = GCPSaKeySpec{
@@ -122,8 +122,8 @@ func (in *GCPSaKey) DeepCopyInto(out *GCPSaKey) {
 }
 
 // DeepCopyObject returns a generically typed copy of an object
-func (in *GCPSaKey) DeepCopyObject() runtime.Object {
-	out := GCPSaKey{}
+func (in *GcpSaKey) DeepCopyObject() runtime.Object {
+	out := GcpSaKey{}
 	in.DeepCopyInto(&out)
 
 	return &out
@@ -135,7 +135,7 @@ func (in *GCPSaKeyList) DeepCopyObject() runtime.Object {
 	out.TypeMeta = in.TypeMeta
 	out.ListMeta = in.ListMeta
 	if in.Items != nil {
-		out.Items = make([]GCPSaKey, len(in.Items))
+		out.Items = make([]GcpSaKey, len(in.Items))
 		for i := range in.Items {
 			in.Items[i].DeepCopyInto(&out.Items[i])
 		}

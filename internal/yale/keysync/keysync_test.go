@@ -58,7 +58,7 @@ func (suite *KeySyncSuite) Test_KeySync_CreatesK8sSecret() {
 	entry.CurrentKey.ID = key1.id
 	entry.SyncStatus = map[string]string{} // no prior syncs recorded in the map
 
-	gsk := apiv1b1.GCPSaKey{
+	gsk := apiv1b1.GcpSaKey{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-gsk",
 			Namespace: "my-namespace",
@@ -114,7 +114,7 @@ func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
 	entry.CurrentKey.ID = key1.id
 	entry.SyncStatus = map[string]string{} // no prior syncs recorded in the map
 
-	gsk := apiv1b1.GCPSaKey{
+	gsk := apiv1b1.GcpSaKey{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-gsk",
 			Namespace: "my-namespace",
@@ -182,7 +182,7 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications()
 	entry.CurrentKey.ID = key1.id
 	entry.SyncStatus = map[string]string{} // no prior syncs recorded in the map
 
-	gsk := apiv1b1.GCPSaKey{
+	gsk := apiv1b1.GcpSaKey{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-gsk",
 			Namespace: "my-namespace",
@@ -260,7 +260,7 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsASyncIfSyncStatusIsUpToDateButSe
 		"my-namespace/my-gsk": "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id,
 	}
 
-	gsk := apiv1b1.GCPSaKey{
+	gsk := apiv1b1.GcpSaKey{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-gsk",
 			Namespace: "my-namespace",
@@ -302,7 +302,7 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 		"my-namespace/my-gsk": "bcb8be041cfe2fc4da92ced123f56cb2cc1d6eeb10175d2b4e4348a16c2c235f:" + key1.id,
 	}
 
-	gsk := apiv1b1.GCPSaKey{
+	gsk := apiv1b1.GcpSaKey{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-gsk",
 			Namespace: "my-namespace",
@@ -352,7 +352,7 @@ func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
 		"other-namespace/deleted-gsk": "bcb8be041cfe2fc4da92ced123f56cb2cc1d6eeb10175d2b4e4348a16c2c235f:" + key1.id, // should be deleted
 	}
 
-	gsk := apiv1b1.GCPSaKey{
+	gsk := apiv1b1.GcpSaKey{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-gsk",
 			Namespace: "my-namespace",

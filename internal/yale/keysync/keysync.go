@@ -27,7 +27,7 @@ type KeySync interface {
 	//
 	// Note that this function will update the cache entry's SyncStatus map to reflect any sync's it performs,
 	// but it WILL NOT save the entry to the cache -- that's the caller's responsibility!
-	SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) error
+	SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GcpSaKey) error
 }
 
 func New(k8s kubernetes.Interface, vault *vaultapi.Client, cache cache.Cache) KeySync {
@@ -46,7 +46,7 @@ type keysync struct {
 	clusterSecrets map[string]struct{}
 }
 
-func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) error {
+func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GcpSaKey) error {
 	for _, gsk := range gsks {
 		syncRequired, statusHash, err := k.syncRequired(entry, gsk)
 		if err != nil {
@@ -85,7 +85,7 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) err
 //
 // this method also returns the computed status hash, which is used to update the cache entry's SyncStatus map
 // after a successful sync
-func (k *keysync) syncRequired(entry *cache.Entry, gsk apiv1b1.GCPSaKey) (bool, string, error) {
+func (k *keysync) syncRequired(entry *cache.Entry, gsk apiv1b1.GcpSaKey) (bool, string, error) {
 	// compute the statusHash for the gsk
 	computedHash, err := computeStatusHash(entry, gsk)
 	if err != nil {
@@ -112,7 +112,7 @@ func (k *keysync) syncRequired(entry *cache.Entry, gsk apiv1b1.GCPSaKey) (bool, 
 	return true, computedHash, nil
 }
 
-func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk apiv1b1.GCPSaKey) error {
+func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk apiv1b1.GcpSaKey) error {
 	namespace := gsk.Namespace
 
 	secret, err := k.k8s.CoreV1().Secrets(namespace).Get(context.Background(), gsk.Spec.Secret.Name, metav1.GetOptions{})
@@ -184,7 +184,7 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk apiv1b1.GCPSaKey) erro
 	return nil
 }
 
-func (k *keysync) replicateKeyToVault(entry *cache.Entry, gsk apiv1b1.GCPSaKey) error {
+func (k *keysync) replicateKeyToVault(entry *cache.Entry, gsk apiv1b1.GcpSaKey) error {
 	if len(gsk.Spec.VaultReplications) == 0 {
 		// no replications to perform
 		return nil
@@ -259,7 +259,7 @@ func extractPemKey(entry *cache.Entry) (string, error) {
 // prune references to old gsks that no longer exists from the sync status map
 // We do this because K8s imposes a size limit of 1mb on secrets, and in
 // BEE clusters new BEEs with unique names are constantly being created and deleted
-func pruneOldSyncStatuses(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) {
+func pruneOldSyncStatuses(entry *cache.Entry, gsks ...apiv1b1.GcpSaKey) {
 	keepKeys := make(map[string]struct{})
 
 	// build a map of keys for gsks that currently exist in the cluster
@@ -280,7 +280,7 @@ func pruneOldSyncStatuses(entry *cache.Entry, gsks ...apiv1b1.GCPSaKey) {
 // compute the expected status map value for a given gsk, which is the sha256 checksum
 // of the gsk's spec, concatenated with the ID of the cache entry's current service account key
 // eg. "<sha-256-sum>:<key-id>"
-func computeStatusHash(entry *cache.Entry, gsk apiv1b1.GCPSaKey) (string, error) {
+func computeStatusHash(entry *cache.Entry, gsk apiv1b1.GcpSaKey) (string, error) {
 	data, err := json.Marshal(gsk.Spec)
 	if err != nil {
 		return "", fmt.Errorf("gsk %s in %s: error marshalling gsk spec to JSON: %v", gsk.Name, gsk.Namespace, err)
@@ -304,12 +304,12 @@ func sha256Sum(data []byte) (string, error) {
 
 // return the key for a gsk in the sync status map
 // eg. "<namespace>/<name>"
-func statusKey(gsk apiv1b1.GCPSaKey) string {
+func statusKey(gsk apiv1b1.GcpSaKey) string {
 	return qualifiedName(gsk.Namespace, gsk.Name)
 }
 
 // return the key for a secret in the secrets map in the form "<namespace>/<name>"
-func secretKeyForGsk(gsk apiv1b1.GCPSaKey) string {
+func secretKeyForGsk(gsk apiv1b1.GcpSaKey) string {
 	return qualifiedName(gsk.Namespace, gsk.Spec.Secret.Name)
 }
 
@@ -325,7 +325,7 @@ func qualifiedName(namespace string, name string) string {
 
 // clusterHasSecret returns true if the secret specified in the gsk's secret spec
 // exists in the cluster, false otherwise
-func (k *keysync) clusterHasSecret(gsk apiv1b1.GCPSaKey) (bool, error) {
+func (k *keysync) clusterHasSecret(gsk apiv1b1.GcpSaKey) (bool, error) {
 	secrets, err := k.getClusterSecrets()
 	if err != nil {
 		return false, err

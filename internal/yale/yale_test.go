@@ -141,7 +141,7 @@ var sa3key1 = key{
 	pem: "dog",
 }
 
-var gsk1 = apiv1b1.GCPSaKey{
+var gsk1 = apiv1b1.GcpSaKey{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "s1-gsk",
 		Namespace: "ns-1",
@@ -164,7 +164,7 @@ var gsk1 = apiv1b1.GCPSaKey{
 	},
 }
 
-var gsk2 = apiv1b1.GCPSaKey{
+var gsk2 = apiv1b1.GcpSaKey{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "s2-gsk",
 		Namespace: "ns-2",
@@ -187,7 +187,7 @@ var gsk2 = apiv1b1.GCPSaKey{
 	},
 }
 
-var gsk3 = apiv1b1.GCPSaKey{
+var gsk3 = apiv1b1.GcpSaKey{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "s3-gsk",
 		Namespace: "ns-3",
@@ -621,7 +621,7 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 	assert.Equal(suite.T(), lastNotification, entry.LastError.LastNotificationAt)
 }
 
-func (suite *YaleSuite) seedGsks(gsks ...apiv1b1.GCPSaKey) {
+func (suite *YaleSuite) seedGsks(gsks ...apiv1b1.GcpSaKey) {
 	suite.gskEndpoint.EXPECT().List(mock.Anything, metav1.ListOptions{}).Return(&apiv1b1.GCPSaKeyList{
 		Items: gsks,
 	}, nil)
