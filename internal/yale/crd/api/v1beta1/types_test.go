@@ -2,10 +2,11 @@ package v1beta1
 
 import (
 	"encoding/json"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
-	"testing"
 )
 
 func Test_VaultReplicationFormatSerialization(t *testing.T) {
@@ -29,6 +30,10 @@ func Test_VaultReplicationFormatSerialization(t *testing.T) {
 		{
 			str: "pem",
 			fmt: PEM,
+		},
+		{
+			str: "plainText",
+			fmt: PlainText,
 		},
 	}
 
