@@ -94,8 +94,8 @@ func (m *Yale) Run() error {
 
 	if len(errors) > 0 {
 		var sb strings.Builder
-		for email, eerr := range errors {
-			sb.WriteString(fmt.Sprintf("%s: %v\n", email, eerr))
+		for email, err := range errors {
+			sb.WriteString(fmt.Sprintf("%s: %v\n", email, err))
 		}
 		return fmt.Errorf("error processing GcpSaKeys for %d service accounts: %s", len(errors), sb.String())
 	}

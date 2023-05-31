@@ -50,6 +50,12 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 		return nil, err
 	}
 
+	// TDOD this is just for testing, remove later
+	// _, err = m.listAzureClientSecrets()
+	// if err != nil {
+	// 	return nil, err
+	// }
+
 	for _, gsk := range list {
 		email := gsk.Spec.GoogleServiceAccount.Name
 
@@ -124,6 +130,16 @@ func (m *mapper) listGcpSaKeys() ([]v1beta1.GcpSaKey, error) {
 	}
 
 	return result, nil
+}
+
+// listAzureClientSecrets retrieves a list of AzureClientSecret resources in the cluster, discarding any invalid ones
+func (m *mapper) listAzureClientSecrets() ([]v1beta1.AzureClientSecret, error) {
+	list, err := m.crd.AzureClientSecrets().List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving list of AzureClientSecret CRDs from cluster: %v", err)
+	}
+
+	return list.Items, nil
 }
 
 // validateResourceBundle verifies that the GcpSaKeys and cache entry in the bundle don't conflict with each other
