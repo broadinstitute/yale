@@ -1,8 +1,11 @@
 package yale
 
 import (
-	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"fmt"
+	"strings"
+	"time"
+
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"github.com/broadinstitute/yale/internal/yale/authmetrics"
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	"github.com/broadinstitute/yale/internal/yale/client"
@@ -15,10 +18,9 @@ import (
 	"github.com/broadinstitute/yale/internal/yale/resourcemap"
 	"github.com/broadinstitute/yale/internal/yale/slack"
 	vaultapi "github.com/hashicorp/vault/api"
+	"github.com/manicminer/hamilton/msgraph"
 	"google.golang.org/api/iam/v1"
 	"k8s.io/client-go/kubernetes"
-	"strings"
-	"time"
 )
 
 type Yale struct { // Yale config
@@ -42,10 +44,10 @@ type Options struct {
 
 // NewYale /* Construct a new Yale Manager */
 func NewYale(clients *client.Clients, opts ...func(*Options)) *Yale {
-	return newYaleFromClients(clients.GetK8s(), clients.GetCRDs(), clients.GetIAM(), clients.GetMetrics(), clients.GetVault(), opts...)
+	return newYaleFromClients(clients.GetK8s(), clients.GetCRDs(), clients.GetIAM(), clients.GetMetrics(), clients.GetVault(), clients.GetAzure(), opts...)
 }
 
-func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, opts ...func(*Options)) *Yale {
+func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, azure *msgraph.ApplicationsClient, opts ...func(*Options)) *Yale {
 	options := Options{
 		CacheNamespace:     cache.DefaultCacheNamespace,
 		IgnoreUsageMetrics: false,
