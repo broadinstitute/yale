@@ -24,6 +24,8 @@ type Secret struct {
 	Name        string `json:"name"`
 	PemKeyName  string `json:"pemKeyName"`
 	JsonKeyName string `json:"jsonKeyName"`
+	// ClientSecretKeyName Optional field to specify the key name for an azure client secret
+	ClientSecretKeyName string `json:"clientSecretKeyName,omitempty"`
 }
 
 type KeyRotation struct {
