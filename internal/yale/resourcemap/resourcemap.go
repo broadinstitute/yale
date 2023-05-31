@@ -3,6 +3,7 @@ package resourcemap
 import (
 	"context"
 	"fmt"
+
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	v1beta1client "github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1"
@@ -101,7 +102,7 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 	return result, nil
 }
 
-// listGcpSaKeys retrieves a list of GcpSaKey resources in the cluster, discaring any invalid ones
+// listGcpSaKeys retrieves a list of GcpSaKey resources in the cluster, discarding any invalid ones
 func (m *mapper) listGcpSaKeys() ([]v1beta1.GcpSaKey, error) {
 	list, err := m.crd.GcpSaKeys().List(context.Background(), metav1.ListOptions{})
 	if err != nil {
