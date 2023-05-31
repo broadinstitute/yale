@@ -8,6 +8,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/go-replayers/grpcreplay v1.1.0
 	github.com/google/go-replayers/httpreplay v1.2.0
+	github.com/hashicorp/go-azure-sdk v0.20230331.1143618
 	github.com/hashicorp/vault/api v1.9.0
 	github.com/hashicorp/vault/api/auth/approle v0.4.0
 	github.com/jarcoal/httpmock v1.1.0
@@ -42,7 +43,6 @@ require (
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-azure-helpers v0.55.0 // indirect
-	github.com/hashicorp/go-azure-sdk v0.20230331.1143618 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-hclog v1.4.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
