@@ -3,6 +3,10 @@ package yale
 import (
 	"context"
 	"fmt"
+	"strings"
+	"testing"
+	"time"
+
 	authmetricsmocks "github.com/broadinstitute/yale/internal/yale/authmetrics/mocks"
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
@@ -21,9 +25,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"strings"
-	"testing"
-	"time"
 )
 
 const cacheNamespace = cache.DefaultCacheNamespace
@@ -33,22 +34,24 @@ const cacheNamespace = cache.DefaultCacheNamespace
 // returns the current testing context
 type YaleSuite struct {
 	suite.Suite
-	k8s            kubernetes.Interface
-	gskEndpoint    *crdmocks.GcpSaKeyInterface
-	vaultServer    *vaultutils.FakeVaultServer
-	cache          cache.Cache
-	resourcemapper resourcemap.Mapper
-	authmetrics    *authmetricsmocks.AuthMetrics
-	keyops         *keyopsmocks.KeyOps
-	keysync        keysync.KeySync
-	slack          slack.SlackNotifier
-	yale           *Yale
+	k8s                    kubernetes.Interface
+	gskEndpoint            *crdmocks.GcpSaKeyInterface
+	azClientSecretEndpoint *crdmocks.AzureClientSecretInterface
+	vaultServer            *vaultutils.FakeVaultServer
+	cache                  cache.Cache
+	resourcemapper         resourcemap.Mapper
+	authmetrics            *authmetricsmocks.AuthMetrics
+	keyops                 *keyopsmocks.KeyOps
+	keysync                keysync.KeySync
+	slack                  slack.SlackNotifier
+	yale                   *Yale
 }
 
 func (suite *YaleSuite) SetupTest() {
 	// create kubernetes clients - fake k8s client, mock gsk endpoint
 	suite.k8s = testutils.NewFakeK8sClient(suite.T())
 	suite.gskEndpoint = crdmocks.NewGcpSaKeyInterface(suite.T())
+	suite.azClientSecretEndpoint = crdmocks.NewAzureClientSecretInterface(suite.T())
 	crd := crdmocks.NewYaleCRDInterface(suite.T())
 	crd.EXPECT().GcpSaKeys().Return(suite.gskEndpoint)
 
@@ -88,6 +91,7 @@ func (suite *YaleSuite) SetupTest() {
 
 func (suite *YaleSuite) TestYaleSucceedsWithNoCacheEntriesOrGcpSaKeys() {
 	suite.seedGsks()
+	suite.seedAzureClientSecrets()
 	require.NoError(suite.T(), suite.yale.Run())
 }
 
@@ -624,6 +628,12 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 func (suite *YaleSuite) seedGsks(gsks ...apiv1b1.GcpSaKey) {
 	suite.gskEndpoint.EXPECT().List(mock.Anything, metav1.ListOptions{}).Return(&apiv1b1.GCPSaKeyList{
 		Items: gsks,
+	}, nil)
+}
+
+func (suite *YaleSuite) seedAzureClientSecrets(azClientSecrets ...apiv1b1.AzureClientSecret) {
+	suite.azClientSecretEndpoint.EXPECT().List(mock.Anything, metav1.ListOptions{}).Return(&apiv1b1.AzureClientSecretList{
+		Items: azClientSecrets,
 	}, nil)
 }
 
