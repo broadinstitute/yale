@@ -3,6 +3,7 @@ package v1beta1
 import (
 	"encoding"
 	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -45,6 +46,7 @@ const (
 	JSON
 	Base64
 	PEM
+	PlainText
 )
 
 // verify format implements expected interfaces
@@ -61,6 +63,8 @@ func (v VaultReplicationFormat) String() string {
 		return "base64"
 	case PEM:
 		return "pem"
+	case PlainText:
+		return "plainText"
 	default:
 		return "unknown"
 	}
@@ -68,7 +72,7 @@ func (v VaultReplicationFormat) String() string {
 
 func (v VaultReplicationFormat) MarshalText() ([]byte, error) {
 	switch v {
-	case Map, JSON, Base64, PEM:
+	case Map, JSON, Base64, PEM, PlainText:
 		return []byte(v.String()), nil
 	default:
 		return nil, fmt.Errorf("unknown replication format: %#v", v)
@@ -89,6 +93,9 @@ func (v *VaultReplicationFormat) UnmarshalText(data []byte) error {
 		return nil
 	case "pem":
 		*v = PEM
+		return nil
+	case "plainText":
+		*v = PlainText
 		return nil
 	default:
 		return fmt.Errorf("unknown replication format: %q", s)

@@ -192,8 +192,9 @@ func buildVaultClient() (*vaultapi.Client, error) {
 func buildAzureGraphClient() (*msgraph.ApplicationsClient, error) {
 	environment := environments.AzurePublic()
 	credentials := auth.Credentials{
-		Environment:                       *environment,
-		EnableAuthenticatingUsingAzureCLI: true,
+		Environment:                              *environment,
+		EnableAuthenticatingUsingAzureCLI:        true,
+		EnableAuthenticatingUsingManagedIdentity: true,
 	}
 
 	authorizer, err := auth.NewAuthorizerFromCredentials(context.TODO(), credentials, environment.MicrosoftGraph)
