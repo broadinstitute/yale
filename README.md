@@ -120,3 +120,8 @@ Usage of yale:
   -local
     	use this flag when running locally (outside of cluster to use local kube config
 ```
+
+### Environment variables
+
+
+`YALE_DEBUG_ENABLED`: set to `true` to enable debug logging

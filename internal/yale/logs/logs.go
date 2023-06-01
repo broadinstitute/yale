@@ -4,7 +4,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 )
+
+const debugEnvVar = "YALE_DEBUG_ENABLED"
 
 var (
 	Debug = log.New(chooseDebugOutput(), "[DEBUG] ", log.Ldate|log.Ltime)
@@ -17,7 +20,10 @@ var (
 )
 
 func chooseDebugOutput() io.Writer {
-	if os.Getenv("YALE_DEBUG_ENABLED") == "true" {
+	val := os.Getenv(debugEnvVar)
+	val = strings.ToLower(strings.TrimSpace(val))
+
+	if val == "true" {
 		return os.Stdout
 	} else {
 		return io.Discard
