@@ -12,6 +12,7 @@ const searchAnnotation = "reloader.stakater.com/search"
 // reloader will reload on a configured list of Secrets used by the Deployment/StatefulSet
 const secretListAnnotation = "secret.reloader.stakater.com/reload"
 
+// reloaderCfg describes how reloader is configured to manage a given resource
 type reloaderCfg struct {
 	auto   bool
 	search bool
@@ -33,6 +34,7 @@ func (r reloaderCfg) reloadsOnSecret(secretName string) (string, bool) {
 	return "", false
 }
 
+// parseReloaderAnnotations parses the reloader annotations on a resource and returns a reloaderCfg
 func parseReloaderAnnotations(annotations map[string]string) reloaderCfg {
 	parsed := reloaderCfg{
 		auto:   false,

@@ -1,6 +1,7 @@
 package linter
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"path"
@@ -106,7 +107,12 @@ func Test_Linter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := path.Join("testdata", tc.name)
 			matches, err := Run(dir)
-			require.NoError(t, err)
+			if len(tc.expected) == 0 {
+				require.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+				assert.ErrorContains(t, err, fmt.Sprintf("Found %d resources with missing annotations", len(tc.expected)))
+			}
 			assert.Equal(t, tc.expected, matches)
 		})
 	}
