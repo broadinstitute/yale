@@ -11,5 +11,5 @@ RUN go test ./... && go build -o /bin/ ./cmd/...
 
 FROM alpine:${ALPINE_VERSION} as runtime
 ENV APP_NAME=yale
-COPY --from=build /bin/${APP_NAME} /bin/${APP_NAME}
+COPY --from=build /bin/* /bin/
 ENTRYPOINT [ "sh", "-c", "/bin/${APP_NAME}" ]
