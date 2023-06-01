@@ -35,10 +35,15 @@ type document struct {
 	filename string
 }
 
-func Run(dir string) error {
-	matches, err := scanDir(dir)
-	if err != nil {
-		return err
+func Run(dirs []string) error {
+	var matches []reference
+
+	for _, dir := range dirs {
+		dirMatches, err := scanDir(dir)
+		if err != nil {
+			return fmt.Errorf("error scanning dir %s: %v", err)
+		}
+		matches = append(dirMatches, matches...)
 	}
 
 	count := len(matches)

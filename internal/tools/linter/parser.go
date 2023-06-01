@@ -1,6 +1,7 @@
 package linter
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
@@ -58,7 +59,7 @@ func (p *parser) parseFilesInDirectory(dir string) (*resources, error) {
 }
 
 func (p *parser) parseFile(resources *resources, file string) error {
-	docs, err := splitFileIntoDocuments(file)
+	docs, err := parseYamlFile(file)
 	if err != nil {
 		return err
 	}
@@ -88,7 +89,7 @@ func (p *parser) parseFile(resources *resources, file string) error {
 	return nil
 }
 
-func splitFileIntoDocuments(file string) ([]document, error) {
+func parseYamlFile(file string) ([]document, error) {
 	content, err := os.ReadFile(file)
 	if err != nil {
 		return nil, fmt.Errorf("error reading file %s: %v", file, err)
@@ -97,7 +98,7 @@ func splitFileIntoDocuments(file string) ([]document, error) {
 	var documents []document
 	offset := 1
 
-	fragments := bytes.Split(content, []byte("---\n"))
+	fragments := splitYamlIntoDocs(content)
 	for _, fragment := range fragments {
 		nlines := bytes.Count(fragment, []byte("\n"))
 
@@ -115,6 +116,34 @@ func splitFileIntoDocuments(file string) ([]document, error) {
 	}
 
 	return documents, nil
+}
+
+// split a YAML file with documents separated by "---\n" into a list of YAML documents
+// (we can't use `bytes.Split()` because we specifically want to anchor the split string "---\n"
+// to the beginning of a line)
+func splitYamlIntoDocs(content []byte) [][]byte {
+	var docs [][]byte
+	var current []byte
+
+	scanner := bufio.NewScanner(bytes.NewReader(content))
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if bytes.Equal(line, []byte("---")) {
+			if len(current) > 0 {
+				docs = append(docs, current)
+				current = nil
+			}
+		} else {
+			current = append(current, line...)
+			current = append(current, '\n')
+		}
+	}
+
+	if len(current) > 0 {
+		docs = append(docs, current)
+	}
+
+	return docs
 }
 
 // returns true if the yaml doc has any content other than whitespace and comments
