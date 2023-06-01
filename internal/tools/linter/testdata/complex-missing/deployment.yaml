@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-1
+  annotations:
+    secret.reloader.stakater.com/reload: "gsk-1-secret"
+spec:
+  template:
+    spec:
+      containers:
+      - name: deployment-1
+        envFrom:
+          - secretRef:
+              name: gsk-1-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-2
+  annotations:
+    secret.reloader.stakater.com/reload: "gsk-1-secret"
+spec:
+  template:
+    spec:
+      containers:
+        - name: deployment-2
+          volumes:
+            - name: gsk-1-secret-vol
+              secret:
+                secretName: gsk-1-secret
+          volumeMounts:
+            - name: gsk-1-secret-mount
+              mountPath: /gsk1
+          envFrom:
+            - secretRef:
+                name: gsk-2-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-3
+  annotations:
+    secret.reloader.stakater.com/reload: "gsk-1-secret"
+spec:
+  template:
+    spec:
+      containers:
+        - name: deployment-3
+          volumes:
+            - name: gsk-2-secret-vol
+              secret:
+                secretName: gsk-2-secret
+          volumeMounts:
+            - name: gsk-2-secret-mount
+              mountPath: /gsk2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-4
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  template:
+    spec:
+      containers:
+        - name: deployment-4
+          volumes:
+            - name: gsk-1-secret-vol
+              secret:
+                secretName: gsk-1-secret
+          volumeMounts:
+            - name: gsk-1-secret-mount
+              mountPath: /gsk1
+          envFrom:
+            - secretRef:
+                name: gsk-2-secret
+---
+#
+# here is an empty doc for fun
+#
+
+# yep, still empty
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-5
+spec:
+  template:
+    spec:
+      containers:
+        - name: deployment-5
+          volumes:
+            - name: gsk-1-secret-vol
+              secret:
+                secretName: gsk-1-secret
+          volumeMounts:
+            - name: gsk-1-secret-mount
+              mountPath: /gsk1
+          envFrom:
+            - secretRef:
+                name: gsk-2-secret

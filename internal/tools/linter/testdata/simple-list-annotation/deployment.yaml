@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-1
+  annotations:
+    secret.reloader.stakater.com/reload: "gsk-1-secret"
+spec:
+  template:
+    spec:
+      containers:
+      - name: deployment-1
+        envFrom:
+          - secretRef:
+              name: gsk-1-secret
