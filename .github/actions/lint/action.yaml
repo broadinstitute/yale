@@ -1,0 +1,13 @@
+name: "Yale Linter"
+description: "Run Yale linter against a directory of manifests"
+author: "Chelsea Hoover"
+inputs:
+  dir:
+    required: true
+    description: "Path to the directory (or a glob expression matching multiple directories) containing manifests to lint"
+runs:
+  using: Docker
+  image: us-central1-docker.pkg.dev/dsp-artifact-registry/yale/yale:v0.0.33
+  entrypoint: '/bin/linter'
+  args:
+    - "${{ inputs.dir }}"
