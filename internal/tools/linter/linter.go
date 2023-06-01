@@ -41,7 +41,7 @@ func Run(dirs []string) error {
 	for _, dir := range dirs {
 		dirMatches, err := scanDir(dir)
 		if err != nil {
-			return fmt.Errorf("error scanning dir %s: %v", err)
+			return fmt.Errorf("error scanning dir %s: %v", dir, err)
 		}
 		matches = append(dirMatches, matches...)
 	}
