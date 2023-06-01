@@ -7,7 +7,10 @@ import (
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	appsv1 "k8s.io/api/apps/v1"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 type resources struct {
@@ -35,11 +38,20 @@ type document struct {
 	filename string
 }
 
-func Run(dirs []string) error {
-	var matches []reference
+func Run(globs []string) error {
+	parser, err := newParser()
+	if err != nil {
+		return err
+	}
 
+	dirs, err := expandGlobsToDirs(globs)
+	if err != nil {
+		return err
+	}
+
+	var matches []reference
 	for _, dir := range dirs {
-		dirMatches, err := scanDir(dir)
+		dirMatches, err := scanDir(parser, dir)
 		if err != nil {
 			return fmt.Errorf("error scanning dir %s: %v", dir, err)
 		}
@@ -60,12 +72,8 @@ func Run(dirs []string) error {
 	return fmt.Errorf(msg)
 }
 
-func scanDir(dir string) ([]reference, error) {
-	parser, err := newParser()
-	if err != nil {
-		return nil, err
-	}
-
+func scanDir(parser *parser, dir string) ([]reference, error) {
+	logs.Info.Printf("Scanning %s...", dir)
 	resources, err := parser.parseFilesInDirectory(dir)
 	if err != nil {
 		return nil, err
@@ -83,6 +91,7 @@ func scanDir(dir string) ([]reference, error) {
 	var matches []reference
 	matches = append(matches, scanAllOfType(resources.deployments, secrets)...)
 	matches = append(matches, scanAllOfType(resources.statefulSets, secrets)...)
+
 	return matches, nil
 }
 
@@ -121,11 +130,11 @@ func scan[T any](r resource[T], secrets []secret) []reference {
 
 			reason, reloads := reloader.reloadsOnSecret(s.name)
 			if reloads {
-				logs.Info.Printf("%s: will reload (%s)", ref.summarize(), reason)
+				logs.Debug.Printf("%s: will reload (%s)", ref.summarize(), reason)
 				continue
 			}
 
-			logs.Warn.Printf("%s: WILL NOT reload on changes", ref.summarize())
+			logs.Debug.Printf("%s: WILL NOT reload on changes", ref.summarize())
 
 			matches = append(matches, ref)
 		}
@@ -138,4 +147,42 @@ func scan[T any](r resource[T], secrets []secret) []reference {
 func buildRegexpToMatchSecretName(secretName string) *regexp.Regexp {
 	// match lines that include the secret name, bordered by non-alphanumeric-plus-slash characters or start-of-line/end-of-line
 	return regexp.MustCompile("(^|[^a-z0-9-])" + regexp.QuoteMeta(secretName) + "([^a-z0-9-]|$)")
+}
+
+func expandGlobsToDirs(globs []string) ([]string, error) {
+	var dirs []string
+
+	for _, glob := range globs {
+		matches, err := expandOneGlob(glob)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, match := range matches {
+			fileInfo, err := os.Stat(match)
+			if err != nil {
+				return nil, fmt.Errorf("error checking if %s is a directory: %v", match, err)
+			}
+			if !fileInfo.IsDir() {
+				logs.Warn.Printf("Ignoring non-directory %s\n", match)
+			}
+			dirs = append(dirs, match)
+		}
+	}
+	return dirs, nil
+}
+
+func expandOneGlob(glob string) ([]string, error) {
+	if !strings.Contains(glob, "*") {
+		return []string{glob}, nil
+	}
+
+	matches, err := filepath.Glob(glob)
+	if err != nil {
+		return nil, fmt.Errorf("error expanding glob %s: %v", glob, err)
+	}
+	if len(matches) == 0 {
+		logs.Warn.Printf("%s matched 0 directories on filesystem", glob)
+	}
+	return matches, nil
 }

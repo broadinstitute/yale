@@ -15,6 +15,8 @@ func main() {
 The Yale linter searches directories of K8s manifests for Deployments 
 and Statefulsets that depend on Yale-managed secrets.
 
+Note that the directory arguments can be globs, e.g.: "output/*"
+
 The linter will verify that each Deployment or StatefulSet has one of the
 following annotations:
 
@@ -32,9 +34,9 @@ directory as a separate CLI argument. For example:
 
     ./linter ${THELMA_HOME}/output/dev ${THELMA_HOME}/output/alpha ${THELMA_HOME}/output/staging ...
 
-This is easy to do with globbing:
+This is sometimes easier to do with globbing:
 
-    ./linter ${THELMA_HOME}/output/*
+    ./linter "${THELMA_HOME}/output/*"
 
 Otherwise, the linter will confuse which resources belong to which environment.
 `,

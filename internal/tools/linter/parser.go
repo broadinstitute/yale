@@ -71,7 +71,7 @@ func (p *parser) parseFile(resources *resources, file string) error {
 			if strings.Contains(err.Error(), "is registered for version") {
 				// handle errors for CRDs we haven't added to the schema, eg.
 				//   no kind "BackendConfig" is registered for version "cloud.google.com/v1" in scheme "pkg/runtime/scheme.go:100"
-				logs.Warn.Printf("ignoring CRD at line %d in %s: %v", doc.offset, doc.filename, err)
+				logs.Debug.Printf("ignoring CRD at line %d in %s: %v", doc.offset, doc.filename, err)
 			} else {
 				return fmt.Errorf("error parsing CRD at line %d in %s: %v", doc.offset, doc.filename, err)
 			}
