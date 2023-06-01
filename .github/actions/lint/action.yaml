@@ -7,7 +7,7 @@ inputs:
     description: "Path to the directory (or a glob expression matching multiple directories) containing manifests to lint"
 runs:
   using: Docker
-  image: us-central1-docker.pkg.dev/dsp-artifact-registry/yale/yale:v0.0.33
+  image: us-central1-docker.pkg.dev/dsp-artifact-registry/yale/yale:v0.0.35-7cd08d5
   entrypoint: '/bin/linter'
   args:
     - "${{ inputs.dir }}"
