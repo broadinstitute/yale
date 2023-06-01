@@ -105,7 +105,7 @@ func Test_Linter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := path.Join("testdata", tc.name)
-			matches, err := scanDir(dir)
+			matches, err := Run(dir)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, matches)
 		})

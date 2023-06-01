@@ -45,7 +45,8 @@ Otherwise, the linter will confuse which resources belong to which environment.
 	cmd.ArgAliases = []string{"path/to/manifests"}
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return linter.Run(args)
+		_, err := linter.Run(args...)
+		return err
 	}
 
 	if err := cmd.Execute(); err != nil {

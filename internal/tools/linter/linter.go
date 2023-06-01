@@ -38,22 +38,22 @@ type document struct {
 	filename string
 }
 
-func Run(globs []string) error {
+func Run(globs ...string) ([]reference, error) {
 	parser, err := newParser()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	dirs, err := expandGlobsToDirs(globs)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var matches []reference
 	for _, dir := range dirs {
 		dirMatches, err := scanDir(parser, dir)
 		if err != nil {
-			return fmt.Errorf("error scanning dir %s: %v", dir, err)
+			return nil, fmt.Errorf("error scanning dir %s: %v", dir, err)
 		}
 		matches = append(dirMatches, matches...)
 	}
@@ -62,14 +62,14 @@ func Run(globs []string) error {
 	msg := fmt.Sprintf("Found %d resources with missing annotations", count)
 	if count <= 0 {
 		logs.Info.Println(msg)
-		return nil
+		return nil, nil
 	}
 
 	msg = msg + ":\n"
 	for _, m := range matches {
 		msg = msg + "    " + m.summarize() + "\n"
 	}
-	return fmt.Errorf(msg)
+	return matches, fmt.Errorf(msg)
 }
 
 func scanDir(parser *parser, dir string) ([]reference, error) {
