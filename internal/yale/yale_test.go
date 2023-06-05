@@ -91,7 +91,6 @@ func (suite *YaleSuite) SetupTest() {
 
 func (suite *YaleSuite) TestYaleSucceedsWithNoCacheEntriesOrGcpSaKeys() {
 	suite.seedGsks()
-	suite.seedAzureClientSecrets()
 	require.NoError(suite.T(), suite.yale.Run())
 }
 
