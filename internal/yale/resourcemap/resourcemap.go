@@ -50,12 +50,6 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 		return nil, err
 	}
 
-	// TDOD this is just for testing, remove later
-	// _, err = m.listAzureClientSecrets()
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	for _, gsk := range list {
 		email := gsk.Spec.GoogleServiceAccount.Name
 
