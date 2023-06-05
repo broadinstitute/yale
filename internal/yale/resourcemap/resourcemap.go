@@ -14,7 +14,9 @@ import (
 // Bundle represents a bundle of resources associated with a specific service account
 type Bundle struct {
 	Entry *cache.Entry
-	GSKs  []v1beta1.GcpSaKey
+	// A bundle may contain either GSKs or AzClientSecrets, but not both
+	GSKs            []v1beta1.GcpSaKey
+	AzClientSecrets []v1beta1.AzureClientSecret
 }
 
 // Mapper inspects all the GcpSaKeys and Cache entries in the cluster and organizes
@@ -44,13 +46,18 @@ type mapper struct {
 func (m *mapper) Build() (map[string]*Bundle, error) {
 	result := make(map[string]*Bundle)
 
-	// list GSKs and organize them into bundles, by service account email
-	list, err := m.listGcpSaKeys()
+	// gskList GSKs and organize them into bundles, by service account email
+	gskList, err := m.listGcpSaKeys()
 	if err != nil {
 		return nil, err
 	}
 
-	for _, gsk := range list {
+	_, err = m.listAzureClientSecrets()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, gsk := range gskList {
 		email := gsk.Spec.GoogleServiceAccount.Name
 
 		bundle, exists := result[email]

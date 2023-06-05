@@ -1,6 +1,8 @@
 package resourcemap
 
 import (
+	"testing"
+
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	cachemocks "github.com/broadinstitute/yale/internal/yale/cache/mocks"
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
@@ -9,7 +11,6 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
 )
 
 var gsk1a = v1beta1.GcpSaKey{
@@ -131,8 +132,10 @@ func Test_Build(t *testing.T) {
 		existingCacheEntries []*cache.Entry
 		newCacheEntries      []*cache.Entry
 		gsks                 []v1beta1.GcpSaKey
-		expected             map[string]*Bundle
-		expectErr            string
+		// Azure Client Secrets
+		acss      []v1beta1.AzureClientSecret
+		expected  map[string]*Bundle
+		expectErr string
 	}{
 		{
 			name:     "empty cache, no gsks in cluster",
@@ -141,6 +144,7 @@ func Test_Build(t *testing.T) {
 		{
 			name:            "empty cache, one gsk in cluster",
 			gsks:            []v1beta1.GcpSaKey{gsk1a},
+			acss:            []v1beta1.AzureClientSecret{},
 			newCacheEntries: []*cache.Entry{entry1},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
@@ -152,6 +156,7 @@ func Test_Build(t *testing.T) {
 		{
 			name:                 "one cache entry cache, matches one gsk in cluster",
 			gsks:                 []v1beta1.GcpSaKey{gsk1a},
+			acss:                 []v1beta1.AzureClientSecret{},
 			existingCacheEntries: []*cache.Entry{entry1},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
@@ -163,6 +168,7 @@ func Test_Build(t *testing.T) {
 		{
 			name:                 "one cache entry cache, matches two gsks in cluster",
 			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk1b},
+			acss:                 []v1beta1.AzureClientSecret{},
 			existingCacheEntries: []*cache.Entry{entry1},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
@@ -174,6 +180,7 @@ func Test_Build(t *testing.T) {
 		{
 			name:                 "broken cache entry should lead service account to be skipped",
 			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk2a, gsk2b},
+			acss:                 []v1beta1.AzureClientSecret{},
 			existingCacheEntries: []*cache.Entry{entry1, entry2Broken},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
@@ -185,6 +192,7 @@ func Test_Build(t *testing.T) {
 		{
 			name:                 "broken gsk should lead service account to be skipped",
 			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk1b, gsk2a, gsk2bBroken},
+			acss:                 []v1beta1.AzureClientSecret{},
 			existingCacheEntries: []*cache.Entry{entry1, entry2},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
@@ -196,6 +204,7 @@ func Test_Build(t *testing.T) {
 		{
 			name:                 "multiple entries and gsks",
 			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk1b, gsk2a, gsk2b, gsk4a},
+			acss:                 []v1beta1.AzureClientSecret{},
 			existingCacheEntries: []*cache.Entry{entry1, entry2, entry3},
 			newCacheEntries:      []*cache.Entry{entry4},
 			expected: map[string]*Bundle{
@@ -235,8 +244,15 @@ func Test_Build(t *testing.T) {
 			crd := crdmocks.NewYaleCRDInterface(t)
 			crd.EXPECT().GcpSaKeys().Return(gskEndpoint)
 
+			acsEndpoint := crdmocks.NewAzureClientSecretInterface(t)
+			crd.EXPECT().AzureClientSecrets().Return(acsEndpoint)
+
 			gskEndpoint.EXPECT().List(mock.Anything, metav1.ListOptions{}).Return(&v1beta1.GCPSaKeyList{
 				Items: tc.gsks,
+			}, nil)
+
+			acsEndpoint.EXPECT().List(mock.Anything, metav1.ListOptions{}).Return(&v1beta1.AzureClientSecretList{
+				Items: tc.acss,
 			}, nil)
 
 			_mapper := New(crd, _cache)

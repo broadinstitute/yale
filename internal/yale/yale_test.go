@@ -54,6 +54,7 @@ func (suite *YaleSuite) SetupTest() {
 	suite.azClientSecretEndpoint = crdmocks.NewAzureClientSecretInterface(suite.T())
 	crd := crdmocks.NewYaleCRDInterface(suite.T())
 	crd.EXPECT().GcpSaKeys().Return(suite.gskEndpoint)
+	crd.EXPECT().AzureClientSecrets().Return(suite.azClientSecretEndpoint)
 
 	suite.vaultServer = vaultutils.NewFakeVaultServer(suite.T())
 
@@ -91,6 +92,7 @@ func (suite *YaleSuite) SetupTest() {
 
 func (suite *YaleSuite) TestYaleSucceedsWithNoCacheEntriesOrGcpSaKeys() {
 	suite.seedGsks()
+	suite.seedAzureClientSecrets()
 	require.NoError(suite.T(), suite.yale.Run())
 }
 
@@ -215,6 +217,7 @@ var gsk3 = apiv1b1.GcpSaKey{
 
 func (suite *YaleSuite) TestYaleIssuesNewKeyForNewGcpSaKey() {
 	suite.seedGsks(gsk1)
+	suite.seedAzureClientSecrets()
 
 	suite.expectCreateKey(sa1key1)
 
@@ -236,6 +239,7 @@ func (suite *YaleSuite) TestYaleIssuesNewKeyForNewGcpSaKey() {
 
 func (suite *YaleSuite) TestYaleRotatesOldKey() {
 	suite.seedGsks(gsk1)
+	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
 		ServiceAccount: sa1,
@@ -271,6 +275,7 @@ func (suite *YaleSuite) TestYaleRotatesOldKey() {
 
 func (suite *YaleSuite) TestYaleDisablesOldKeyIfNotInUse() {
 	suite.seedGsks(gsk1)
+	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
 		ServiceAccount: sa1,
@@ -305,6 +310,7 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNotInUse() {
 
 func (suite *YaleSuite) TestYaleDisablesOldKeyIfNoUsageDataAvailable() {
 	suite.seedGsks(gsk1)
+	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
 		ServiceAccount: sa1,
@@ -339,6 +345,7 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNoUsageDataAvailable() {
 
 func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 	suite.seedGsks(gsk1)
+	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
 		ServiceAccount: sa1,
@@ -388,6 +395,7 @@ func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfIgnoreUsag
 	)
 
 	suite.seedGsks(gsk1)
+	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
 		ServiceAccount: sa1,
@@ -423,6 +431,7 @@ func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfIgnoreUsag
 
 func (suite *YaleSuite) TestYaleDoesNotRotateDisableOrDeleteKeysThatAreNotOldEnough() {
 	suite.seedGsks(gsk1)
+	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
 		ServiceAccount: sa1,
@@ -458,6 +467,7 @@ func (suite *YaleSuite) TestYaleDoesNotRotateDisableOrDeleteKeysThatAreNotOldEno
 
 func (suite *YaleSuite) TestYaleDeletesOldKeys() {
 	suite.seedGsks(gsk1)
+	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
 		ServiceAccount: sa1,
@@ -485,6 +495,7 @@ func (suite *YaleSuite) TestYaleDeletesOldKeys() {
 
 func (suite *YaleSuite) TestYaleCorrectlyProcessesCacheEntryWithNoMatchingGcpSaKeys() {
 	suite.seedGsks()
+	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
 		ServiceAccount: sa1,
@@ -529,6 +540,7 @@ func (suite *YaleSuite) TestYaleCorrectlyProcessesCacheEntryWithNoMatchingGcpSaK
 
 func (suite *YaleSuite) TestYaleCorrectlyRetiresCacheEntryWithNoMatchingGcpSaKeys() {
 	suite.seedGsks()
+	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
 		ServiceAccount: sa1,
@@ -565,6 +577,7 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 		_slack,
 	)
 	suite.seedGsks(gsk1, gsk2, gsk3)
+	suite.seedAzureClientSecrets()
 
 	suite.expectCreateKeyReturnsErr(sa1key1, fmt.Errorf("uh-oh"))
 	suite.expectCreateKey(sa2key1)
