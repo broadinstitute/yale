@@ -91,6 +91,18 @@ var gsk4a = v1beta1.GcpSaKey{
 	},
 }
 
+var acs1a = v1beta1.AzureClientSecret{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "acs-1",
+		Namespace: "ns-a",
+	},
+	Spec: v1beta1.AzureClientSecretSpec{
+		AzureServicePrincipal: v1beta1.AzureServicePrincipal{
+			ApplicationID: "app-id-1",
+			TenantID:      "tenant-id-1",
+		},
+	},
+}
 var entry1 = &cache.Entry{
 	ServiceAccount: cache.ServiceAccount{
 		Email:   "sa-1@p.com",
@@ -133,18 +145,18 @@ func Test_Build(t *testing.T) {
 		newCacheEntries      []*cache.Entry
 		gsks                 []v1beta1.GcpSaKey
 		// Azure Client Secrets
-		acss      []v1beta1.AzureClientSecret
-		expected  map[string]*Bundle
-		expectErr string
+		azClientSecrets []v1beta1.AzureClientSecret
+		expected        map[string]*Bundle
+		expectErr       string
 	}{
 		{
-			name:     "empty cache, no gsks in cluster",
+			name:     "empty cache, no gsks or acss in cluster",
 			expected: map[string]*Bundle{},
 		},
 		{
 			name:            "empty cache, one gsk in cluster",
 			gsks:            []v1beta1.GcpSaKey{gsk1a},
-			acss:            []v1beta1.AzureClientSecret{},
+			azClientSecrets: []v1beta1.AzureClientSecret{},
 			newCacheEntries: []*cache.Entry{entry1},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
@@ -154,9 +166,19 @@ func Test_Build(t *testing.T) {
 			},
 		},
 		{
+			name:            "empty cache, one acs in cluster",
+			gsks:            []v1beta1.GcpSaKey{},
+			azClientSecrets: []v1beta1.AzureClientSecret{acs1a},
+			expected: map[string]*Bundle{
+				"app-id-1": {
+					AzClientSecrets: []v1beta1.AzureClientSecret{acs1a},
+				},
+			},
+		},
+		{
 			name:                 "one cache entry cache, matches one gsk in cluster",
 			gsks:                 []v1beta1.GcpSaKey{gsk1a},
-			acss:                 []v1beta1.AzureClientSecret{},
+			azClientSecrets:      []v1beta1.AzureClientSecret{},
 			existingCacheEntries: []*cache.Entry{entry1},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
@@ -168,7 +190,7 @@ func Test_Build(t *testing.T) {
 		{
 			name:                 "one cache entry cache, matches two gsks in cluster",
 			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk1b},
-			acss:                 []v1beta1.AzureClientSecret{},
+			azClientSecrets:      []v1beta1.AzureClientSecret{},
 			existingCacheEntries: []*cache.Entry{entry1},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
@@ -180,7 +202,7 @@ func Test_Build(t *testing.T) {
 		{
 			name:                 "broken cache entry should lead service account to be skipped",
 			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk2a, gsk2b},
-			acss:                 []v1beta1.AzureClientSecret{},
+			azClientSecrets:      []v1beta1.AzureClientSecret{},
 			existingCacheEntries: []*cache.Entry{entry1, entry2Broken},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
@@ -192,7 +214,7 @@ func Test_Build(t *testing.T) {
 		{
 			name:                 "broken gsk should lead service account to be skipped",
 			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk1b, gsk2a, gsk2bBroken},
-			acss:                 []v1beta1.AzureClientSecret{},
+			azClientSecrets:      []v1beta1.AzureClientSecret{},
 			existingCacheEntries: []*cache.Entry{entry1, entry2},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
@@ -204,7 +226,7 @@ func Test_Build(t *testing.T) {
 		{
 			name:                 "multiple entries and gsks",
 			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk1b, gsk2a, gsk2b, gsk4a},
-			acss:                 []v1beta1.AzureClientSecret{},
+			azClientSecrets:      []v1beta1.AzureClientSecret{},
 			existingCacheEntries: []*cache.Entry{entry1, entry2, entry3},
 			newCacheEntries:      []*cache.Entry{entry4},
 			expected: map[string]*Bundle{
@@ -252,7 +274,7 @@ func Test_Build(t *testing.T) {
 			}, nil)
 
 			acsEndpoint.EXPECT().List(mock.Anything, metav1.ListOptions{}).Return(&v1beta1.AzureClientSecretList{
-				Items: tc.acss,
+				Items: tc.azClientSecrets,
 			}, nil)
 
 			_mapper := New(crd, _cache)

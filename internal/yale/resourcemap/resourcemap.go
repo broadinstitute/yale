@@ -52,7 +52,7 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 		return nil, err
 	}
 
-	_, err = m.listAzureClientSecrets()
+	acsList, err := m.listAzureClientSecrets()
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +69,23 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 		bundle.GSKs = append(bundle.GSKs, gsk)
 	}
 
+	for _, acs := range acsList {
+		applicationID := acs.Spec.AzureServicePrincipal.ApplicationID
+		bundle, exists := result[applicationID]
+		if !exists {
+			bundle = &Bundle{}
+			result[applicationID] = bundle
+		}
+
+		bundle.AzClientSecrets = append(bundle.AzClientSecrets, acs)
+	}
+
 	// add cache entries to the bundle
 	cacheEntries, err := m.cache.List()
 	if err != nil {
 		return nil, fmt.Errorf("error listing cache entries: %v", err)
 	}
+
 	for _, entry := range cacheEntries {
 		email := entry.ServiceAccount.Email
 		bundle, exists := result[email]
