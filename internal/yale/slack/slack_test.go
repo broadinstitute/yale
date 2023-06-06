@@ -1,11 +1,12 @@
 package slack
 
 import (
+	"testing"
+
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	"github.com/slack-go/slack"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 const postWebhookMethod = "PostWebhook"
@@ -41,7 +42,7 @@ func Test_SlackNotifier_KeyIssued(t *testing.T) {
 	).Return(nil)
 
 	require.NoError(t, s.KeyIssued(&cache.Entry{
-		ServiceAccount: cache.ServiceAccount{
+		EntryIdentifier: cache.EntryIdentifier{
 			Email:   "sa1@p.com",
 			Project: "p",
 		},
@@ -79,7 +80,7 @@ func Test_SlackNotifier_KeyDisabled(t *testing.T) {
 	).Return(nil)
 
 	require.NoError(t, s.KeyDisabled(&cache.Entry{
-		ServiceAccount: cache.ServiceAccount{
+		EntryIdentifier: cache.EntryIdentifier{
 			Email:   "sa1@p.com",
 			Project: "p",
 		},
@@ -117,7 +118,7 @@ func Test_SlackNotifier_KeyDeleted(t *testing.T) {
 	).Return(nil)
 
 	require.NoError(t, s.KeyDeleted(&cache.Entry{
-		ServiceAccount: cache.ServiceAccount{
+		EntryIdentifier: cache.EntryIdentifier{
 			Email:   "sa1@p.com",
 			Project: "p",
 		},
@@ -155,7 +156,7 @@ func Test_SlackNotifier_Error(t *testing.T) {
 	).Return(nil)
 
 	require.NoError(t, s.Error(&cache.Entry{
-		ServiceAccount: cache.ServiceAccount{
+		EntryIdentifier: cache.EntryIdentifier{
 			Email:   "sa1@p.com",
 			Project: "p",
 		},

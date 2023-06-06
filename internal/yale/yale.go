@@ -106,7 +106,7 @@ func (m *Yale) Run() error {
 func (m *Yale) processServiceAccountAndReportErrors(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
 	if err := m.processServiceAccount(entry, gsks); err != nil {
 		if reportErr := m.reportError(entry, err); reportErr != nil {
-			logs.Error.Printf("error reporting error for service account %s: %v", entry.ServiceAccount.Email, reportErr)
+			logs.Error.Printf("error reporting error for service account %s: %v", entry.EntryIdentifier.Email, reportErr)
 		}
 		return err
 	}
@@ -141,7 +141,7 @@ func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GcpSaKey
 // for this service account
 func (m *Yale) computeCutoffs(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) cutoff.Cutoffs {
 	if len(gsks) == 0 {
-		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will use Yale's default cutoffs to retire old keys", entry.ServiceAccount.Email)
+		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will use Yale's default cutoffs to retire old keys", entry.EntryIdentifier.Email)
 		return cutoff.NewWithDefaults()
 	}
 	return cutoff.New(gsks...)
@@ -174,8 +174,8 @@ func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv
 // returns a boolean that will be true if a new key was issued, false otherwise
 func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GcpSaKey) (bool, error) {
 	issued := false
-	email := entry.ServiceAccount.Email
-	project := entry.ServiceAccount.Project
+	email := entry.EntryIdentifier.Email
+	project := entry.EntryIdentifier.Project
 
 	if entry.CurrentKey.ID != "" {
 		logs.Info.Printf("service account %s: checking if current key %s needs rotation (created at %s; rotation age is %d days)", email, entry.CurrentKey.ID, entry.CurrentKey.CreatedAt, cutoffs.RotateAfterDays())
@@ -231,9 +231,9 @@ func (m *Yale) disableOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error 
 
 func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 	// has enough time passed since rotation? if not, do nothing
-	logs.Info.Printf("key %s (service account %s) was rotated at %s, disable cutoff is %d days", keyId, entry.ServiceAccount.Email, rotatedAt, cutoffs.DisableAfterDays())
+	logs.Info.Printf("key %s (service account %s) was rotated at %s, disable cutoff is %d days", keyId, entry.EntryIdentifier.Email, rotatedAt, cutoffs.DisableAfterDays())
 	if !cutoffs.ShouldDisable(rotatedAt) {
-		logs.Info.Printf("key %s (service account %s): too early to disable", keyId, entry.ServiceAccount.Email)
+		logs.Info.Printf("key %s (service account %s): too early to disable", keyId, entry.EntryIdentifier.Email)
 		return nil
 	}
 
@@ -244,18 +244,18 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 	}
 	if lastAuthTime != nil {
 		if !cutoffs.SafeToDisable(*lastAuthTime) {
-			return fmt.Errorf("key %s (service account %s) was rotated at %s but was last used to authenticate at %s; please find out what's still using this key and fix it", keyId, entry.ServiceAccount.Email, rotatedAt, *lastAuthTime)
+			return fmt.Errorf("key %s (service account %s) was rotated at %s but was last used to authenticate at %s; please find out what's still using this key and fix it", keyId, entry.EntryIdentifier.Email, rotatedAt, *lastAuthTime)
 		}
 	}
 
 	// disable the key
-	logs.Info.Printf("disabling key %s (service account %s)...", keyId, entry.ServiceAccount.Email)
+	logs.Info.Printf("disabling key %s (service account %s)...", keyId, entry.EntryIdentifier.Email)
 	if err = m.keyops.EnsureDisabled(keyops.Key{
-		Project:             entry.ServiceAccount.Project,
-		ServiceAccountEmail: entry.ServiceAccount.Email,
+		Project:             entry.EntryIdentifier.Project,
+		ServiceAccountEmail: entry.EntryIdentifier.Email,
 		ID:                  keyId,
 	}); err != nil {
-		return fmt.Errorf("error disabling key %s (service account %s): %v", keyId, entry.ServiceAccount.Email, err)
+		return fmt.Errorf("error disabling key %s (service account %s): %v", keyId, entry.EntryIdentifier.Email, err)
 	}
 
 	// update cache entry to reflect that the key was successfully disabled
@@ -273,16 +273,16 @@ func (m *Yale) lastAuthTime(keyId string, entry *cache.Entry) (*time.Time, error
 		return nil, nil
 	}
 
-	logs.Info.Printf("key %s (service account %s) has reached disable cutoff; checking if still in use", keyId, entry.ServiceAccount.Email)
-	lastAuthTime, err := m.authmetrics.LastAuthTime(entry.ServiceAccount.Project, entry.ServiceAccount.Email, keyId)
+	logs.Info.Printf("key %s (service account %s) has reached disable cutoff; checking if still in use", keyId, entry.EntryIdentifier.Email)
+	lastAuthTime, err := m.authmetrics.LastAuthTime(entry.EntryIdentifier.Project, entry.EntryIdentifier.Email, keyId)
 	if err != nil {
-		return nil, fmt.Errorf("error determining last authentication time for key %s (service account %s): %v", keyId, entry.ServiceAccount.Email, err)
+		return nil, fmt.Errorf("error determining last authentication time for key %s (service account %s): %v", keyId, entry.EntryIdentifier.Email, err)
 	}
 	if lastAuthTime == nil {
-		logs.Info.Printf("could not identify last authentication time for key %s (service account %s); assuming key is not in use", keyId, entry.ServiceAccount.Email)
+		logs.Info.Printf("could not identify last authentication time for key %s (service account %s); assuming key is not in use", keyId, entry.EntryIdentifier.Email)
 		return nil, nil
 	}
-	logs.Info.Printf("last authentication time for key %s (service account %s): %s", keyId, entry.ServiceAccount.Email, *lastAuthTime)
+	logs.Info.Printf("last authentication time for key %s (service account %s): %s", keyId, entry.EntryIdentifier.Email, *lastAuthTime)
 	return lastAuthTime, nil
 }
 
@@ -298,28 +298,28 @@ func (m *Yale) deleteOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 
 func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 	// has enough time passed since this key was disabled? if not, do nothing
-	logs.Info.Printf("key %s (service account %s) was disabled at %s, delete cutoff is %d days", keyId, entry.ServiceAccount.Email, disabledAt, cutoffs.DisableAfterDays())
+	logs.Info.Printf("key %s (service account %s) was disabled at %s, delete cutoff is %d days", keyId, entry.EntryIdentifier.Email, disabledAt, cutoffs.DisableAfterDays())
 	if !cutoffs.ShouldDelete(disabledAt) {
-		logs.Info.Printf("key %s (service account %s): too early to delete", keyId, entry.ServiceAccount.Email)
+		logs.Info.Printf("key %s (service account %s): too early to delete", keyId, entry.EntryIdentifier.Email)
 		return nil
 	}
 
 	key := keyops.Key{
-		Project:             entry.ServiceAccount.Project,
-		ServiceAccountEmail: entry.ServiceAccount.Email,
+		Project:             entry.EntryIdentifier.Project,
+		ServiceAccountEmail: entry.EntryIdentifier.Email,
 		ID:                  keyId,
 	}
 
 	// delete key from GCP
 	logs.Info.Printf("key %s (service account %s) has reached delete cutoff; deleting it", key.ID, key.ServiceAccountEmail)
 	if err := m.keyops.DeleteIfDisabled(key); err != nil {
-		return fmt.Errorf("error deleting key %s (service account %s): %v", keyId, entry.ServiceAccount.Email, err)
+		return fmt.Errorf("error deleting key %s (service account %s): %v", keyId, entry.EntryIdentifier.Email, err)
 	}
 
 	// delete key from cache entry
 	delete(entry.DisabledKeys, keyId)
 	if err := m.cache.Save(entry); err != nil {
-		return fmt.Errorf("error updating cache entry for %s after key deletion: %v", entry.ServiceAccount.Email, err)
+		return fmt.Errorf("error updating cache entry for %s after key deletion: %v", entry.EntryIdentifier.Email, err)
 	}
 
 	logs.Info.Printf("deleted key %s (service account %s)", key.ID, key.ServiceAccountEmail)
@@ -331,19 +331,19 @@ func (m *Yale) retireCacheEntryIfNeeded(entry *cache.Entry, gsks []apiv1b1.GcpSa
 		return nil
 	}
 	if len(entry.CurrentKey.ID) > 0 {
-		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will not delete it because it still has a current key", entry.ServiceAccount.Email)
+		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will not delete it because it still has a current key", entry.EntryIdentifier.Email)
 		return nil
 	}
 	if len(entry.RotatedKeys) > 0 {
-		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will not delete it because it still has keys to disable", entry.ServiceAccount.Email)
+		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will not delete it because it still has keys to disable", entry.EntryIdentifier.Email)
 		return nil
 	}
 	if len(entry.DisabledKeys) > 0 {
-		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will not delete it because it still has keys to delete", entry.ServiceAccount.Email)
+		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will not delete it because it still has keys to delete", entry.EntryIdentifier.Email)
 		return nil
 	}
 
-	logs.Info.Printf("cache entry for %s is empty and has no corresponding GcpSaKey resources in the cluster; deleting it", entry.ServiceAccount.Email)
+	logs.Info.Printf("cache entry for %s is empty and has no corresponding GcpSaKey resources in the cluster; deleting it", entry.EntryIdentifier.Email)
 	return m.cache.Delete(entry)
 }
 

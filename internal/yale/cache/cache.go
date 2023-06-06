@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -28,7 +29,7 @@ type Cache interface {
 	List() ([]*Entry, error)
 	// GetOrCreate will retrieve the cache entry for the given service account, or create a new empty
 	// cache entry if one doesn't exist
-	GetOrCreate(ServiceAccount) (*Entry, error)
+	GetOrCreate(EntryIdentifier) (*Entry, error)
 	// Save persists a cache entry to the cluster
 	Save(*Entry) error
 	// Delete deletes a cache entry from the cluster
@@ -61,14 +62,14 @@ func (c *cache) List() ([]*Entry, error) {
 		if err = entry.unmarshalFromSecret(&secret); err != nil {
 			return nil, fmt.Errorf("error unmarshalling cache entry secret %s: %v", secret.Name, err)
 		}
-		if entry.ServiceAccount.Email == "" {
+		if entry.EntryIdentifier.Email == "" {
 			return nil, fmt.Errorf("invalid cache entry secret %s: missing service account email", secret.Name)
 		}
-		if entry.ServiceAccount.Project == "" {
+		if entry.EntryIdentifier.Project == "" {
 			return nil, fmt.Errorf("invalid cache entry secret %s: missing service account project", secret.Name)
 		}
-		if secret.Name != entry.ServiceAccount.cacheSecretName() {
-			return nil, fmt.Errorf("invalid cache entry secret %s: secret name does not match service account, should be %s", secret.Name, entry.ServiceAccount.cacheSecretName())
+		if secret.Name != entry.EntryIdentifier.cacheSecretName() {
+			return nil, fmt.Errorf("invalid cache entry secret %s: secret name does not match service account, should be %s", secret.Name, entry.EntryIdentifier.cacheSecretName())
 		}
 		entries = append(entries, entry)
 	}
@@ -76,7 +77,7 @@ func (c *cache) List() ([]*Entry, error) {
 	return entries, nil
 }
 
-func (c *cache) GetOrCreate(sa ServiceAccount) (*Entry, error) {
+func (c *cache) GetOrCreate(sa EntryIdentifier) (*Entry, error) {
 	secret, err := c.k8s.CoreV1().Secrets(c.namespace).Get(context.Background(), sa.cacheSecretName(), metav1.GetOptions{})
 	if err != nil {
 		if !errors.IsNotFound(err) {
@@ -96,8 +97,8 @@ func (c *cache) GetOrCreate(sa ServiceAccount) (*Entry, error) {
 }
 
 func (c *cache) Save(entry *Entry) error {
-	email := entry.ServiceAccount.Email
-	secretName := entry.ServiceAccount.cacheSecretName()
+	email := entry.EntryIdentifier.Email
+	secretName := entry.EntryIdentifier.cacheSecretName()
 
 	secret, err := c.k8s.CoreV1().Secrets(c.namespace).Get(context.Background(), secretName, metav1.GetOptions{})
 	if err != nil {
@@ -114,14 +115,14 @@ func (c *cache) Save(entry *Entry) error {
 }
 
 func (c *cache) Delete(entry *Entry) error {
-	if err := c.k8s.CoreV1().Secrets(c.namespace).Delete(context.Background(), entry.ServiceAccount.cacheSecretName(), metav1.DeleteOptions{}); err != nil {
-		return fmt.Errorf("error deleting cache entry secret %s for %s: %v", entry.ServiceAccount.cacheSecretName(), entry.ServiceAccount.Email, err)
+	if err := c.k8s.CoreV1().Secrets(c.namespace).Delete(context.Background(), entry.EntryIdentifier.cacheSecretName(), metav1.DeleteOptions{}); err != nil {
+		return fmt.Errorf("error deleting cache entry secret %s for %s: %v", entry.EntryIdentifier.cacheSecretName(), entry.EntryIdentifier.Email, err)
 	}
 	return nil
 }
 
 // create a new empty cache entry and save it to the cluster
-func (c *cache) createAndSaveNewEmptyCacheEntry(sa ServiceAccount) (*Entry, error) {
+func (c *cache) createAndSaveNewEmptyCacheEntry(sa EntryIdentifier) (*Entry, error) {
 	logs.Info.Printf("creating new cache entry for %s", sa.Email)
 	entry := newCacheEntry(sa)
 

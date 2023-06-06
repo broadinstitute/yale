@@ -3,6 +3,9 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"testing"
+	"time"
+
 	"github.com/broadinstitute/yale/internal/yale/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -10,22 +13,20 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"testing"
-	"time"
 )
 
 const namespace = "my-cache-namespace"
 const project = "my-project"
 
-var sa1 = ServiceAccount{
+var sa1 = EntryIdentifier{
 	Email:   "my-sa1@p.com",
 	Project: project,
 }
-var sa2 = ServiceAccount{
+var sa2 = EntryIdentifier{
 	Email:   "my-sa2@p.com",
 	Project: project,
 }
-var sa3 = ServiceAccount{
+var sa3 = EntryIdentifier{
 	Email:   "my-sa3@p.com",
 	Project: project,
 }
@@ -189,9 +190,9 @@ func readCacheSecret(t *testing.T, k8s kubernetes.Interface, name string) *corev
 }
 
 // represents the expected initial state of a new/empty cache entry
-func emptyCacheEntry(sa ServiceAccount) Entry {
+func emptyCacheEntry(sa EntryIdentifier) Entry {
 	return Entry{
-		ServiceAccount: ServiceAccount{
+		EntryIdentifier: EntryIdentifier{
 			Email:   sa.Email,
 			Project: sa.Project,
 		},

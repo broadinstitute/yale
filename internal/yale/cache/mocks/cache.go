@@ -63,15 +63,15 @@ func (_c *Cache_Delete_Call) RunAndReturn(run func(*cache.Entry) error) *Cache_D
 }
 
 // GetOrCreate provides a mock function with given fields: _a0
-func (_m *Cache) GetOrCreate(_a0 cache.ServiceAccount) (*cache.Entry, error) {
+func (_m *Cache) GetOrCreate(_a0 cache.EntryIdentifier) (*cache.Entry, error) {
 	ret := _m.Called(_a0)
 
 	var r0 *cache.Entry
 	var r1 error
-	if rf, ok := ret.Get(0).(func(cache.ServiceAccount) (*cache.Entry, error)); ok {
+	if rf, ok := ret.Get(0).(func(cache.EntryIdentifier) (*cache.Entry, error)); ok {
 		return rf(_a0)
 	}
-	if rf, ok := ret.Get(0).(func(cache.ServiceAccount) *cache.Entry); ok {
+	if rf, ok := ret.Get(0).(func(cache.EntryIdentifier) *cache.Entry); ok {
 		r0 = rf(_a0)
 	} else {
 		if ret.Get(0) != nil {
@@ -79,7 +79,7 @@ func (_m *Cache) GetOrCreate(_a0 cache.ServiceAccount) (*cache.Entry, error) {
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(cache.ServiceAccount) error); ok {
+	if rf, ok := ret.Get(1).(func(cache.EntryIdentifier) error); ok {
 		r1 = rf(_a0)
 	} else {
 		r1 = ret.Error(1)
@@ -99,9 +99,9 @@ func (_e *Cache_Expecter) GetOrCreate(_a0 interface{}) *Cache_GetOrCreate_Call {
 	return &Cache_GetOrCreate_Call{Call: _e.mock.On("GetOrCreate", _a0)}
 }
 
-func (_c *Cache_GetOrCreate_Call) Run(run func(_a0 cache.ServiceAccount)) *Cache_GetOrCreate_Call {
+func (_c *Cache_GetOrCreate_Call) Run(run func(_a0 cache.EntryIdentifier)) *Cache_GetOrCreate_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(cache.ServiceAccount))
+		run(args[0].(cache.EntryIdentifier))
 	})
 	return _c
 }
@@ -111,7 +111,7 @@ func (_c *Cache_GetOrCreate_Call) Return(_a0 *cache.Entry, _a1 error) *Cache_Get
 	return _c
 }
 
-func (_c *Cache_GetOrCreate_Call) RunAndReturn(run func(cache.ServiceAccount) (*cache.Entry, error)) *Cache_GetOrCreate_Call {
+func (_c *Cache_GetOrCreate_Call) RunAndReturn(run func(cache.EntryIdentifier) (*cache.Entry, error)) *Cache_GetOrCreate_Call {
 	_c.Call.Return(run)
 	return _c
 }

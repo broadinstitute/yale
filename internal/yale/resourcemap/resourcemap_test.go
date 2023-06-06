@@ -104,37 +104,42 @@ var acs1a = v1beta1.AzureClientSecret{
 	},
 }
 var entry1 = &cache.Entry{
-	ServiceAccount: cache.ServiceAccount{
+	EntryIdentifier: cache.EntryIdentifier{
 		Email:   "sa-1@p.com",
 		Project: "p",
+		Type:    cache.GcpSaKey,
 	},
 }
 
 var entry2 = &cache.Entry{
-	ServiceAccount: cache.ServiceAccount{
+	EntryIdentifier: cache.EntryIdentifier{
 		Email:   "sa-2@p.com",
 		Project: "p",
+		Type:    cache.GcpSaKey,
 	},
 }
 
 var entry2Broken = &cache.Entry{
-	ServiceAccount: cache.ServiceAccount{
+	EntryIdentifier: cache.EntryIdentifier{
 		Email:   "sa-2@p.com",
 		Project: "mismatch", // wrong project - will mismatch gsks
+		Type:    cache.GcpSaKey,
 	},
 }
 
 var entry3 = &cache.Entry{
-	ServiceAccount: cache.ServiceAccount{
+	EntryIdentifier: cache.EntryIdentifier{
 		Email:   "sa-3@p.com",
 		Project: "p",
+		Type:    cache.GcpSaKey,
 	},
 }
 
 var entry4 = &cache.Entry{
-	ServiceAccount: cache.ServiceAccount{
+	EntryIdentifier: cache.EntryIdentifier{
 		Email:   "sa-4@p.com",
 		Project: "p",
+		Type:    cache.GcpSaKey,
 	},
 }
 
@@ -160,8 +165,9 @@ func Test_Build(t *testing.T) {
 			newCacheEntries: []*cache.Entry{entry1},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
-					Entry: entry1, // new entry created for sa-1
-					GSKs:  []v1beta1.GcpSaKey{gsk1a},
+					Entry:      entry1, // new entry created for sa-1
+					GSKs:       []v1beta1.GcpSaKey{gsk1a},
+					BundleType: GSK,
 				},
 			},
 		},
@@ -172,6 +178,7 @@ func Test_Build(t *testing.T) {
 			expected: map[string]*Bundle{
 				"app-id-1": {
 					AzClientSecrets: []v1beta1.AzureClientSecret{acs1a},
+					BundleType:      AzClientSecret,
 				},
 			},
 		},
@@ -182,8 +189,9 @@ func Test_Build(t *testing.T) {
 			existingCacheEntries: []*cache.Entry{entry1},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
-					Entry: entry1,
-					GSKs:  []v1beta1.GcpSaKey{gsk1a},
+					Entry:      entry1,
+					GSKs:       []v1beta1.GcpSaKey{gsk1a},
+					BundleType: GSK,
 				},
 			},
 		},
@@ -194,8 +202,9 @@ func Test_Build(t *testing.T) {
 			existingCacheEntries: []*cache.Entry{entry1},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
-					Entry: entry1,
-					GSKs:  []v1beta1.GcpSaKey{gsk1a, gsk1b},
+					Entry:      entry1,
+					GSKs:       []v1beta1.GcpSaKey{gsk1a, gsk1b},
+					BundleType: GSK,
 				},
 			},
 		},
@@ -206,8 +215,9 @@ func Test_Build(t *testing.T) {
 			existingCacheEntries: []*cache.Entry{entry1, entry2Broken},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
-					Entry: entry1,
-					GSKs:  []v1beta1.GcpSaKey{gsk1a},
+					Entry:      entry1,
+					GSKs:       []v1beta1.GcpSaKey{gsk1a},
+					BundleType: GSK,
 				},
 			},
 		},
@@ -218,8 +228,9 @@ func Test_Build(t *testing.T) {
 			existingCacheEntries: []*cache.Entry{entry1, entry2},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
-					Entry: entry1,
-					GSKs:  []v1beta1.GcpSaKey{gsk1a, gsk1b},
+					Entry:      entry1,
+					GSKs:       []v1beta1.GcpSaKey{gsk1a, gsk1b},
+					BundleType: GSK,
 				},
 			},
 		},
@@ -231,20 +242,23 @@ func Test_Build(t *testing.T) {
 			newCacheEntries:      []*cache.Entry{entry4},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
-					Entry: entry1,
-					GSKs:  []v1beta1.GcpSaKey{gsk1a, gsk1b},
+					Entry:      entry1,
+					GSKs:       []v1beta1.GcpSaKey{gsk1a, gsk1b},
+					BundleType: GSK,
 				},
 				"sa-2@p.com": {
-					Entry: entry2,
-					GSKs:  []v1beta1.GcpSaKey{gsk2a, gsk2b},
+					Entry:      entry2,
+					GSKs:       []v1beta1.GcpSaKey{gsk2a, gsk2b},
+					BundleType: GSK,
 				},
 				"sa-3@p.com": {
 					Entry: entry3,
 					GSKs:  nil,
 				},
 				"sa-4@p.com": {
-					Entry: entry4, // new entry created for sa-4
-					GSKs:  []v1beta1.GcpSaKey{gsk4a},
+					Entry:      entry4, // new entry created for sa-4
+					GSKs:       []v1beta1.GcpSaKey{gsk4a},
+					BundleType: GSK,
 				},
 			},
 		},
@@ -256,9 +270,10 @@ func Test_Build(t *testing.T) {
 			_cache.EXPECT().List().Return(tc.existingCacheEntries, nil)
 
 			for _, entry := range tc.newCacheEntries {
-				_cache.EXPECT().GetOrCreate(cache.ServiceAccount{
-					Email:   entry.ServiceAccount.Email,
-					Project: entry.ServiceAccount.Project,
+				_cache.EXPECT().GetOrCreate(cache.EntryIdentifier{
+					Email:   entry.EntryIdentifier.Email,
+					Project: entry.EntryIdentifier.Project,
+					Type:    cache.EntryType(GSK),
 				}).Return(entry, nil)
 			}
 
@@ -301,7 +316,7 @@ func Test_validateResourceBundle(t *testing.T) {
 			name: "should not return error if bundle has cache entry only",
 			input: &Bundle{
 				Entry: &cache.Entry{
-					ServiceAccount: cache.ServiceAccount{
+					EntryIdentifier: cache.EntryIdentifier{
 						Email:   "my-sa@p.com",
 						Project: "p",
 					},
@@ -333,7 +348,7 @@ func Test_validateResourceBundle(t *testing.T) {
 			name: "should not error if bundle and gsk match",
 			input: &Bundle{
 				Entry: &cache.Entry{
-					ServiceAccount: cache.ServiceAccount{
+					EntryIdentifier: cache.EntryIdentifier{
 						Email:   "my-sa@p.com",
 						Project: "p",
 					},
@@ -358,7 +373,7 @@ func Test_validateResourceBundle(t *testing.T) {
 			name: "should not error if bundle and gsks all match",
 			input: &Bundle{
 				Entry: &cache.Entry{
-					ServiceAccount: cache.ServiceAccount{
+					EntryIdentifier: cache.EntryIdentifier{
 						Email:   "my-sa@p.com",
 						Project: "p",
 					},
@@ -394,7 +409,7 @@ func Test_validateResourceBundle(t *testing.T) {
 			name: "should error if bundle and gsk do not match",
 			input: &Bundle{
 				Entry: &cache.Entry{
-					ServiceAccount: cache.ServiceAccount{
+					EntryIdentifier: cache.EntryIdentifier{
 						Email:   "my-sa@p.com",
 						Project: "p",
 					},
@@ -419,7 +434,7 @@ func Test_validateResourceBundle(t *testing.T) {
 			name: "should error if bundle and gsks do not all match",
 			input: &Bundle{
 				Entry: &cache.Entry{
-					ServiceAccount: cache.ServiceAccount{
+					EntryIdentifier: cache.EntryIdentifier{
 						Email:   "my-sa@p.com",
 						Project: "p",
 					},

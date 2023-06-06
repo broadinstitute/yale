@@ -11,8 +11,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type BundleType int
+
+const (
+	GSK BundleType = iota + 1
+	AzClientSecret
+)
+
 // Bundle represents a bundle of resources associated with a specific service account
 type Bundle struct {
+	BundleType
 	Entry *cache.Entry
 	// A bundle may contain either GSKs or AzClientSecrets, but not both
 	GSKs            []v1beta1.GcpSaKey
@@ -62,7 +70,7 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 
 		bundle, exists := result[email]
 		if !exists {
-			bundle = &Bundle{}
+			bundle = &Bundle{BundleType: GSK}
 			result[email] = bundle
 		}
 
@@ -73,7 +81,7 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 		applicationID := acs.Spec.AzureServicePrincipal.ApplicationID
 		bundle, exists := result[applicationID]
 		if !exists {
-			bundle = &Bundle{}
+			bundle = &Bundle{BundleType: AzClientSecret}
 			result[applicationID] = bundle
 		}
 
@@ -87,7 +95,7 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 	}
 
 	for _, entry := range cacheEntries {
-		email := entry.ServiceAccount.Email
+		email := entry.EntryIdentifier.Email
 		bundle, exists := result[email]
 		if !exists {
 			bundle = &Bundle{}
@@ -106,10 +114,11 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 
 	// add new empty cache entries for any bundles that don't have one
 	for email, bundle := range result {
-		if bundle.Entry == nil {
-			entry, err := m.cache.GetOrCreate(cache.ServiceAccount{
+		if bundle.Entry == nil && bundle.BundleType == GSK {
+			entry, err := m.cache.GetOrCreate(cache.EntryIdentifier{
 				Email:   email,
 				Project: bundle.GSKs[0].Spec.GoogleServiceAccount.Project,
+				Type:    cache.GcpSaKey,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("error creating new empty cache entry for service account %s: %v", email, err)
@@ -182,9 +191,9 @@ func validateResourceBundle(bundle *Bundle) error {
 	}
 
 	// make sure cache entry has same project as GSK(s)
-	if bundle.Entry.ServiceAccount.Project != cmp.Spec.GoogleServiceAccount.Project {
+	if bundle.Entry.EntryIdentifier.Project != cmp.Spec.GoogleServiceAccount.Project {
 		return fmt.Errorf("project mismatch: cache entry for service account %s has project %s, but GcpSaKey resources like %s/%s have project %s",
-			bundle.Entry.ServiceAccount.Email, bundle.Entry.ServiceAccount.Project,
+			bundle.Entry.EntryIdentifier.Email, bundle.Entry.EntryIdentifier.Project,
 			cmp.Namespace, cmp.Name, cmp.Spec.GoogleServiceAccount.Project)
 	}
 	return nil

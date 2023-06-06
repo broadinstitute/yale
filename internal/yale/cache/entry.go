@@ -3,22 +3,24 @@ package cache
 import (
 	"encoding/json"
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
 	"regexp"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 // only lower alphanumeric, ., and - are legal in the names of k8s resources
 var illegalK8sNameCharsRegexp = regexp.MustCompile(`[^a-z0-9.\-]`)
 
-// ServiceAccount identifying information for a service account
-type ServiceAccount struct {
-	Email   string // Email for the service account
-	Project string // Project the service account belongs to
+// EntryIdentifier identifying information for a service account
+type EntryIdentifier struct {
+	Email   string    // Email for the service account
+	Project string    // Project the service account belongs to
+	Type    EntryType // Type of the cache entry either GCPSAKey or AzureClientSecret are supported
 }
 
 // cacheSecretName return the name of the K8s secret that will be used to store the cache entry
-func (sa ServiceAccount) cacheSecretName() string {
+func (sa EntryIdentifier) cacheSecretName() string {
 	// replace any characters that are illegal in kubernetes resource names (eg. "@") with "-"
 	normalized := illegalK8sNameCharsRegexp.ReplaceAllString(sa.Email, "-")
 	// replace anything that's not alphanumeric or . or - with -
@@ -46,18 +48,25 @@ type CurrentKey struct {
 	CreatedAt time.Time
 }
 
-func newCacheEntry(account ServiceAccount) *Entry {
+func newCacheEntry(account EntryIdentifier) *Entry {
 	return &Entry{
-		ServiceAccount: account,
-		RotatedKeys:    make(map[string]time.Time),
-		DisabledKeys:   make(map[string]time.Time),
-		SyncStatus:     make(map[string]string),
+		EntryIdentifier: account,
+		RotatedKeys:     make(map[string]time.Time),
+		DisabledKeys:    make(map[string]time.Time),
+		SyncStatus:      make(map[string]string),
 	}
 }
 
+type EntryType int
+
+const (
+	GcpSaKey EntryType = iota + 1
+	AzureClientSecret
+)
+
 type Entry struct {
-	// ServiceAccount identifying information for the service account the key belongs to
-	ServiceAccount ServiceAccount
+	// EntryIdentifier identifying information for the service account the key belongs to
+	EntryIdentifier EntryIdentifier
 	// CurrentKey represents the current/active service account key that will
 	// be replicated to k8s secrets and Vault
 	CurrentKey CurrentKey
@@ -94,7 +103,7 @@ func (c *Entry) marshalToSecret(s *corev1.Secret) error {
 	if err != nil {
 		return fmt.Errorf("error marshalling Entry to JSON: %v", err)
 	}
-	name := c.ServiceAccount.cacheSecretName()
+	name := c.EntryIdentifier.cacheSecretName()
 	if s.Name == "" {
 		s.Name = name
 	} else if s.Name != name {
