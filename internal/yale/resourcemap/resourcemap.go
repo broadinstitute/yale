@@ -258,10 +258,10 @@ func validateResourceBundle(bundle *Bundle) error {
 		// we have at least 2 AzureClientSecrets, make sure they all match each other
 		if len(bundle.AzClientSecrets) > 1 {
 			for _, azClientSecret := range bundle.AzClientSecrets {
-				if azClientSecret.Spec.AzureServicePrincipal.ApplicationID != cmp.Spec.AzureServicePrincipal.ApplicationID {
+				if azClientSecret.Spec.AzureServicePrincipal.TenantID != cmp.Spec.AzureServicePrincipal.TenantID {
 					return fmt.Errorf("application id mismatch: AzureClientSecret resource %s/%s for %s has invalid spec: application id %s does not match %s/%s application id %s",
-						azClientSecret.Namespace, azClientSecret.Name, azClientSecret.Spec.AzureServicePrincipal.ApplicationID, azClientSecret.Spec.AzureServicePrincipal.ApplicationID,
-						cmp.Namespace, cmp.Name, cmp.Spec.AzureServicePrincipal.ApplicationID)
+						azClientSecret.Namespace, azClientSecret.Name, azClientSecret.Spec.AzureServicePrincipal.TenantID, azClientSecret.Spec.AzureServicePrincipal.TenantID,
+						cmp.Namespace, cmp.Name, cmp.Spec.AzureServicePrincipal.TenantID)
 				}
 			}
 		}
@@ -272,7 +272,7 @@ func validateResourceBundle(bundle *Bundle) error {
 		}
 
 		// make sure cache entry has same application id as AzureClientSecret(s)
-		if bundle.Entry.EntryIdentifier.ApplicationID != cmp.Spec.AzureServicePrincipal.ApplicationID {
+		if bundle.Entry.EntryIdentifier.TenantID != cmp.Spec.AzureServicePrincipal.TenantID {
 			return fmt.Errorf("application id mismatch: cache entry for application client id %s has application id %s, but AzureClientSecret resources like %s/%s have application id %s",
 				bundle.Entry.EntryIdentifier.Email, bundle.Entry.EntryIdentifier.TenantID,
 				cmp.Namespace, cmp.Name, cmp.Spec.AzureServicePrincipal.TenantID)
