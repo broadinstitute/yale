@@ -315,6 +315,7 @@ func Test_validateResourceBundle(t *testing.T) {
 		{
 			name: "should not return error if bundle has cache entry only",
 			input: &Bundle{
+				BundleType: GSK,
 				Entry: &cache.Entry{
 					EntryIdentifier: cache.EntryIdentifier{
 						Email:   "my-sa@p.com",
@@ -328,6 +329,7 @@ func Test_validateResourceBundle(t *testing.T) {
 		{
 			name: "should not error if bundle has gsk only",
 			input: &Bundle{
+				BundleType: GSK,
 				GSKs: []v1beta1.GcpSaKey{
 					{
 						ObjectMeta: metav1.ObjectMeta{
@@ -347,6 +349,7 @@ func Test_validateResourceBundle(t *testing.T) {
 		{
 			name: "should not error if bundle and gsk match",
 			input: &Bundle{
+				BundleType: GSK,
 				Entry: &cache.Entry{
 					EntryIdentifier: cache.EntryIdentifier{
 						Email:   "my-sa@p.com",
@@ -372,6 +375,7 @@ func Test_validateResourceBundle(t *testing.T) {
 		{
 			name: "should not error if bundle and gsks all match",
 			input: &Bundle{
+				BundleType: GSK,
 				Entry: &cache.Entry{
 					EntryIdentifier: cache.EntryIdentifier{
 						Email:   "my-sa@p.com",
@@ -408,6 +412,7 @@ func Test_validateResourceBundle(t *testing.T) {
 		{
 			name: "should error if bundle and gsk do not match",
 			input: &Bundle{
+				BundleType: GSK,
 				Entry: &cache.Entry{
 					EntryIdentifier: cache.EntryIdentifier{
 						Email:   "my-sa@p.com",
@@ -433,10 +438,12 @@ func Test_validateResourceBundle(t *testing.T) {
 		{
 			name: "should error if bundle and gsks do not all match",
 			input: &Bundle{
+				BundleType: GSK,
 				Entry: &cache.Entry{
 					EntryIdentifier: cache.EntryIdentifier{
 						Email:   "my-sa@p.com",
 						Project: "p",
+						Type:    cache.GcpSaKey,
 					},
 				},
 				GSKs: []v1beta1.GcpSaKey{
@@ -476,6 +483,36 @@ func Test_validateResourceBundle(t *testing.T) {
 				},
 			},
 			errContains: "project mismatch",
+		},
+		{
+			name: "should error if bundle contains both gsks and AzClientSecrets",
+			input: &Bundle{
+				BundleType: GSK,
+				Entry: &cache.Entry{
+					EntryIdentifier: cache.EntryIdentifier{
+						Email:   "my-identifier",
+						Project: "p",
+						Type:    cache.GcpSaKey,
+					},
+				},
+				GSKs: []v1beta1.GcpSaKey{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "gsk-1",
+							Namespace: "ns-1",
+						},
+						Spec: v1beta1.GCPSaKeySpec{
+							GoogleServiceAccount: v1beta1.GoogleServiceAccount{
+								Project: "p",
+							},
+						},
+					},
+				},
+				AzClientSecrets: []v1beta1.AzureClientSecret{
+					acs1a,
+				},
+			},
+			errContains: "unique resource conflict",
 		},
 	}
 

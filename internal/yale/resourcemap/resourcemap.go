@@ -11,12 +11,24 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// BundleType is an enum representing the different types of bundles. A bundle may contain either GSKs or AzClientSecrets, but not both
 type BundleType int
 
 const (
 	GSK BundleType = iota + 1
 	AzClientSecret
 )
+
+func (b BundleType) String() string {
+	switch b {
+	case GSK:
+		return "Google Service Account Key"
+	case AzClientSecret:
+		return "Azure Client Secret"
+	default:
+		return "Unknown"
+	}
+}
 
 // Bundle represents a bundle of resources associated with a specific service account
 type Bundle struct {
@@ -105,23 +117,23 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 	}
 
 	// filter invalid bundles
-	for email, bundle := range result {
+	for identifier, bundle := range result {
 		if err = validateResourceBundle(bundle); err != nil {
-			logs.Warn.Printf("invalid cluster resources for service account %s, won't process: %v", email, err)
-			delete(result, email)
+			logs.Warn.Printf("invalid cluster resources for service account %s, won't process: %v", identifier, err)
+			delete(result, identifier)
 		}
 	}
 
 	// add new empty cache entries for any bundles that don't have one
-	for email, bundle := range result {
+	for identifier, bundle := range result {
 		if bundle.Entry == nil && bundle.BundleType == GSK {
 			entry, err := m.cache.GetOrCreate(cache.EntryIdentifier{
-				Email:   email,
+				Email:   identifier,
 				Project: bundle.GSKs[0].Spec.GoogleServiceAccount.Project,
-				Type:    cache.GcpSaKey,
+				Type:    cache.EntryType(bundle.BundleType),
 			})
 			if err != nil {
-				return nil, fmt.Errorf("error creating new empty cache entry for service account %s: %v", email, err)
+				return nil, fmt.Errorf("error creating new empty cache entry for service account %s: %v", identifier, err)
 			}
 			bundle.Entry = entry
 		}
@@ -161,40 +173,96 @@ func (m *mapper) listAzureClientSecrets() ([]v1beta1.AzureClientSecret, error) {
 		return nil, fmt.Errorf("error retrieving list of AzureClientSecret CRDs from cluster: %v", err)
 	}
 
-	return list.Items, nil
+	var result []v1beta1.AzureClientSecret
+	for _, azureClientSecret := range list.Items {
+		if azureClientSecret.Spec.AzureServicePrincipal.ApplicationID == "" {
+			logs.Warn.Printf("AzureClientSecret resource %s/%s has invalid spec: missing azure service principal application id", azureClientSecret.Namespace, azureClientSecret.Name)
+			continue
+		}
+		if azureClientSecret.Spec.AzureServicePrincipal.TenantID == "" {
+			logs.Warn.Printf("AzureClientSecret resource %s/%s has invalid spec: missing azure service principal tenant id", azureClientSecret.Namespace, azureClientSecret.Name)
+			continue
+		}
+		result = append(result, azureClientSecret)
+	}
+
+	return result, nil
 }
 
 // validateResourceBundle verifies that the GcpSaKeys and cache entry in the bundle don't conflict with each other
 func validateResourceBundle(bundle *Bundle) error {
-	// we have no GSKs, so no need to check if GSKs don't match each other or the cache entry
-	if len(bundle.GSKs) == 0 {
+	// A bundle shouldn't have both GSKs and AzureClientSecrets
+	if len(bundle.GSKs) > 0 && len(bundle.AzClientSecrets) > 0 {
+		return fmt.Errorf("unique resource conflict: GcpSaKey and AzureClientSecrets cannot use the same identifier(service account email or application client id) for the same yale managed resource: identifier %s",
+			bundle.GSKs[0].Spec.GoogleServiceAccount.Name)
+	}
+
+	// if we have only a cache entry, we're good
+	if len(bundle.GSKs) == 0 && len(bundle.AzClientSecrets) == 0 {
 		return nil
 	}
 
-	// we have at least one GSK - use first as "source of truth" for comparison with other resources
-	cmp := bundle.GSKs[0]
+	// we have no GSKs, so no need to check if GSKs don't match each other or the cache entry
+	if bundle.BundleType == GSK {
+		if len(bundle.GSKs) == 0 {
+			return nil
+		}
 
-	// we have at least 2 GSKs, make sure they all match each other
-	if len(bundle.GSKs) > 1 {
-		for _, gsk := range bundle.GSKs {
-			if gsk.Spec.GoogleServiceAccount.Project != cmp.Spec.GoogleServiceAccount.Project {
-				return fmt.Errorf("project mismatch: GcpSaKey resource %s/%s for %s has invalid spec: project %s does not match %s/%s project %s",
-					gsk.Namespace, gsk.Name, gsk.Spec.GoogleServiceAccount.Name, gsk.Spec.GoogleServiceAccount.Project,
-					cmp.Namespace, cmp.Name, cmp.Spec.GoogleServiceAccount.Project)
+		// we have at least one GSK - use first as "source of truth" for comparison with other resources
+		cmp := bundle.GSKs[0]
+
+		// we have at least 2 GSKs, make sure they all match each other
+		if len(bundle.GSKs) > 1 {
+			for _, gsk := range bundle.GSKs {
+				if gsk.Spec.GoogleServiceAccount.Project != cmp.Spec.GoogleServiceAccount.Project {
+					return fmt.Errorf("project mismatch: GcpSaKey resource %s/%s for %s has invalid spec: project %s does not match %s/%s project %s",
+						gsk.Namespace, gsk.Name, gsk.Spec.GoogleServiceAccount.Name, gsk.Spec.GoogleServiceAccount.Project,
+						cmp.Namespace, cmp.Name, cmp.Spec.GoogleServiceAccount.Project)
+				}
 			}
 		}
-	}
 
-	if bundle.Entry == nil {
-		// no cache entry to validate
+		if bundle.Entry == nil {
+			// no cache entry to validate
+			return nil
+		}
+
+		// make sure cache entry has same project as GSK(s)
+		if bundle.Entry.EntryIdentifier.Project != cmp.Spec.GoogleServiceAccount.Project {
+			return fmt.Errorf("project mismatch: cache entry for service account %s has project %s, but GcpSaKey resources like %s/%s have project %s",
+				bundle.Entry.EntryIdentifier.Email, bundle.Entry.EntryIdentifier.Project,
+				cmp.Namespace, cmp.Name, cmp.Spec.GoogleServiceAccount.Project)
+		}
+		return nil
+
+	} else if bundle.BundleType == AzClientSecret {
+		// we have at least one AzureClientSecret - use first as "source of truth" for comparison with other resources
+		cmp := bundle.AzClientSecrets[0]
+
+		// we have at least 2 AzureClientSecrets, make sure they all match each other
+		if len(bundle.AzClientSecrets) > 1 {
+			for _, azClientSecret := range bundle.AzClientSecrets {
+				if azClientSecret.Spec.AzureServicePrincipal.ApplicationID != cmp.Spec.AzureServicePrincipal.ApplicationID {
+					return fmt.Errorf("tenant id mismatch: AzureClientSecret resource %s/%s for %s has invalid spec: tenant id %s does not match %s/%s tenant id %s",
+						azClientSecret.Namespace, azClientSecret.Name, azClientSecret.Spec.AzureServicePrincipal.ApplicationID, azClientSecret.Spec.AzureServicePrincipal.ApplicationID,
+						cmp.Namespace, cmp.Name, cmp.Spec.AzureServicePrincipal.ApplicationID)
+				}
+			}
+		}
+
+		if bundle.Entry == nil {
+			// no cache entry to validate
+			return nil
+		}
+
+		// make sure cache entry has same application id as AzureClientSecret(s)
+		if bundle.Entry.EntryIdentifier.ApplicationID != cmp.Spec.AzureServicePrincipal.ApplicationID {
+			return fmt.Errorf("tenant id mismatch: cache entry for application client id %s has tenant id %s, but AzureClientSecret resources like %s/%s have tenant id %s",
+				bundle.Entry.EntryIdentifier.Email, bundle.Entry.EntryIdentifier.TenantID,
+				cmp.Namespace, cmp.Name, cmp.Spec.AzureServicePrincipal.TenantID)
+		}
 		return nil
 	}
 
-	// make sure cache entry has same project as GSK(s)
-	if bundle.Entry.EntryIdentifier.Project != cmp.Spec.GoogleServiceAccount.Project {
-		return fmt.Errorf("project mismatch: cache entry for service account %s has project %s, but GcpSaKey resources like %s/%s have project %s",
-			bundle.Entry.EntryIdentifier.Email, bundle.Entry.EntryIdentifier.Project,
-			cmp.Namespace, cmp.Name, cmp.Spec.GoogleServiceAccount.Project)
-	}
-	return nil
+	return fmt.Errorf("unknown bundle type: %s", bundle.BundleType)
 }

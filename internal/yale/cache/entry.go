@@ -14,9 +14,11 @@ var illegalK8sNameCharsRegexp = regexp.MustCompile(`[^a-z0-9.\-]`)
 
 // EntryIdentifier identifying information for a service account
 type EntryIdentifier struct {
-	Email   string    // Email for the service account
-	Project string    // Project the service account belongs to
-	Type    EntryType // Type of the cache entry either GCPSAKey or AzureClientSecret are supported
+	Email         string    // Email for the service account
+	Project       string    // Project the service account belongs to
+	ApplicationID string    `json:"omitempty"` // Application ID for the Azure client secret
+	TenantID      string    `json:"omitempty"` // Tenant ID for the Azure client secrets
+	Type          EntryType // Type of the cache entry either GCPSAKey or AzureClientSecret are supported
 }
 
 // cacheSecretName return the name of the K8s secret that will be used to store the cache entry
