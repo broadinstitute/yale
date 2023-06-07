@@ -280,11 +280,19 @@ func Test_Build(t *testing.T) {
 			_cache.EXPECT().List().Return(tc.existingCacheEntries, nil)
 
 			for _, entry := range tc.newCacheEntries {
-				_cache.EXPECT().GetOrCreate(cache.EntryIdentifier{
-					Email:   entry.EntryIdentifier.Email,
-					Project: entry.EntryIdentifier.Project,
-					Type:    cache.EntryType(GSK),
-				}).Return(entry, nil)
+				if entry.EntryIdentifier.Type == cache.GcpSaKey {
+					_cache.EXPECT().GetOrCreate(cache.EntryIdentifier{
+						Email:   entry.EntryIdentifier.Email,
+						Project: entry.EntryIdentifier.Project,
+						Type:    entry.EntryIdentifier.Type,
+					}).Return(entry, nil)
+				} else if entry.EntryIdentifier.Type == cache.AzureClientSecret {
+					_cache.EXPECT().GetOrCreate(cache.EntryIdentifier{
+						ApplicationID: entry.EntryIdentifier.ApplicationID,
+						TenantID:      entry.EntryIdentifier.TenantID,
+						Type:          entry.EntryIdentifier.Type,
+					}).Return(entry, nil)
+				}
 			}
 
 			gskEndpoint := crdmocks.NewGcpSaKeyInterface(t)
