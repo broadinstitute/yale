@@ -39,12 +39,12 @@ type Bundle struct {
 	AzClientSecrets []v1beta1.AzureClientSecret
 }
 
-// Mapper inspects all the GcpSaKeys and Cache entries in the cluster and organizes
+// Mapper inspects all the GcpSaKeys, AzureClientSecrets and Cache entries in the cluster and organizes
 // them into a map[string]*Bundle, where the key is the service account email and
 // value is a bundle of all GcpSaKeys associated with that service account, as well
 // as its cache entry.
 type Mapper interface {
-	// Build inspects all the GcpSaKeys and Cache entries in the cluster and organizes
+	// Build inspects all the GcpSaKeys, AzureClientSecrets and Cache entries in the cluster and organizes
 	// them into a map[string]*Bundle, where the key is the service account email and
 	// value is a bundle of all GcpSaKeys associated with that service account, as well
 	// as its cache entry.
@@ -107,13 +107,23 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 	}
 
 	for _, entry := range cacheEntries {
-		email := entry.EntryIdentifier.Email
-		bundle, exists := result[email]
-		if !exists {
-			bundle = &Bundle{}
-			result[email] = bundle
+		if entry.EntryIdentifier.Type == cache.GcpSaKey {
+			email := entry.EntryIdentifier.Email
+			bundle, exists := result[email]
+			if !exists {
+				bundle = &Bundle{}
+				result[email] = bundle
+			}
+			bundle.Entry = entry
+		} else if entry.EntryIdentifier.Type == cache.AzureClientSecret {
+			applicationID := entry.EntryIdentifier.ApplicationID
+			bundle, exists := result[applicationID]
+			if !exists {
+				bundle = &Bundle{}
+				result[applicationID] = bundle
+			}
+			bundle.Entry = entry
 		}
-		bundle.Entry = entry
 	}
 
 	// filter invalid bundles
@@ -249,7 +259,7 @@ func validateResourceBundle(bundle *Bundle) error {
 		if len(bundle.AzClientSecrets) > 1 {
 			for _, azClientSecret := range bundle.AzClientSecrets {
 				if azClientSecret.Spec.AzureServicePrincipal.ApplicationID != cmp.Spec.AzureServicePrincipal.ApplicationID {
-					return fmt.Errorf("tenant id mismatch: AzureClientSecret resource %s/%s for %s has invalid spec: tenant id %s does not match %s/%s tenant id %s",
+					return fmt.Errorf("application id mismatch: AzureClientSecret resource %s/%s for %s has invalid spec: application id %s does not match %s/%s application id %s",
 						azClientSecret.Namespace, azClientSecret.Name, azClientSecret.Spec.AzureServicePrincipal.ApplicationID, azClientSecret.Spec.AzureServicePrincipal.ApplicationID,
 						cmp.Namespace, cmp.Name, cmp.Spec.AzureServicePrincipal.ApplicationID)
 				}
@@ -263,7 +273,7 @@ func validateResourceBundle(bundle *Bundle) error {
 
 		// make sure cache entry has same application id as AzureClientSecret(s)
 		if bundle.Entry.EntryIdentifier.ApplicationID != cmp.Spec.AzureServicePrincipal.ApplicationID {
-			return fmt.Errorf("tenant id mismatch: cache entry for application client id %s has tenant id %s, but AzureClientSecret resources like %s/%s have tenant id %s",
+			return fmt.Errorf("application id mismatch: cache entry for application client id %s has application id %s, but AzureClientSecret resources like %s/%s have application id %s",
 				bundle.Entry.EntryIdentifier.Email, bundle.Entry.EntryIdentifier.TenantID,
 				cmp.Namespace, cmp.Name, cmp.Spec.AzureServicePrincipal.TenantID)
 		}

@@ -104,16 +104,19 @@ var fourHoursAgo = now.Add(-4 * time.Hour).Round(0)
 var sa1 = cache.EntryIdentifier{
 	Email:   "s1@p.com",
 	Project: "p",
+	Type:    cache.GcpSaKey,
 }
 
 var sa2 = cache.EntryIdentifier{
 	Email:   "s2@p.com",
 	Project: "p.com",
+	Type:    cache.GcpSaKey,
 }
 
 var sa3 = cache.EntryIdentifier{
 	Email:   "s3@p.com",
 	Project: "p.com",
+	Type:    cache.GcpSaKey,
 }
 
 var sa1key1 = key{

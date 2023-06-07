@@ -206,6 +206,18 @@ func Test_Build(t *testing.T) {
 			},
 		},
 		{
+			name:                 "one cache entry cache, matches one acs in cluster",
+			azClientSecrets:      []v1beta1.AzureClientSecret{acs1a},
+			existingCacheEntries: []*cache.Entry{acsEntry1},
+			expected: map[string]*Bundle{
+				"app-id-1": {
+					Entry:           acsEntry1,
+					AzClientSecrets: []v1beta1.AzureClientSecret{acs1a},
+					BundleType:      AzClientSecret,
+				},
+			},
+		},
+		{
 			name:                 "one cache entry cache, matches two gsks in cluster",
 			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk1b},
 			azClientSecrets:      []v1beta1.AzureClientSecret{},
