@@ -143,6 +143,14 @@ var entry4 = &cache.Entry{
 	},
 }
 
+var acsEntry1 = &cache.Entry{
+	EntryIdentifier: cache.EntryIdentifier{
+		Type:          cache.AzureClientSecret,
+		ApplicationID: "app-id-1",
+		TenantID:      "tenant-id-1",
+	},
+}
+
 func Test_Build(t *testing.T) {
 	testCases := []struct {
 		name                 string
@@ -175,8 +183,10 @@ func Test_Build(t *testing.T) {
 			name:            "empty cache, one acs in cluster",
 			gsks:            []v1beta1.GcpSaKey{},
 			azClientSecrets: []v1beta1.AzureClientSecret{acs1a},
+			newCacheEntries: []*cache.Entry{acsEntry1},
 			expected: map[string]*Bundle{
 				"app-id-1": {
+					Entry:           acsEntry1, // new entry created for app-id-1
 					AzClientSecrets: []v1beta1.AzureClientSecret{acs1a},
 					BundleType:      AzClientSecret,
 				},

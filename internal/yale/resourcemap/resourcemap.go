@@ -136,6 +136,16 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 				return nil, fmt.Errorf("error creating new empty cache entry for service account %s: %v", identifier, err)
 			}
 			bundle.Entry = entry
+		} else if bundle.Entry == nil && bundle.BundleType == AzClientSecret {
+			entry, err := m.cache.GetOrCreate(cache.EntryIdentifier{
+				ApplicationID: identifier,
+				TenantID:      bundle.AzClientSecrets[0].Spec.AzureServicePrincipal.TenantID,
+				Type:          cache.EntryType(bundle.BundleType),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("error creating new empty cache entry for az client secret %s: %v", identifier, err)
+			}
+			bundle.Entry = entry
 		}
 	}
 
@@ -204,10 +214,6 @@ func validateResourceBundle(bundle *Bundle) error {
 
 	// we have no GSKs, so no need to check if GSKs don't match each other or the cache entry
 	if bundle.BundleType == GSK {
-		if len(bundle.GSKs) == 0 {
-			return nil
-		}
-
 		// we have at least one GSK - use first as "source of truth" for comparison with other resources
 		cmp := bundle.GSKs[0]
 
