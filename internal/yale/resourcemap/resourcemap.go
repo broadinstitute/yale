@@ -115,6 +115,7 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 				result[email] = bundle
 			}
 			bundle.Entry = entry
+			bundle.BundleType = GSK
 		} else if entry.EntryIdentifier.Type == cache.AzureClientSecret {
 			applicationID := entry.EntryIdentifier.ApplicationID
 			bundle, exists := result[applicationID]
@@ -123,6 +124,7 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 				result[applicationID] = bundle
 			}
 			bundle.Entry = entry
+			bundle.BundleType = AzClientSecret
 		}
 	}
 

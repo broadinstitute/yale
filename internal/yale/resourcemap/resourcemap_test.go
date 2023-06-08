@@ -411,8 +411,9 @@ func Test_Build(t *testing.T) {
 					BundleType: GSK,
 				},
 				"sa-3@p.com": {
-					Entry: entry3,
-					GSKs:  nil,
+					Entry:      entry3,
+					GSKs:       nil,
+					BundleType: GSK,
 				},
 				"sa-4@p.com": {
 					Entry:      entry4, // new entry created for sa-4
@@ -425,7 +426,7 @@ func Test_Build(t *testing.T) {
 			name:                 "multiple entries including gsks and acss",
 			gsks:                 []v1beta1.GcpSaKey{gsk1a, gsk1b, gsk2a, gsk2b, gsk4a},
 			azClientSecrets:      []v1beta1.AzureClientSecret{acs1a, acs1b, acs2a, acs2b, acs4a},
-			existingCacheEntries: []*cache.Entry{entry1, entry2, entry3, acsEntry1, acsEntry2},
+			existingCacheEntries: []*cache.Entry{entry1, entry2, entry3, acsEntry1, acsEntry2, acsEntry3},
 			newCacheEntries:      []*cache.Entry{entry4, acsEntry4},
 			expected: map[string]*Bundle{
 				"sa-1@p.com": {
@@ -439,8 +440,9 @@ func Test_Build(t *testing.T) {
 					BundleType: GSK,
 				},
 				"sa-3@p.com": {
-					Entry: entry3,
-					GSKs:  nil,
+					Entry:      entry3,
+					GSKs:       nil,
+					BundleType: GSK,
 				},
 				"sa-4@p.com": {
 					Entry:      entry4, // new entry created for sa-4
