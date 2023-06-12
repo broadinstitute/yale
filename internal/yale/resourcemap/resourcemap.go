@@ -11,28 +11,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// BundleType is an enum representing the different types of bundles. A bundle may contain either GSKs or AzClientSecrets, but not both
-type BundleType int
-
-const (
-	GSK BundleType = iota + 1
-	AzClientSecret
-)
-
-func (b BundleType) String() string {
-	switch b {
-	case GSK:
-		return "Google Service Account Key"
-	case AzClientSecret:
-		return "Azure Client Secret"
-	default:
-		return "Unknown"
-	}
-}
-
 // Bundle represents a bundle of resources associated with a specific service account
 type Bundle struct {
-	BundleType
 	Entry *cache.Entry
 	// A bundle may contain either GSKs or AzClientSecrets, but not both
 	GSKs            []v1beta1.GcpSaKey
@@ -82,7 +62,7 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 
 		bundle, exists := result[email]
 		if !exists {
-			bundle = &Bundle{BundleType: GSK}
+			bundle = &Bundle{}
 			result[email] = bundle
 		}
 
@@ -93,7 +73,7 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 		applicationID := acs.Spec.AzureServicePrincipal.ApplicationID
 		bundle, exists := result[applicationID]
 		if !exists {
-			bundle = &Bundle{BundleType: AzClientSecret}
+			bundle = &Bundle{}
 			result[applicationID] = bundle
 		}
 
@@ -115,7 +95,6 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 				result[email] = bundle
 			}
 			bundle.Entry = entry
-			bundle.BundleType = GSK
 		} else if entry.EntryIdentifier.Type == cache.AzureClientSecret {
 			applicationID := entry.EntryIdentifier.ApplicationID
 			bundle, exists := result[applicationID]
@@ -124,7 +103,6 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 				result[applicationID] = bundle
 			}
 			bundle.Entry = entry
-			bundle.BundleType = AzClientSecret
 		}
 	}
 
@@ -138,21 +116,21 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 
 	// add new empty cache entries for any bundles that don't have one
 	for identifier, bundle := range result {
-		if bundle.Entry == nil && bundle.BundleType == GSK {
+		if bundle.Entry == nil && bundle.GSKs != nil {
 			entry, err := m.cache.GetOrCreate(cache.EntryIdentifier{
 				Email:   identifier,
 				Project: bundle.GSKs[0].Spec.GoogleServiceAccount.Project,
-				Type:    cache.EntryType(bundle.BundleType),
+				Type:    cache.GcpSaKey,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("error creating new empty cache entry for service account %s: %v", identifier, err)
 			}
 			bundle.Entry = entry
-		} else if bundle.Entry == nil && bundle.BundleType == AzClientSecret {
+		} else if bundle.Entry == nil && bundle.AzClientSecrets != nil {
 			entry, err := m.cache.GetOrCreate(cache.EntryIdentifier{
 				ApplicationID: identifier,
 				TenantID:      bundle.AzClientSecrets[0].Spec.AzureServicePrincipal.TenantID,
-				Type:          cache.EntryType(bundle.BundleType),
+				Type:          cache.AzureClientSecret,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("error creating new empty cache entry for az client secret %s: %v", identifier, err)
@@ -225,7 +203,7 @@ func validateResourceBundle(bundle *Bundle) error {
 	}
 
 	// we have no GSKs, so no need to check if GSKs don't match each other or the cache entry
-	if bundle.BundleType == GSK {
+	if bundle.GSKs != nil || len(bundle.GSKs) != 0 {
 		// we have at least one GSK - use first as "source of truth" for comparison with other resources
 		cmp := bundle.GSKs[0]
 
@@ -253,8 +231,8 @@ func validateResourceBundle(bundle *Bundle) error {
 		}
 		return nil
 
-	} else if bundle.BundleType == AzClientSecret {
 		// we have at least one AzureClientSecret - use first as "source of truth" for comparison with other resources
+	} else if bundle.AzClientSecrets != nil || len(bundle.AzClientSecrets) != 0 {
 		cmp := bundle.AzClientSecrets[0]
 
 		// we have at least 2 AzureClientSecrets, make sure they all match each other
@@ -279,8 +257,10 @@ func validateResourceBundle(bundle *Bundle) error {
 				bundle.Entry.EntryIdentifier.Email, bundle.Entry.EntryIdentifier.TenantID,
 				cmp.Namespace, cmp.Name, cmp.Spec.AzureServicePrincipal.TenantID)
 		}
+
 		return nil
 	}
 
-	return fmt.Errorf("unknown bundle type: %s", bundle.BundleType)
+	// if only a cache entry, we're good
+	return nil
 }
