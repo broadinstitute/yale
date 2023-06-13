@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -18,17 +19,29 @@ import (
 const namespace = "my-cache-namespace"
 const project = "my-project"
 
-var sa1 = EntryIdentifier{
+var sa1 = GcpSaKeyEntryIdentifier{
 	Email:   "my-sa1@p.com",
 	Project: project,
 }
-var sa2 = EntryIdentifier{
+var sa2 = GcpSaKeyEntryIdentifier{
 	Email:   "my-sa2@p.com",
 	Project: project,
 }
-var sa3 = EntryIdentifier{
+var sa3 = GcpSaKeyEntryIdentifier{
 	Email:   "my-sa3@p.com",
 	Project: project,
+}
+var azClientSecret1 = AzureClientSecretEntryIdentifier{
+	ApplicationID: "my-app-id-1",
+	TenantID:      "my-tenant-id-1",
+}
+var azClientSecret2 = AzureClientSecretEntryIdentifier{
+	ApplicationID: "my-app-id-2",
+	TenantID:      "my-tenant-id-2",
+}
+var azClientSecret3 = AzureClientSecretEntryIdentifier{
+	ApplicationID: "my-app-id-3",
+	TenantID:      "my-tenant-id-3",
 }
 
 func Test_Cache(t *testing.T) {
@@ -52,6 +65,7 @@ func Test_Cache(t *testing.T) {
 
 	// make sure the underlying secret was created with the attributes we expect
 	secret = readCacheSecret(t, k8s, sa1.cacheSecretName())
+	fmt.Printf("%+v", secret)
 	require.NotNil(t, secret)
 	expectedContent, err := json.Marshal(expected)
 	require.NoError(t, err)
@@ -190,12 +204,9 @@ func readCacheSecret(t *testing.T, k8s kubernetes.Interface, name string) *corev
 }
 
 // represents the expected initial state of a new/empty cache entry
-func emptyCacheEntry(sa EntryIdentifier) Entry {
+func emptyCacheEntry(identifier Identifier) Entry {
 	return Entry{
-		EntryIdentifier: EntryIdentifier{
-			Email:   sa.Email,
-			Project: sa.Project,
-		},
+		Identifier: identifier,
 		CurrentKey: struct {
 			JSON      string
 			ID        string

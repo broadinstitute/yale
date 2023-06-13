@@ -12,6 +12,63 @@ import (
 // only lower alphanumeric, ., and - are legal in the names of k8s resources
 var illegalK8sNameCharsRegexp = regexp.MustCompile(`[^a-z0-9.\-]`)
 
+type Identifier interface {
+	Identify() string
+	// Scope is the hierarchiical containing resource within which a service account or client secret exists
+	// For GCP this is the project, for Azure this is the tenant
+	Scope() string
+	Type() EntryType
+	cacheSecretName() string
+}
+
+type GcpSaKeyEntryIdentifier struct {
+	Email   string
+	Project string
+}
+
+func (gcpIdentifier GcpSaKeyEntryIdentifier) Identify() string {
+	return gcpIdentifier.Email
+}
+
+func (GcpSaKeyEntryIdentifier) Type() EntryType {
+	return GcpSaKey
+}
+
+func (gcpIdentifier GcpSaKeyEntryIdentifier) Scope() string {
+	return gcpIdentifier.Project
+}
+
+func (gcpIdentifier GcpSaKeyEntryIdentifier) cacheSecretName() string {
+	// replace any characters that are illegal in kubernetes resource names (eg. "@") with "-"
+	normalized := illegalK8sNameCharsRegexp.ReplaceAllString(gcpIdentifier.Email, "-")
+	// replace anything that's not alphanumeric or . or - with -
+	return secretNamePrefix + normalized
+}
+
+type AzureClientSecretEntryIdentifier struct {
+	ApplicationID string
+	TenantID      string
+}
+
+func (azureIdentifier AzureClientSecretEntryIdentifier) Identify() string {
+	return azureIdentifier.ApplicationID
+}
+
+func (azureIdentifier AzureClientSecretEntryIdentifier) Scope() string {
+	return azureIdentifier.TenantID
+}
+
+func (AzureClientSecretEntryIdentifier) Type() EntryType {
+	return AzureClientSecret
+}
+
+func (azureIdentifier AzureClientSecretEntryIdentifier) cacheSecretName() string {
+	// replace any characters that are illegal in kubernetes resource names (eg. "@") with "-"
+	normalized := illegalK8sNameCharsRegexp.ReplaceAllString(azureIdentifier.ApplicationID, "-")
+	// replace anything that's not alphanumeric or . or - with -
+	return secretNamePrefix + normalized
+}
+
 // EntryIdentifier identifying information for a service account
 type EntryIdentifier struct {
 	Email         string    // Email for the service account
@@ -50,12 +107,12 @@ type CurrentKey struct {
 	CreatedAt time.Time
 }
 
-func newCacheEntry(account EntryIdentifier) *Entry {
+func newCacheEntry[I Identifier](identifier I) *Entry {
 	return &Entry{
-		EntryIdentifier: account,
-		RotatedKeys:     make(map[string]time.Time),
-		DisabledKeys:    make(map[string]time.Time),
-		SyncStatus:      make(map[string]string),
+		Identifier:   identifier,
+		RotatedKeys:  make(map[string]time.Time),
+		DisabledKeys: make(map[string]time.Time),
+		SyncStatus:   make(map[string]string),
 	}
 }
 
@@ -68,7 +125,7 @@ const (
 
 type Entry struct {
 	// EntryIdentifier identifying information for the service account the key belongs to
-	EntryIdentifier EntryIdentifier
+	Identifier
 	// CurrentKey represents the current/active service account key that will
 	// be replicated to k8s secrets and Vault
 	CurrentKey CurrentKey
@@ -105,7 +162,7 @@ func (c *Entry) marshalToSecret(s *corev1.Secret) error {
 	if err != nil {
 		return fmt.Errorf("error marshalling Entry to JSON: %v", err)
 	}
-	name := c.EntryIdentifier.cacheSecretName()
+	name := c.Identifier.cacheSecretName()
 	if s.Name == "" {
 		s.Name = name
 	} else if s.Name != name {
