@@ -42,7 +42,7 @@ func Test_SlackNotifier_KeyIssued(t *testing.T) {
 	).Return(nil)
 
 	require.NoError(t, s.KeyIssued(&cache.Entry{
-		EntryIdentifier: cache.EntryIdentifier{
+		Identifier: cache.GcpSaKeyEntryIdentifier{
 			Email:   "sa1@p.com",
 			Project: "p",
 		},
@@ -80,7 +80,7 @@ func Test_SlackNotifier_KeyDisabled(t *testing.T) {
 	).Return(nil)
 
 	require.NoError(t, s.KeyDisabled(&cache.Entry{
-		EntryIdentifier: cache.EntryIdentifier{
+		Identifier: cache.GcpSaKeyEntryIdentifier{
 			Email:   "sa1@p.com",
 			Project: "p",
 		},
@@ -118,7 +118,7 @@ func Test_SlackNotifier_KeyDeleted(t *testing.T) {
 	).Return(nil)
 
 	require.NoError(t, s.KeyDeleted(&cache.Entry{
-		EntryIdentifier: cache.EntryIdentifier{
+		Identifier: cache.GcpSaKeyEntryIdentifier{
 			Email:   "sa1@p.com",
 			Project: "p",
 		},
@@ -156,7 +156,7 @@ func Test_SlackNotifier_Error(t *testing.T) {
 	).Return(nil)
 
 	require.NoError(t, s.Error(&cache.Entry{
-		EntryIdentifier: cache.EntryIdentifier{
+		Identifier: cache.GcpSaKeyEntryIdentifier{
 			Email:   "sa1@p.com",
 			Project: "p",
 		},

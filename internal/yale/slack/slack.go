@@ -71,21 +71,21 @@ func (s *slackNotifier) buildAndSendMessage(evt event, entry *cache.Entry, field
 	switch evt {
 	case keyIssuedEvent:
 		attachment.Title = "Service Account Key Issued"
-		attachment.Text = fmt.Sprintf("A new %s was issued in `%s`", linker.hyperlink("service account key"), entry.EntryIdentifier.Project)
+		attachment.Text = fmt.Sprintf("A new %s was issued in `%s`", linker.hyperlink("service account key"), entry.Scope())
 	case keyDisabledEvent:
 		attachment.Title = "Service Account Key Disabled"
-		attachment.Text = fmt.Sprintf("A %s was disabled in `%s`", linker.hyperlink("service account key"), entry.EntryIdentifier.Project)
+		attachment.Text = fmt.Sprintf("A %s was disabled in `%s`", linker.hyperlink("service account key"), entry.Scope())
 	case keyDeletedEvent:
 		attachment.Title = "Service Account Key Deleted"
-		attachment.Text = fmt.Sprintf("A %s was deleted in `%s`", linker.hyperlink("service account key"), entry.EntryIdentifier.Project)
+		attachment.Text = fmt.Sprintf("A %s was deleted in `%s`", linker.hyperlink("service account key"), entry.Scope())
 	case errorEvent:
 		attachment.Title = "Error"
-		attachment.Text = fmt.Sprintf("Error processing %s in `%s`", linker.hyperlink("service account"), entry.EntryIdentifier.Project)
+		attachment.Text = fmt.Sprintf("Error processing %s in `%s`", linker.hyperlink("service account"), entry.Scope())
 	}
 
 	attachment.Fields = append(attachment.Fields, slack.AttachmentField{
 		Title: "Email",
-		Value: entry.EntryIdentifier.Email,
+		Value: entry.Identify(),
 		Short: false,
 	})
 
@@ -125,7 +125,7 @@ type serviceAccountLinker struct {
 }
 
 func (h serviceAccountLinker) url() string {
-	return fmt.Sprintf("https://console.cloud.google.com/iam-admin/serviceaccounts/details/%s?project=%s", h.entry.EntryIdentifier.Email, h.entry.EntryIdentifier.Project)
+	return fmt.Sprintf("https://console.cloud.google.com/iam-admin/serviceaccounts/details/%s?project=%s", h.entry.Identify(), h.entry.Scope())
 }
 
 func (h serviceAccountLinker) hyperlink(text string) string {

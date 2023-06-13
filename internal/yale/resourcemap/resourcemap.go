@@ -87,16 +87,16 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 	}
 
 	for _, entry := range cacheEntries {
-		if entry.EntryIdentifier.Type == cache.GcpSaKey {
-			email := entry.EntryIdentifier.Email
+		if entry.Type == cache.GcpSaKey {
+			email := entry.Identify()
 			bundle, exists := result[email]
 			if !exists {
 				bundle = &Bundle{}
 				result[email] = bundle
 			}
 			bundle.Entry = entry
-		} else if entry.EntryIdentifier.Type == cache.AzureClientSecret {
-			applicationID := entry.EntryIdentifier.ApplicationID
+		} else if entry.Type == cache.AzureClientSecret {
+			applicationID := entry.Identify()
 			bundle, exists := result[applicationID]
 			if !exists {
 				bundle = &Bundle{}
@@ -117,20 +117,18 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 	// add new empty cache entries for any bundles that don't have one
 	for identifier, bundle := range result {
 		if bundle.Entry == nil && bundle.GSKs != nil {
-			entry, err := m.cache.GetOrCreate(cache.EntryIdentifier{
+			entry, err := m.cache.GetOrCreate(cache.GcpSaKeyEntryIdentifier{
 				Email:   identifier,
 				Project: bundle.GSKs[0].Spec.GoogleServiceAccount.Project,
-				Type:    cache.GcpSaKey,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("error creating new empty cache entry for service account %s: %v", identifier, err)
 			}
 			bundle.Entry = entry
 		} else if bundle.Entry == nil && bundle.AzClientSecrets != nil {
-			entry, err := m.cache.GetOrCreate(cache.EntryIdentifier{
+			entry, err := m.cache.GetOrCreate(cache.AzureClientSecretEntryIdentifier{
 				ApplicationID: identifier,
 				TenantID:      bundle.AzClientSecrets[0].Spec.AzureServicePrincipal.TenantID,
-				Type:          cache.AzureClientSecret,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("error creating new empty cache entry for az client secret %s: %v", identifier, err)
@@ -224,9 +222,9 @@ func validateResourceBundle(bundle *Bundle) error {
 		}
 
 		// make sure cache entry has same project as GSK(s)
-		if bundle.Entry.EntryIdentifier.Project != cmp.Spec.GoogleServiceAccount.Project {
+		if bundle.Entry.Scope() != cmp.Spec.GoogleServiceAccount.Project {
 			return fmt.Errorf("project mismatch: cache entry for service account %s has project %s, but GcpSaKey resources like %s/%s have project %s",
-				bundle.Entry.EntryIdentifier.Email, bundle.Entry.EntryIdentifier.Project,
+				bundle.Entry.Identify(), bundle.Entry.Scope(),
 				cmp.Namespace, cmp.Name, cmp.Spec.GoogleServiceAccount.Project)
 		}
 		return nil
@@ -252,9 +250,9 @@ func validateResourceBundle(bundle *Bundle) error {
 		}
 
 		// make sure cache entry has same application id as AzureClientSecret(s)
-		if bundle.Entry.EntryIdentifier.TenantID != cmp.Spec.AzureServicePrincipal.TenantID {
+		if bundle.Entry.Scope() != cmp.Spec.AzureServicePrincipal.TenantID {
 			return fmt.Errorf("application id mismatch: cache entry for application client id %s has application id %s, but AzureClientSecret resources like %s/%s have application id %s",
-				bundle.Entry.EntryIdentifier.Email, bundle.Entry.EntryIdentifier.TenantID,
+				bundle.Entry.Identify(), bundle.Entry.Scope(),
 				cmp.Namespace, cmp.Name, cmp.Spec.AzureServicePrincipal.TenantID)
 		}
 

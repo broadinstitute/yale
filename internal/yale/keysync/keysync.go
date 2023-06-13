@@ -69,7 +69,7 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GcpSaKey) err
 	pruneOldSyncStatuses(entry, gsks...)
 
 	if err := k.cache.Save(entry); err != nil {
-		return fmt.Errorf("error saving cache entry for %s after key sync: %v", entry.EntryIdentifier.Email, err)
+		return fmt.Errorf("error saving cache entry for %s after key sync: %v", entry.Identify(), err)
 	}
 
 	return nil
@@ -163,7 +163,7 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk apiv1b1.GcpSaKey) erro
 	// extract pem-formatted key from the service account key JSON
 	pemFormatted, err := extractPemKey(entry)
 	if err != nil {
-		return fmt.Errorf("gsk %s in %s: error extracting PEM-formatted key for %s: %v", gsk.Name, gsk.Namespace, entry.EntryIdentifier.Email, err)
+		return fmt.Errorf("gsk %s in %s: error extracting PEM-formatted key for %s: %v", gsk.Name, gsk.Namespace, entry.Identify(), err)
 	}
 
 	// add the key data to the secret
@@ -193,7 +193,7 @@ func (k *keysync) replicateKeyToVault(entry *cache.Entry, gsk apiv1b1.GcpSaKey) 
 
 	for _, spec := range gsk.Spec.VaultReplications {
 		msg := fmt.Sprintf("replicating key %s for %s to Vault (format %s, path %s, key %s)",
-			entry.CurrentKey.ID, entry.EntryIdentifier.Email, spec.Format, spec.Path, spec.Key)
+			entry.CurrentKey.ID, entry.Identify(), spec.Format, spec.Path, spec.Key)
 		logs.Info.Print(msg)
 		secretData, err := prepareVaultSecret(entry, spec)
 		if err != nil {
@@ -205,7 +205,7 @@ func (k *keysync) replicateKeyToVault(entry *cache.Entry, gsk apiv1b1.GcpSaKey) 
 		}
 	}
 
-	logs.Info.Printf("replicated key %s for %s to %d Vault paths", entry.CurrentKey.ID, entry.EntryIdentifier.Email, len(gsk.Spec.VaultReplications))
+	logs.Info.Printf("replicated key %s for %s to %d Vault paths", entry.CurrentKey.ID, entry.Identify(), len(gsk.Spec.VaultReplications))
 
 	return nil
 }
@@ -252,7 +252,7 @@ func extractPemKey(entry *cache.Entry) (string, error) {
 	}
 	var k keyJson
 	if err := json.Unmarshal(asJson, &k); err != nil {
-		return "", fmt.Errorf("failed to decode key %s (%s) from JSON: %v", entry.CurrentKey.ID, entry.EntryIdentifier.Email, err)
+		return "", fmt.Errorf("failed to decode key %s (%s) from JSON: %v", entry.CurrentKey.ID, entry.Identify(), err)
 	}
 	return k.PrivateKey, nil
 }

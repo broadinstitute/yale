@@ -101,22 +101,19 @@ var eightDaysAgo = now.Add(-8 * 24 * time.Hour).Round(0)
 var fourDaysAgo = now.Add(-4 * 24 * time.Hour).Round(0)
 var fourHoursAgo = now.Add(-4 * time.Hour).Round(0)
 
-var sa1 = cache.EntryIdentifier{
+var sa1 = cache.GcpSaKeyEntryIdentifier{
 	Email:   "s1@p.com",
 	Project: "p",
-	Type:    cache.GcpSaKey,
 }
 
-var sa2 = cache.EntryIdentifier{
+var sa2 = cache.GcpSaKeyEntryIdentifier{
 	Email:   "s2@p.com",
 	Project: "p.com",
-	Type:    cache.GcpSaKey,
 }
 
-var sa3 = cache.EntryIdentifier{
+var sa3 = cache.GcpSaKeyEntryIdentifier{
 	Email:   "s3@p.com",
 	Project: "p.com",
-	Type:    cache.GcpSaKey,
 }
 
 var sa1key1 = key{
@@ -245,7 +242,7 @@ func (suite *YaleSuite) TestYaleRotatesOldKey() {
 	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
-		EntryIdentifier: sa1,
+		Identifier: sa1,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key1.id,
 			JSON:      sa1key1.json(),
@@ -281,7 +278,7 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNotInUse() {
 	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
-		EntryIdentifier: sa1,
+		Identifier: sa1,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
@@ -316,7 +313,7 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNoUsageDataAvailable() {
 	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
-		EntryIdentifier: sa1,
+		Identifier: sa1,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
@@ -351,7 +348,7 @@ func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
-		EntryIdentifier: sa1,
+		Identifier: sa1,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
@@ -401,7 +398,7 @@ func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfIgnoreUsag
 	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
-		EntryIdentifier: sa1,
+		Identifier: sa1,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
@@ -437,7 +434,7 @@ func (suite *YaleSuite) TestYaleDoesNotRotateDisableOrDeleteKeysThatAreNotOldEno
 	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
-		EntryIdentifier: sa1,
+		Identifier: sa1,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key3.id,
 			JSON:      sa1key3.json(),
@@ -473,7 +470,7 @@ func (suite *YaleSuite) TestYaleDeletesOldKeys() {
 	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
-		EntryIdentifier: sa1,
+		Identifier: sa1,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
@@ -501,7 +498,7 @@ func (suite *YaleSuite) TestYaleCorrectlyProcessesCacheEntryWithNoMatchingGcpSaK
 	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
-		EntryIdentifier: sa1,
+		Identifier: sa1,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key1.id,
 			JSON:      sa1key1.json(),
@@ -546,9 +543,9 @@ func (suite *YaleSuite) TestYaleCorrectlyRetiresCacheEntryWithNoMatchingGcpSaKey
 	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
-		EntryIdentifier: sa1,
-		CurrentKey:      cache.CurrentKey{},
-		RotatedKeys:     map[string]time.Time{},
+		Identifier:  sa1,
+		CurrentKey:  cache.CurrentKey{},
+		RotatedKeys: map[string]time.Time{},
 		DisabledKeys: map[string]time.Time{
 			sa1key1.id: eightDaysAgo,
 		},
@@ -588,10 +585,10 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 
 	lastNotification := now.Add(-20 * time.Minute)
 	suite.seedCacheEntries(&cache.Entry{
-		EntryIdentifier: sa3,
-		CurrentKey:      cache.CurrentKey{},
-		RotatedKeys:     map[string]time.Time{},
-		DisabledKeys:    map[string]time.Time{},
+		Identifier:   sa3,
+		CurrentKey:   cache.CurrentKey{},
+		RotatedKeys:  map[string]time.Time{},
+		DisabledKeys: map[string]time.Time{},
 		LastError: cache.LastError{
 			Message:            "error issuing new service account key for s3@p.com: oh noes",
 			Timestamp:          lastNotification,
@@ -656,7 +653,7 @@ func (suite *YaleSuite) seedCacheEntries(entries ...*cache.Entry) {
 	// the cache doesn't have a function for bulk adding a bunch of new entries into it,
 	// so this is a little awkward.
 	for _, e := range entries {
-		_, err := suite.cache.GetOrCreate(e.EntryIdentifier)
+		_, err := suite.cache.GetOrCreate(e.Identifier)
 		require.NoError(suite.T(), err)
 		err = suite.cache.Save(e)
 		require.NoError(suite.T(), err)
@@ -664,11 +661,11 @@ func (suite *YaleSuite) seedCacheEntries(entries ...*cache.Entry) {
 }
 
 func (suite *YaleSuite) expectCreateKeyReturnsErr(k key, err error) {
-	suite.keyops.EXPECT().Create(k.sa.Project, k.sa.Email).Return(k.keyopsFormat(), []byte(k.json()), err)
+	suite.keyops.EXPECT().Create(k.sa.Scope(), k.sa.Identify()).Return(k.keyopsFormat(), []byte(k.json()), err)
 }
 
 func (suite *YaleSuite) expectCreateKey(k key) {
-	suite.keyops.EXPECT().Create(k.sa.Project, k.sa.Email).Return(k.keyopsFormat(), []byte(k.json()), nil)
+	suite.keyops.EXPECT().Create(k.sa.Scope(), k.sa.Identify()).Return(k.keyopsFormat(), []byte(k.json()), nil)
 }
 
 func (suite *YaleSuite) expectDisableKey(k key) {
@@ -680,11 +677,11 @@ func (suite *YaleSuite) expectDeleteKey(k key) {
 }
 
 func (suite *YaleSuite) expectLastAuthTime(k key, t time.Time) {
-	suite.authmetrics.EXPECT().LastAuthTime(k.sa.Project, k.sa.Email, k.id).Return(&t, nil)
+	suite.authmetrics.EXPECT().LastAuthTime(k.sa.Scope(), k.sa.Identify(), k.id).Return(&t, nil)
 }
 
 func (suite *YaleSuite) expectNoLastAuthTime(k key) {
-	suite.authmetrics.EXPECT().LastAuthTime(k.sa.Project, k.sa.Email, k.id).Return(nil, nil)
+	suite.authmetrics.EXPECT().LastAuthTime(k.sa.Scope(), k.sa.Identify(), k.id).Return(nil, nil)
 }
 
 func (suite *YaleSuite) assertSecretHasData(namespace string, name string, data map[string]string) {
@@ -707,18 +704,18 @@ func TestYaleTestSuite(t *testing.T) {
 
 type key struct {
 	id  string
-	sa  cache.EntryIdentifier
+	sa  cache.Identifier
 	pem string
 }
 
 func (k key) keyopsFormat() keyops.Key {
 	return keyops.Key{
 		ID:                  k.id,
-		ServiceAccountEmail: k.sa.Email,
-		Project:             k.sa.Project,
+		ServiceAccountEmail: k.sa.Identify(),
+		Project:             k.sa.Scope(),
 	}
 }
 
 func (k key) json() string {
-	return `{"email":"` + k.sa.Email + `","private_key":"` + k.pem + `"}`
+	return `{"email":"` + k.sa.Identify() + `","private_key":"` + k.pem + `"}`
 }

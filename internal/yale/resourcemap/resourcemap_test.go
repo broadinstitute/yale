@@ -1,6 +1,7 @@
 package resourcemap
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/broadinstitute/yale/internal/yale/cache"
@@ -170,80 +171,80 @@ var acs4a = v1beta1.AzureClientSecret{
 }
 
 var entry1 = &cache.Entry{
-	EntryIdentifier: cache.EntryIdentifier{
+	Type: cache.GcpSaKey,
+	Identifier: cache.GcpSaKeyEntryIdentifier{
 		Email:   "sa-1@p.com",
 		Project: "p",
-		Type:    cache.GcpSaKey,
 	},
 }
 
 var entry2 = &cache.Entry{
-	EntryIdentifier: cache.EntryIdentifier{
+	Type: cache.GcpSaKey,
+	Identifier: cache.GcpSaKeyEntryIdentifier{
 		Email:   "sa-2@p.com",
 		Project: "p",
-		Type:    cache.GcpSaKey,
 	},
 }
 
 var entry2Broken = &cache.Entry{
-	EntryIdentifier: cache.EntryIdentifier{
+	Type: cache.GcpSaKey,
+	Identifier: cache.GcpSaKeyEntryIdentifier{
 		Email:   "sa-2@p.com",
 		Project: "mismatch", // wrong project - will mismatch gsks
-		Type:    cache.GcpSaKey,
 	},
 }
 
 var entry3 = &cache.Entry{
-	EntryIdentifier: cache.EntryIdentifier{
+	Type: cache.GcpSaKey,
+	Identifier: cache.GcpSaKeyEntryIdentifier{
 		Email:   "sa-3@p.com",
 		Project: "p",
-		Type:    cache.GcpSaKey,
 	},
 }
 
 var entry4 = &cache.Entry{
-	EntryIdentifier: cache.EntryIdentifier{
+	Type: cache.GcpSaKey,
+	Identifier: cache.GcpSaKeyEntryIdentifier{
 		Email:   "sa-4@p.com",
 		Project: "p",
-		Type:    cache.GcpSaKey,
 	},
 }
 
 var acsEntry1 = &cache.Entry{
-	EntryIdentifier: cache.EntryIdentifier{
-		Type:          cache.AzureClientSecret,
+	Type: cache.AzureClientSecret,
+	Identifier: cache.AzureClientSecretEntryIdentifier{
 		ApplicationID: "app-id-1",
 		TenantID:      "tenant-id-1",
 	},
 }
 
 var acsEntry2 = &cache.Entry{
-	EntryIdentifier: cache.EntryIdentifier{
-		Type:          cache.AzureClientSecret,
+	Type: cache.AzureClientSecret,
+	Identifier: cache.AzureClientSecretEntryIdentifier{
 		ApplicationID: "app-id-2",
 		TenantID:      "tenant-id-2",
 	},
 }
 
 var acsEntry2Broken = &cache.Entry{
-	EntryIdentifier: cache.EntryIdentifier{
-		Type:          cache.AzureClientSecret,
+	Type: cache.AzureClientSecret,
+	Identifier: cache.AzureClientSecretEntryIdentifier{
 		ApplicationID: "app-id-2",
 		TenantID:      "mismatch", // wrong tenant - will mismatch acss
 	},
 }
 
 var acsEntry3 = &cache.Entry{
-	EntryIdentifier: cache.EntryIdentifier{
-		Type:          cache.AzureClientSecret,
+	Type: cache.AzureClientSecret,
+	Identifier: cache.AzureClientSecretEntryIdentifier{
 		ApplicationID: "app-id-3",
 		TenantID:      "tenant-id-3",
 	},
 }
 
 var acsEntry4 = &cache.Entry{
-	EntryIdentifier: cache.EntryIdentifier{
-		Type:          cache.AzureClientSecret,
+	Type: cache.AzureClientSecret,
+	Identifier: cache.AzureClientSecretEntryIdentifier{
 		ApplicationID: "app-id-4",
 		TenantID:      "tenant-id-4",
 	},
@@ -457,17 +458,16 @@ func Test_Build(t *testing.T) {
 			_cache.EXPECT().List().Return(tc.existingCacheEntries, nil)
 
 			for _, entry := range tc.newCacheEntries {
-				if entry.EntryIdentifier.Type == cache.GcpSaKey {
-					_cache.EXPECT().GetOrCreate(cache.EntryIdentifier{
-						Email:   entry.EntryIdentifier.Email,
-						Project: entry.EntryIdentifier.Project,
-						Type:    entry.EntryIdentifier.Type,
+				fmt.Println(entry.Type)
+				if entry.Type == cache.GcpSaKey {
+					_cache.EXPECT().GetOrCreate(cache.GcpSaKeyEntryIdentifier{
+						Email:   entry.Identify(),
+						Project: entry.Scope(),
 					}).Return(entry, nil)
-				} else if entry.EntryIdentifier.Type == cache.AzureClientSecret {
-					_cache.EXPECT().GetOrCreate(cache.EntryIdentifier{
-						ApplicationID: entry.EntryIdentifier.ApplicationID,
-						TenantID:      entry.EntryIdentifier.TenantID,
-						Type:          entry.EntryIdentifier.Type,
+				} else if entry.Type == cache.AzureClientSecret {
+					_cache.EXPECT().GetOrCreate(cache.AzureClientSecretEntryIdentifier{
+						ApplicationID: entry.Identify(),
+						TenantID:      entry.Scope(),
 					}).Return(entry, nil)
 				}
 			}
@@ -512,7 +512,7 @@ func Test_validateResourceBundle(t *testing.T) {
 			input: &Bundle{
 
 				Entry: &cache.Entry{
-					EntryIdentifier: cache.EntryIdentifier{
+					Identifier: cache.GcpSaKeyEntryIdentifier{
 						Email:   "my-sa@p.com",
 						Project: "p",
 					},
@@ -546,7 +546,7 @@ func Test_validateResourceBundle(t *testing.T) {
 			input: &Bundle{
 
 				Entry: &cache.Entry{
-					EntryIdentifier: cache.EntryIdentifier{
+					Identifier: cache.GcpSaKeyEntryIdentifier{
 						Email:   "my-sa@p.com",
 						Project: "p",
 					},
@@ -572,7 +572,7 @@ func Test_validateResourceBundle(t *testing.T) {
 			input: &Bundle{
 
 				Entry: &cache.Entry{
-					EntryIdentifier: cache.EntryIdentifier{
+					Identifier: cache.GcpSaKeyEntryIdentifier{
 						Email:   "my-sa@p.com",
 						Project: "p",
 					},
@@ -609,7 +609,7 @@ func Test_validateResourceBundle(t *testing.T) {
 			input: &Bundle{
 
 				Entry: &cache.Entry{
-					EntryIdentifier: cache.EntryIdentifier{
+					Identifier: cache.GcpSaKeyEntryIdentifier{
 						Email:   "my-sa@p.com",
 						Project: "p",
 					},
@@ -635,10 +635,9 @@ func Test_validateResourceBundle(t *testing.T) {
 			input: &Bundle{
 
 				Entry: &cache.Entry{
-					EntryIdentifier: cache.EntryIdentifier{
+					Identifier: cache.GcpSaKeyEntryIdentifier{
 						Email:   "my-sa@p.com",
 						Project: "p",
-						Type:    cache.GcpSaKey,
 					},
 				},
 				GSKs: []v1beta1.GcpSaKey{
@@ -684,10 +683,9 @@ func Test_validateResourceBundle(t *testing.T) {
 			input: &Bundle{
 
 				Entry: &cache.Entry{
-					EntryIdentifier: cache.EntryIdentifier{
+					Identifier: cache.GcpSaKeyEntryIdentifier{
 						Email:   "my-identifier",
 						Project: "p",
-						Type:    cache.GcpSaKey,
 					},
 				},
 				GSKs: []v1beta1.GcpSaKey{
