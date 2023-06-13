@@ -19,6 +19,9 @@ type Identifier interface {
 	Scope() string
 	Type() EntryType
 	cacheSecretName() string
+	// unmarshaling from k8s secret data requires identifier to implement so custom unmarshaling logic
+	// to account for different concrete backing types of this interface
+	// json.Unmarshaler
 }
 
 type GcpSaKeyEntryIdentifier struct {
@@ -110,6 +113,7 @@ type CurrentKey struct {
 func newCacheEntry[I Identifier](identifier I) *Entry {
 	return &Entry{
 		Identifier:   identifier,
+		Type:         identifier.Type(),
 		RotatedKeys:  make(map[string]time.Time),
 		DisabledKeys: make(map[string]time.Time),
 		SyncStatus:   make(map[string]string),
@@ -126,6 +130,9 @@ const (
 type Entry struct {
 	// EntryIdentifier identifying information for the service account the key belongs to
 	Identifier
+	// Type the resource type of the cache entry
+	// either GCPSAKey or AzureClientSecret are supported
+	Type EntryType
 	// CurrentKey represents the current/active service account key that will
 	// be replicated to k8s secrets and Vault
 	CurrentKey CurrentKey
@@ -155,6 +162,102 @@ type Entry struct {
 	SyncStatus map[string]string
 	// LastError information about the most recent error to occur while processing this cache entry
 	LastError LastError
+}
+
+func (e *Entry) UnmarshalJSON(data []byte) error {
+	// first we need to extract the entry type from the JSON to determine which concrete struct type to unmarshal into
+	entryData := make(map[string]interface{})
+	err := json.Unmarshal(data, &entryData)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling Entry JSON: %v", err)
+	}
+
+	entryType, ok := entryData["Type"].(float64)
+	if !ok {
+		return fmt.Errorf("error unmarshaling Entry JSON: Type is not a number")
+	}
+	e.Type = EntryType(entryType)
+
+	// extract the identifier data
+	identifierData, err := json.Marshal(entryData["Identifier"])
+	if err != nil {
+		return fmt.Errorf("error unmarshaling Entry JSON: %v", err)
+	}
+	switch e.Type {
+	case GcpSaKey:
+		var identifier GcpSaKeyEntryIdentifier
+		err = json.Unmarshal(identifierData, &identifier)
+		if err != nil {
+			return fmt.Errorf("error unmarshaling GcpSaKeyEntryIdentifier: Identifier is not a GcpSaKeyEntryIdentifier")
+		}
+		e.Identifier = identifier
+	case AzureClientSecret:
+		var identifier AzureClientSecretEntryIdentifier
+		err = json.Unmarshal(identifierData, &identifier)
+		if !ok {
+			return fmt.Errorf("error unmarshaling AzureClientSecretEntryIdentifier: Identifier is not a AzureClientSecretEntryIdentifier")
+		}
+		e.Identifier = identifier
+	default:
+		return fmt.Errorf("unsupported Entry type: %v", e.Type)
+	}
+
+	currentKeyData, err := json.Marshal(entryData["CurrentKey"])
+	if err != nil {
+		return fmt.Errorf("error parsing current key data: %v", err)
+	}
+	var currentKey CurrentKey
+	err = json.Unmarshal(currentKeyData, &currentKey)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling CurrentKey: CurrentKey is not a CurrentKey")
+	}
+	e.CurrentKey = currentKey
+
+	rotatedKeysData, err := json.Marshal(entryData["RotatedKeys"])
+	if err != nil {
+		return fmt.Errorf("error parsing rotated keys data: %v", err)
+	}
+	rotatedKeys := make(map[string]time.Time)
+	err = json.Unmarshal(rotatedKeysData, &rotatedKeys)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling RotatedKeys: RotatedKeys is not a map[string]time.Time")
+	}
+	e.RotatedKeys = rotatedKeys
+
+	disabledKeysData, err := json.Marshal(entryData["DisabledKeys"])
+	if err != nil {
+		return fmt.Errorf("error parsing disabled keys data: %v", err)
+	}
+	disabledKeys := make(map[string]time.Time)
+	err = json.Unmarshal(disabledKeysData, &disabledKeys)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling DisabledKeys: DisabledKeys is not a map[string]time.Time")
+	}
+	e.DisabledKeys = disabledKeys
+
+	syncStatusData, err := json.Marshal(entryData["SyncStatus"])
+	if err != nil {
+		return fmt.Errorf("error parsing sync status data: %v", err)
+	}
+	syncStatus := make(map[string]string)
+	err = json.Unmarshal(syncStatusData, &syncStatus)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling SyncStatus: SyncStatus is not a map[string]string")
+	}
+	e.SyncStatus = syncStatus
+
+	lastErrorData, err := json.Marshal(entryData["LastError"])
+	if err != nil {
+		return fmt.Errorf("error parsing last error data: %v", err)
+	}
+	var lastError LastError
+	err = json.Unmarshal(lastErrorData, &lastError)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling LastError: LastError is not a LastError")
+	}
+	e.LastError = lastError
+
+	return nil
 }
 
 func (c *Entry) marshalToSecret(s *corev1.Secret) error {

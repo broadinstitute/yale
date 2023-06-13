@@ -65,7 +65,7 @@ func Test_Cache(t *testing.T) {
 
 	// make sure the underlying secret was created with the attributes we expect
 	secret = readCacheSecret(t, k8s, sa1.cacheSecretName())
-	fmt.Printf("%+v", secret)
+	fmt.Printf("%+v", string(secret.Data[secretKey]))
 	require.NotNil(t, secret)
 	expectedContent, err := json.Marshal(expected)
 	require.NoError(t, err)
@@ -172,6 +172,8 @@ func Test_Cache(t *testing.T) {
 
 	// list should return error if a cache entry exists with invalid data
 	// create a cache entry with invalid data
+	invalidEntry, err := json.Marshal(&Entry{Type: 1})
+	require.NoError(t, err)
 	_, err = k8s.CoreV1().Secrets(namespace).Create(context.Background(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "invalid-fake-cache-entry",
@@ -180,7 +182,7 @@ func Test_Cache(t *testing.T) {
 			},
 		},
 		Data: map[string][]byte{
-			secretKey: []byte(`{}`), // no service account information!
+			secretKey: invalidEntry, // no service account information!
 		},
 	}, metav1.CreateOptions{})
 	require.NoError(t, err)
@@ -207,6 +209,7 @@ func readCacheSecret(t *testing.T, k8s kubernetes.Interface, name string) *corev
 func emptyCacheEntry(identifier Identifier) Entry {
 	return Entry{
 		Identifier: identifier,
+		Type:       identifier.Type(),
 		CurrentKey: struct {
 			JSON      string
 			ID        string
