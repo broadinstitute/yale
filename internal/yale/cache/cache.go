@@ -60,13 +60,13 @@ func (c *cache) List() ([]*Entry, error) {
 	for _, secret := range resp.Items {
 		entry := &Entry{}
 		if err = entry.unmarshalFromSecret(&secret); err != nil {
-			return nil, fmt.Errorf("error unmarshalling cache entry secret %s: %v", secret.Name, err)
+			return nil, fmt.Errorf("error unmarshaling cache entry secret %s: %v", secret.Name, err)
 		}
 		if entry.Identify() == "" {
-			return nil, fmt.Errorf("invalid cache entry secret %s: missing service account email", secret.Name)
+			return nil, fmt.Errorf("invalid cache entry secret %s: missing cache entry identifier (service account email or Application ID)", secret.Name)
 		}
 		if entry.Scope() == "" {
-			return nil, fmt.Errorf("invalid cache entry secret %s: missing service account project", secret.Name)
+			return nil, fmt.Errorf("invalid cache entry secret %s: missing cache entry identifier scope (google project or Azure Tenant ID)", secret.Name)
 		}
 		if secret.Name != entry.cacheSecretName() {
 			return nil, fmt.Errorf("invalid cache entry secret %s: secret name does not match service account, should be %s", secret.Name, entry.cacheSecretName())

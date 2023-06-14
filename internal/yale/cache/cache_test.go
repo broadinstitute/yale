@@ -189,7 +189,155 @@ func Test_Cache(t *testing.T) {
 
 	// list should return error
 	_, err = cache.List()
-	assert.ErrorContains(t, err, "missing service account email")
+	assert.ErrorContains(t, err, "missing cache entry identifier")
+}
+
+func Test_cacheWithAzClientSecrets(t *testing.T) {
+	k8s := testutils.NewFakeK8sClient(t)
+	cache := New(k8s, namespace)
+
+	// make sure secret does not exist, to start
+	secret := readCacheSecret(t, k8s, azClientSecret1.cacheSecretName())
+	require.Nil(t, secret)
+
+	// make sure we get an empty list
+	entries, err := cache.List()
+	require.NoError(t, err)
+	assert.Len(t, entries, 0)
+
+	// create new empty cache entry
+	expected := emptyCacheEntry(azClientSecret1)
+	entry, err := cache.GetOrCreate(azClientSecret1)
+	require.NoError(t, err)
+	assert.Equal(t, &expected, entry)
+
+	// make sure the underlying secret was created with the attributes we expect
+	secret = readCacheSecret(t, k8s, azClientSecret1.cacheSecretName())
+	fmt.Printf("%+v", string(secret.Data[secretKey]))
+	require.NotNil(t, secret)
+	expectedContent, err := json.Marshal(expected)
+	require.NoError(t, err)
+	assert.Equal(t, azClientSecret1.cacheSecretName(), secret.Name)
+	assert.Equal(t, namespace, secret.Namespace)
+	assert.Equal(t, labelValue, secret.Labels[labelKey])
+	assert.Equal(t, string(expectedContent), string(secret.Data[secretKey]))
+
+	// reading the entry again should yield a copy of the entry with identical data
+	entryCopy, err := cache.GetOrCreate(azClientSecret1)
+	require.NoError(t, err)
+	assert.Equal(t, entry, entryCopy)
+
+	now := time.Now().Round(0).UTC()
+
+	// updating and saving entry should persist the changes
+	entry.CurrentKey.ID = "key-1"
+	entry.CurrentKey.CreatedAt = now
+	entry.CurrentKey.JSON = `{"foo":"bar"}`
+
+	entry.RotatedKeys["key-2"] = now
+	entry.RotatedKeys["key-3"] = now
+	entry.DisabledKeys["key-4"] = now
+	entry.SyncStatus["my-ns/my-acs"] = "my-sha256-sum:key-1"
+
+	require.NoError(t, cache.Save(entry))
+
+	// make sure saving the cache entry did not overwrite any of the fields we set on the entry object
+	assert.Equal(t, "key-1", entry.CurrentKey.ID)
+	assert.Equal(t, now, entry.CurrentKey.CreatedAt)
+	assert.Equal(t, `{"foo":"bar"}`, entry.CurrentKey.JSON)
+	assert.Equal(t, now, entry.RotatedKeys["key-2"])
+	assert.Equal(t, now, entry.RotatedKeys["key-3"])
+	assert.Equal(t, now, entry.DisabledKeys["key-4"])
+	assert.Equal(t, "my-sha256-sum:key-1", entry.SyncStatus["my-ns/my-acs"])
+
+	// reading the entry again should yield a copy of the entry with identical data
+	entryCopy, err = cache.GetOrCreate(azClientSecret1)
+	require.NoError(t, err)
+	assert.Equal(t, entry, entryCopy)
+
+	// listing all cache entries should yield just the entry we created
+	entries, err = cache.List()
+	require.NoError(t, err)
+	assert.Len(t, entries, 1)
+	assert.Equal(t, entry, entries[0])
+
+	// add 2 more cache entries
+	entry2, err := cache.GetOrCreate(azClientSecret2)
+	require.NoError(t, err)
+	assert.Equal(t, emptyCacheEntry(azClientSecret2), *entry2)
+
+	entry3, err := cache.GetOrCreate(azClientSecret3)
+	require.NoError(t, err)
+	assert.Equal(t, emptyCacheEntry(azClientSecret3), *entry3)
+
+	// make sure updates to entry3 persist
+	entry3.CurrentKey.ID = "e3-key3"
+	require.NoError(t, cache.Save(entry3))
+
+	entry3Copy, err := cache.GetOrCreate(azClientSecret3)
+	require.NoError(t, err)
+	assert.Equal(t, "e3-key3", entry3Copy.CurrentKey.ID)
+
+	// make sure all entries appear in the list
+	entries, err = cache.List()
+	require.NoError(t, err)
+	assert.Len(t, entries, 3)
+	assert.Equal(t, entry, entries[0])
+	assert.Equal(t, entry2, entries[1])
+	assert.Equal(t, entry3, entries[2])
+
+	// delete entry2
+	require.NoError(t, cache.Delete(entry2))
+	entries, err = cache.List()
+	require.NoError(t, err)
+
+	// make sure entry and entry3 appear in the list
+	assert.Len(t, entries, 2)
+	assert.Equal(t, entry, entries[0])
+	assert.Equal(t, entry3, entries[1])
+
+	// delete first entry
+	require.NoError(t, cache.Delete(entry))
+
+	// make sure just entry3 appears in the list
+	entries, err = cache.List()
+	require.NoError(t, err)
+	assert.Len(t, entries, 1)
+	assert.Equal(t, entry3, entries[0])
+
+	// delete entry3
+	require.NoError(t, cache.Delete(entry3))
+
+	// make sure list is empty again
+	entries, err = cache.List()
+	require.NoError(t, err)
+	assert.Len(t, entries, 0)
+
+	// get or create new entry for the same sa as a deleted entry should create a new empty entry
+	entry, err = cache.GetOrCreate(azClientSecret1)
+	require.NoError(t, err)
+	assert.Equal(t, emptyCacheEntry(azClientSecret1), *entry)
+
+	// list should return error if a cache entry exists with invalid data
+	// create a cache entry with invalid data
+	invalidEntry, err := json.Marshal(&Entry{Type: 2})
+	require.NoError(t, err)
+	_, err = k8s.CoreV1().Secrets(namespace).Create(context.Background(), &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "invalid-fake-cache-entry",
+			Labels: map[string]string{
+				labelKey: labelValue,
+			},
+		},
+		Data: map[string][]byte{
+			secretKey: invalidEntry, // no service account information!
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(t, err)
+
+	// list should return error
+	_, err = cache.List()
+	assert.ErrorContains(t, err, "missing cache entry identifier")
 }
 
 func Test_cacheSecretName(t *testing.T) {

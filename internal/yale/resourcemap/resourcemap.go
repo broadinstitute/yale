@@ -249,5 +249,5 @@ func validateResourceBundle(bundle *Bundle) error {
 }
 
 func isEmpty[T any](slice []T) bool {
-	return slice == nil || len(slice) == 0
+	return len(slice) == 0
 }
