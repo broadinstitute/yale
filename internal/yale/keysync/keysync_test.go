@@ -2,6 +2,8 @@ package keysync
 
 import (
 	"context"
+	"testing"
+
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	cachemocks "github.com/broadinstitute/yale/internal/yale/cache/mocks"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
@@ -14,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"testing"
 )
 
 type fakeKey struct {
@@ -178,6 +179,8 @@ func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
 
 func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications() {
 	entry := &cache.Entry{}
+	entry.Identifier = cache.GcpSaKeyEntryIdentifier{Email: "my-sa@gserviceaccount.com", Project: "my-project"}
+	entry.Type = cache.GcpSaKey
 	entry.CurrentKey.JSON = key1.json
 	entry.CurrentKey.ID = key1.id
 	entry.SyncStatus = map[string]string{} // no prior syncs recorded in the map

@@ -251,8 +251,8 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 	// disable the key
 	logs.Info.Printf("disabling key %s (service account %s)...", keyId, entry.Identify())
 	if err = m.keyops.EnsureDisabled(keyops.Key{
-		Project:             entry.Identify(),
-		ServiceAccountEmail: entry.Scope(),
+		Project:             entry.Scope(),
+		ServiceAccountEmail: entry.Identify(),
 		ID:                  keyId,
 	}); err != nil {
 		return fmt.Errorf("error disabling key %s (service account %s): %v", keyId, entry.Identify(), err)

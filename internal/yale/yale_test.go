@@ -243,6 +243,7 @@ func (suite *YaleSuite) TestYaleRotatesOldKey() {
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
+		Type:       cache.GcpSaKey,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key1.id,
 			JSON:      sa1key1.json(),
@@ -279,6 +280,7 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNotInUse() {
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
+		Type:       cache.GcpSaKey,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
@@ -314,6 +316,7 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNoUsageDataAvailable() {
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
+		Type:       cache.GcpSaKey,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
@@ -349,6 +352,7 @@ func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
+		Type:       cache.GcpSaKey,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
@@ -399,6 +403,7 @@ func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfIgnoreUsag
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
+		Type:       cache.GcpSaKey,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
@@ -435,6 +440,7 @@ func (suite *YaleSuite) TestYaleDoesNotRotateDisableOrDeleteKeysThatAreNotOldEno
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
+		Type:       cache.GcpSaKey,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key3.id,
 			JSON:      sa1key3.json(),
@@ -471,6 +477,7 @@ func (suite *YaleSuite) TestYaleDeletesOldKeys() {
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
+		Type:       cache.GcpSaKey,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key2.id,
 			JSON:      sa1key2.json(),
@@ -499,6 +506,7 @@ func (suite *YaleSuite) TestYaleCorrectlyProcessesCacheEntryWithNoMatchingGcpSaK
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
+		Type:       cache.GcpSaKey,
 		CurrentKey: cache.CurrentKey{
 			ID:        sa1key1.id,
 			JSON:      sa1key1.json(),
@@ -544,6 +552,7 @@ func (suite *YaleSuite) TestYaleCorrectlyRetiresCacheEntryWithNoMatchingGcpSaKey
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier:  sa1,
+		Type:        cache.GcpSaKey,
 		CurrentKey:  cache.CurrentKey{},
 		RotatedKeys: map[string]time.Time{},
 		DisabledKeys: map[string]time.Time{
@@ -586,6 +595,7 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 	lastNotification := now.Add(-20 * time.Minute)
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier:   sa3,
+		Type:         cache.GcpSaKey,
 		CurrentKey:   cache.CurrentKey{},
 		RotatedKeys:  map[string]time.Time{},
 		DisabledKeys: map[string]time.Time{},
