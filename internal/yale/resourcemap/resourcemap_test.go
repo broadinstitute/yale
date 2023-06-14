@@ -522,6 +522,18 @@ func Test_validateResourceBundle(t *testing.T) {
 			errContains: "",
 		},
 		{
+			name: "should not retturn if bundle has az client secret only",
+			input: &Bundle{
+				Entry: &cache.Entry{
+					Identifier: cache.AzureClientSecretEntryIdentifier{
+						ApplicationID: "app-id",
+						TenantID:      "tenant-id",
+					},
+				},
+			},
+			errContains: "",
+		},
+		{
 			name: "should not error if bundle has gsk only",
 			input: &Bundle{
 
@@ -538,6 +550,13 @@ func Test_validateResourceBundle(t *testing.T) {
 						},
 					},
 				},
+			},
+			errContains: "",
+		},
+		{
+			name: "should not error if bundle has az client secret only",
+			input: &Bundle{
+				AzClientSecrets: []v1beta1.AzureClientSecret{acs1a},
 			},
 			errContains: "",
 		},
@@ -564,6 +583,19 @@ func Test_validateResourceBundle(t *testing.T) {
 						},
 					},
 				},
+			},
+			errContains: "",
+		},
+		{
+			name: "should not error if bundle and az client secret match",
+			input: &Bundle{
+				Entry: &cache.Entry{
+					Identifier: cache.AzureClientSecretEntryIdentifier{
+						ApplicationID: "app-id-1",
+						TenantID:      "tenant-id-1",
+					},
+				},
+				AzClientSecrets: []v1beta1.AzureClientSecret{acs1a},
 			},
 			errContains: "",
 		},
@@ -605,6 +637,19 @@ func Test_validateResourceBundle(t *testing.T) {
 			errContains: "",
 		},
 		{
+			name: "should not error if bundle and az client secrets all match",
+			input: &Bundle{
+				Entry: &cache.Entry{
+					Identifier: cache.AzureClientSecretEntryIdentifier{
+						ApplicationID: "app-id-1",
+						TenantID:      "tenant-id-1",
+					},
+				},
+				AzClientSecrets: []v1beta1.AzureClientSecret{acs1a, acs1b},
+			},
+			errContains: "",
+		},
+		{
 			name: "should error if bundle and gsk do not match",
 			input: &Bundle{
 
@@ -629,6 +674,19 @@ func Test_validateResourceBundle(t *testing.T) {
 				},
 			},
 			errContains: "project mismatch",
+		},
+		{
+			name: "should error if bundle and az client secret do not match",
+			input: &Bundle{
+				Entry: &cache.Entry{
+					Identifier: cache.AzureClientSecretEntryIdentifier{
+						ApplicationID: "app-id-2",
+						TenantID:      "tenant-id-2",
+					},
+				},
+				AzClientSecrets: []v1beta1.AzureClientSecret{acs2bBroken},
+			},
+			errContains: "application id mismatch",
 		},
 		{
 			name: "should error if bundle and gsks do not all match",
@@ -677,6 +735,19 @@ func Test_validateResourceBundle(t *testing.T) {
 				},
 			},
 			errContains: "project mismatch",
+		},
+		{
+			name: "should error if bundle and az client secrets do not all match",
+			input: &Bundle{
+				Entry: &cache.Entry{
+					Identifier: cache.AzureClientSecretEntryIdentifier{
+						ApplicationID: "app-id-2",
+						TenantID:      "tenant-id-2",
+					},
+				},
+				AzClientSecrets: []v1beta1.AzureClientSecret{acs2a, acs2b, acs2bBroken},
+			},
+			errContains: "application id mismatch",
 		},
 		{
 			name: "should error if bundle contains both gsks and AzClientSecrets",

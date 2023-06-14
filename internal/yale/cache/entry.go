@@ -72,23 +72,6 @@ func (azureIdentifier AzureClientSecretEntryIdentifier) cacheSecretName() string
 	return secretNamePrefix + normalized
 }
 
-// EntryIdentifier identifying information for a service account
-type EntryIdentifier struct {
-	Email         string    // Email for the service account
-	Project       string    // Project the service account belongs to
-	ApplicationID string    // Application ID for the Azure client secret
-	TenantID      string    // Tenant ID for the Azure client secrets
-	Type          EntryType // Type of the cache entry either GCPSAKey or AzureClientSecret are supported
-}
-
-// cacheSecretName return the name of the K8s secret that will be used to store the cache entry
-func (sa EntryIdentifier) cacheSecretName() string {
-	// replace any characters that are illegal in kubernetes resource names (eg. "@") with "-"
-	normalized := illegalK8sNameCharsRegexp.ReplaceAllString(sa.Email, "-")
-	// replace anything that's not alphanumeric or . or - with -
-	return secretNamePrefix + normalized
-}
-
 // LastError information relating to the last error that occurred while processing this cache entry/service account
 type LastError struct {
 	// Message is the last error message
@@ -164,6 +147,8 @@ type Entry struct {
 	LastError LastError
 }
 
+// UnmarshalJSON custom unmarshaling logic to account the fact that the data stored in the cache may have a different shape based on
+// the entry type. This ensures that cache secrets can be unmarshaled into the correct concrete type of either GCPSAKey or AzureClientSecret identifiers
 func (e *Entry) UnmarshalJSON(data []byte) error {
 	// first we need to extract the entry type from the JSON to determine which concrete struct type to unmarshal into
 	entryData := make(map[string]interface{})
@@ -194,7 +179,7 @@ func (e *Entry) UnmarshalJSON(data []byte) error {
 	case AzureClientSecret:
 		var identifier AzureClientSecretEntryIdentifier
 		err = json.Unmarshal(identifierData, &identifier)
-		if !ok {
+		if err != nil {
 			return fmt.Errorf("error unmarshaling AzureClientSecretEntryIdentifier: Identifier is not a AzureClientSecretEntryIdentifier")
 		}
 		e.Identifier = identifier

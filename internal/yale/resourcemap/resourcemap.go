@@ -87,23 +87,13 @@ func (m *mapper) Build() (map[string]*Bundle, error) {
 	}
 
 	for _, entry := range cacheEntries {
-		if entry.Type == cache.GcpSaKey {
-			email := entry.Identify()
-			bundle, exists := result[email]
-			if !exists {
-				bundle = &Bundle{}
-				result[email] = bundle
-			}
-			bundle.Entry = entry
-		} else if entry.Type == cache.AzureClientSecret {
-			applicationID := entry.Identify()
-			bundle, exists := result[applicationID]
-			if !exists {
-				bundle = &Bundle{}
-				result[applicationID] = bundle
-			}
-			bundle.Entry = entry
+		identifier := entry.Identify()
+		bundle, exists := result[identifier]
+		if !exists {
+			bundle = &Bundle{}
+			result[identifier] = bundle
 		}
+		bundle.Entry = entry
 	}
 
 	// filter invalid bundles
@@ -190,18 +180,13 @@ func (m *mapper) listAzureClientSecrets() ([]v1beta1.AzureClientSecret, error) {
 // validateResourceBundle verifies that the GcpSaKeys and cache entry in the bundle don't conflict with each other
 func validateResourceBundle(bundle *Bundle) error {
 	// A bundle shouldn't have both GSKs and AzureClientSecrets
-	if len(bundle.GSKs) > 0 && len(bundle.AzClientSecrets) > 0 {
+	if !isEmpty(bundle.GSKs) && !isEmpty(bundle.AzClientSecrets) {
 		return fmt.Errorf("unique resource conflict: GcpSaKey and AzureClientSecrets cannot use the same identifier(service account email or application client id) for the same yale managed resource: identifier %s",
 			bundle.GSKs[0].Spec.GoogleServiceAccount.Name)
 	}
 
-	// if we have only a cache entry, we're good
-	if len(bundle.GSKs) == 0 && len(bundle.AzClientSecrets) == 0 {
-		return nil
-	}
-
 	// we have no GSKs, so no need to check if GSKs don't match each other or the cache entry
-	if bundle.GSKs != nil || len(bundle.GSKs) != 0 {
+	if !isEmpty(bundle.GSKs) {
 		// we have at least one GSK - use first as "source of truth" for comparison with other resources
 		cmp := bundle.GSKs[0]
 
@@ -230,7 +215,7 @@ func validateResourceBundle(bundle *Bundle) error {
 		return nil
 
 		// we have at least one AzureClientSecret - use first as "source of truth" for comparison with other resources
-	} else if bundle.AzClientSecrets != nil || len(bundle.AzClientSecrets) != 0 {
+	} else if !isEmpty(bundle.AzClientSecrets) {
 		cmp := bundle.AzClientSecrets[0]
 
 		// we have at least 2 AzureClientSecrets, make sure they all match each other
@@ -261,4 +246,8 @@ func validateResourceBundle(bundle *Bundle) error {
 
 	// if only a cache entry, we're good
 	return nil
+}
+
+func isEmpty[T any](slice []T) bool {
+	return slice == nil || len(slice) == 0
 }
