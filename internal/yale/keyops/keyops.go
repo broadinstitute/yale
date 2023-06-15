@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"strings"
+
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	"google.golang.org/api/iam/v1"
-	"strings"
 )
 
 // keyAlgorithm what key algorithm to use when creating new Google SA keys
@@ -60,7 +61,7 @@ func (k *keyops) Create(project string, serviceAccountEmail string) (Key, []byte
 	logs.Info.Printf("creating new service account for %s...", serviceAccountEmail)
 	newKey, err := k.iam.Projects.ServiceAccounts.Keys.Create(name, request).Context(ctx).Do()
 	if err != nil {
-		return Key{}, nil, fmt.Errorf("error creating new service acount key for %s: %v", name, err)
+		return Key{}, nil, fmt.Errorf("error creating new service account key for %s: %v", name, err)
 	}
 
 	keyID := extractServiceAccountKeyIdFromFullName(newKey.Name)

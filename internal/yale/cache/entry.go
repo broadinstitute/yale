@@ -12,16 +12,16 @@ import (
 // only lower alphanumeric, ., and - are legal in the names of k8s resources
 var illegalK8sNameCharsRegexp = regexp.MustCompile(`[^a-z0-9.\-]`)
 
+// Identifier is an interface that can be implemented by any type that can be used to uniquely identify a cache entry
 type Identifier interface {
+	// Identify is the unique identifier for a yale managed resource. They serve as look up keys in the bundle map
+	// examples are google service account email or azure application id
 	Identify() string
 	// Scope is the hierarchiical containing resource within which a service account or client secret exists
 	// For GCP this is the project, for Azure this is the tenant
 	Scope() string
 	Type() EntryType
 	cacheSecretName() string
-	// unmarshaling from k8s secret data requires identifier to implement so custom unmarshaling logic
-	// to account for different concrete backing types of this interface
-	// json.Unmarshaler
 }
 
 type GcpSaKeyEntryIdentifier struct {
@@ -149,6 +149,7 @@ type Entry struct {
 
 // UnmarshalJSON custom unmarshaling logic to account the fact that the data stored in the cache may have a different shape based on
 // the entry type. This ensures that cache secrets can be unmarshaled into the correct concrete type of either GCPSAKey or AzureClientSecret identifiers
+// TODO: is there a better way to do this?
 func (e *Entry) UnmarshalJSON(data []byte) error {
 	// first we need to extract the entry type from the JSON to determine which concrete struct type to unmarshal into
 	entryData := make(map[string]interface{})

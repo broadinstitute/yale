@@ -85,10 +85,10 @@ func (m *Yale) Run() error {
 	}
 
 	errors := make(map[string]error)
-	for email, bundle := range resources {
+	for identifier, bundle := range resources {
 		if err = m.processServiceAccountAndReportErrors(bundle.Entry, bundle.GSKs); err != nil {
-			logs.Error.Printf("error processing service account %s: %v", email, err)
-			errors[email] = err
+			logs.Error.Printf("error processing service account %s: %v", identifier, err)
+			errors[identifier] = err
 		}
 	}
 
