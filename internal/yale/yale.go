@@ -251,9 +251,9 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 	// disable the key
 	logs.Info.Printf("disabling key %s (service account %s)...", keyId, entry.Identify())
 	if err = m.keyops.EnsureDisabled(keyops.Key{
-		Project:             entry.Scope(),
-		ServiceAccountEmail: entry.Identify(),
-		ID:                  keyId,
+		Scope:      entry.Scope(),
+		Identifier: entry.Identify(),
+		ID:         keyId,
 	}); err != nil {
 		return fmt.Errorf("error disabling key %s (service account %s): %v", keyId, entry.Identify(), err)
 	}
@@ -305,13 +305,13 @@ func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Ent
 	}
 
 	key := keyops.Key{
-		Project:             entry.Scope(),
-		ServiceAccountEmail: entry.Identify(),
-		ID:                  keyId,
+		Scope:      entry.Scope(),
+		Identifier: entry.Identify(),
+		ID:         keyId,
 	}
 
 	// delete key from GCP
-	logs.Info.Printf("key %s (service account %s) has reached delete cutoff; deleting it", key.ID, key.ServiceAccountEmail)
+	logs.Info.Printf("key %s (service account %s) has reached delete cutoff; deleting it", key.ID, key.Identifier)
 	if err := m.keyops.DeleteIfDisabled(key); err != nil {
 		return fmt.Errorf("error deleting key %s (service account %s): %v", keyId, entry.Identify(), err)
 	}
@@ -322,7 +322,7 @@ func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Ent
 		return fmt.Errorf("error updating cache entry for %s after key deletion: %v", entry.Identify(), err)
 	}
 
-	logs.Info.Printf("deleted key %s (service account %s)", key.ID, key.ServiceAccountEmail)
+	logs.Info.Printf("deleted key %s (service account %s)", key.ID, key.Identifier)
 	return m.slack.KeyDeleted(entry, key.ID)
 }
 

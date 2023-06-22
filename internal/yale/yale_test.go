@@ -720,9 +720,9 @@ type key struct {
 
 func (k key) keyopsFormat() keyops.Key {
 	return keyops.Key{
-		ID:                  k.id,
-		ServiceAccountEmail: k.sa.Identify(),
-		Project:             k.sa.Scope(),
+		ID:         k.id,
+		Identifier: k.sa.Identify(),
+		Scope:      k.sa.Scope(),
 	}
 }
 
