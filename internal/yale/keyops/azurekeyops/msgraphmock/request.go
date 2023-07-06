@@ -156,7 +156,8 @@ func buildPostResponder(r *request) httpmock.Responder {
 			return nil, fmt.Errorf("POST %s\n\t%T differ (-got, +want):\n%s", r.url, r.requestBody, diff)
 		}
 
-		if status != http.StatusCreated {
+		// for azure is a remove password is a POST, response is a 204
+		if status != http.StatusCreated && status != http.StatusNoContent {
 			return nil, errors.New("POST request failed")
 		}
 

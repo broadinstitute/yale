@@ -47,6 +47,8 @@ func (e *expect) Get(ctx context.Context, applicationId string, query odata.Quer
 func (e *expect) RemovePassword(ctx context.Context, applicationId, keyId string) RemovePasswordRequest {
 	url := fmt.Sprintf("%s/applications/%s/removePassword", msGraphUrl, applicationId)
 	r := newRemovePasswordRequest(http.MethodPost, url)
+	r.With(keyId)
+	r.Status(http.StatusNoContent)
 	e.addNewRequest(r)
 	return r
 }

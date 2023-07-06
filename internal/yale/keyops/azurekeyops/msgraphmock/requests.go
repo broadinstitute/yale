@@ -1,6 +1,8 @@
 package msgraphmock
 
-import "github.com/manicminer/hamilton/msgraph"
+import (
+	"github.com/manicminer/hamilton/msgraph"
+)
 
 type AddPasswordRequest interface {
 	With(passwordCredential msgraph.PasswordCredential) AddPasswordRequest
@@ -51,6 +53,7 @@ func (r *getApplicationRequest) Returns(application *msgraph.Application) GetApp
 }
 
 type RemovePasswordRequest interface {
+	With(keyId string) RemovePasswordRequest
 	Returns() RemovePasswordRequest
 	Request
 }
@@ -63,6 +66,13 @@ func newRemovePasswordRequest(method string, url string) RemovePasswordRequest {
 	return &removePasswordRequest{
 		request: *newRequest(method, url),
 	}
+}
+
+func (r *removePasswordRequest) With(keyId string) RemovePasswordRequest {
+	body := make(map[string]interface{})
+	body["keyId"] = keyId
+	r.RequestBody(body)
+	return r
 }
 
 func (r *removePasswordRequest) Returns() RemovePasswordRequest {

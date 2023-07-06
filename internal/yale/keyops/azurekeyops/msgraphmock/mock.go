@@ -2,7 +2,9 @@ package msgraphmock
 
 import (
 	"fmt"
+	"log"
 	"net/http"
+	"net/http/httputil"
 	"testing"
 
 	"github.com/jarcoal/httpmock"
@@ -23,9 +25,30 @@ func NewMockApplicationsClient(expectFn func(expect Expect)) *applicationsClient
 	e := newExpect()
 	expectFn(e)
 
+	requestLogger := func(req *http.Request) (*http.Request, error) {
+		if req != nil {
+			if dump, err := httputil.DumpRequestOut(req, true); err == nil {
+				log.Printf("%s\n", dump)
+			}
+		}
+		return req, nil
+	}
+
+	responseLogger := func(req *http.Request, resp *http.Response) (*http.Response, error) {
+		if resp != nil {
+			if dump, err := httputil.DumpResponse(resp, true); err == nil {
+				log.Printf("%s\n", dump)
+			}
+		}
+		return resp, nil
+	}
+
 	applicationsClient := msgraph.NewApplicationsClient()
 	httpClient := &http.Client{}
 	applicationsClient.BaseClient.HttpClient = httpClient
+	applicationsClient.BaseClient.DisableRetries = true
+	applicationsClient.BaseClient.RequestMiddlewares = &[]msgraph.RequestMiddleware{requestLogger}
+	applicationsClient.BaseClient.ResponseMiddlewares = &[]msgraph.ResponseMiddleware{responseLogger}
 
 	return &applicationsClientMock{
 		requests:           e.requests,
