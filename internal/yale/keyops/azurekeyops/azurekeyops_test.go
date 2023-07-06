@@ -143,6 +143,26 @@ func Test_deleteIfDisabled(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func Test_dontDeleteIfNotDisabled(t *testing.T) {
+	keyops := setup(t, func(expect msgraphmock.Expect) {
+		expect.Get(context.Background(), testApplicationID, odata.Query{}).
+			Returns(&msgraph.Application{
+				AppId: &testApplicationID,
+				PasswordCredentials: &[]msgraph.PasswordCredential{
+					{
+						DisplayName: &testApplicationID,
+						KeyId:       &testKeyID,
+						SecretText:  &testSecret,
+						EndDateTime: &notDisabledTime,
+					},
+				},
+			})
+	})
+
+	err := keyops.DeleteIfDisabled(testKey)
+	require.ErrorContains(t, err, "is not disabled, cannot delete")
+}
+
 func setup(t *testing.T, expectFn func(msgraphmock.Expect)) keyops.KeyOps {
 	mockMsGraph := msgraphmock.NewMockApplicationsClient(expectFn)
 	mockMsGraph.Setup()
