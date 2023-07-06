@@ -66,7 +66,7 @@ func (m *applicationsClientMock) registerResponders() {
 func (m *applicationsClientMock) verifyCallCounts() error {
 	counts := httpmock.GetCallCountInfo()
 	for _, r := range m.requests {
-		clientSecret := fmt.Sprintf("%s, %s", r.getMethod(), r.getUrl())
+		clientSecret := fmt.Sprintf("%s %s", r.getMethod(), r.getUrl())
 		if counts[clientSecret] != r.getCallCount() {
 			return fmt.Errorf("%s: %d calls expected, %d received", clientSecret, r.getCallCount(), counts[clientSecret])
 		}

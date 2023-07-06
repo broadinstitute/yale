@@ -9,7 +9,7 @@ import (
 	"github.com/manicminer/hamilton/msgraph"
 )
 
-const msGraphUrl = "https://graph.microsoft.com/v1.0"
+const msGraphUrl = "https://graph.microsoft.com/beta"
 
 type Expect interface {
 	AddPassword(ctx context.Context, applicationId string, passwordCredential msgraph.PasswordCredential) AddPasswordRequest
@@ -32,6 +32,7 @@ func (e *expect) addNewRequest(r Request) {
 func (e *expect) AddPassword(ctx context.Context, applicationId string, passwordCredential msgraph.PasswordCredential) AddPasswordRequest {
 	url := fmt.Sprintf("%s/applications/%s/addPassword", msGraphUrl, applicationId)
 	r := newAddPasswordRequest(http.MethodPost, url)
+	r.With(passwordCredential)
 	e.addNewRequest(r)
 	return r
 }

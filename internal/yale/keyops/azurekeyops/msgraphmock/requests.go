@@ -19,7 +19,9 @@ func newAddPasswordRequest(method string, url string) AddPasswordRequest {
 }
 
 func (r *addPasswordRequest) With(passwordCredential msgraph.PasswordCredential) AddPasswordRequest {
-	r.RequestBody(passwordCredential)
+	body := make(map[string]interface{})
+	body["passwordCredential"] = passwordCredential
+	r.RequestBody(body)
 	return r
 }
 
