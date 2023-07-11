@@ -24,6 +24,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+const (
+	gcpKeyops   = "gcp"
+	azureKeyops = "azure"
+)
+
 type Yale struct { // Yale config
 	options     Options
 	cache       cache.Cache
@@ -57,8 +62,8 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 		opt(&options)
 	}
 	_keyops := make(map[string]keyops.KeyOps)
-	_keyops["gcp"] = keyops.New(iam)
-	_keyops["azure"] = azurekeyops.New(azure)
+	_keyops[gcpKeyops] = keyops.New(iam)
+	_keyops[azureKeyops] = azurekeyops.New(azure)
 
 	_authmetrics := authmetrics.New(metrics, iam)
 	_cache := cache.New(k8s, options.CacheNamespace)
@@ -179,7 +184,7 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 	issued := false
 	email := entry.Identify()
 	project := entry.Scope()
-	_keyops := m.keyops["gcp"]
+	_keyops := m.keyops[gcpKeyops]
 
 	if entry.CurrentKey.ID != "" {
 		logs.Info.Printf("service account %s: checking if current key %s needs rotation (created at %s; rotation age is %d days)", email, entry.CurrentKey.ID, entry.CurrentKey.CreatedAt, cutoffs.RotateAfterDays())
@@ -235,7 +240,7 @@ func (m *Yale) disableOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error 
 
 func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 	// has enough time passed since rotation? if not, do nothing
-	_keyops := m.keyops["gcp"]
+	_keyops := m.keyops[gcpKeyops]
 
 	logs.Info.Printf("key %s (service account %s) was rotated at %s, disable cutoff is %d days", keyId, entry.Identify(), rotatedAt, cutoffs.DisableAfterDays())
 	if !cutoffs.ShouldDisable(rotatedAt) {
@@ -304,7 +309,7 @@ func (m *Yale) deleteOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 
 func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 	// has enough time passed since this key was disabled? if not, do nothing
-	_keyops := m.keyops["gcp"]
+	_keyops := m.keyops[gcpKeyops]
 	logs.Info.Printf("key %s (service account %s) was disabled at %s, delete cutoff is %d days", keyId, entry.Identify(), disabledAt, cutoffs.DisableAfterDays())
 	if !cutoffs.ShouldDelete(disabledAt) {
 		logs.Info.Printf("key %s (service account %s): too early to delete", keyId, entry.Identify())
