@@ -76,6 +76,13 @@ func (suite *YaleSuite) SetupTest() {
 	// use noop slack notifier
 	suite.slack = slack.New("")
 
+	// store mock keyops in a map[string]Keyops, so that application logic can switch between
+	// different keyops backends
+	_keyops := make(map[string]keyops.KeyOps)
+	// use mock implementations for both keyops instances
+	_keyops["gcp"] = suite.keyops
+	_keyops["azure"] = suite.keyops
+
 	suite.yale = newYaleFromComponents(
 		Options{
 			CacheNamespace:     cache.DefaultCacheNamespace,
@@ -84,7 +91,7 @@ func (suite *YaleSuite) SetupTest() {
 		suite.cache,
 		suite.resourcemapper,
 		suite.authmetrics,
-		suite.keyops,
+		_keyops,
 		suite.keysync,
 		suite.slack,
 	)
@@ -384,6 +391,9 @@ func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 }
 
 func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfIgnoreUsageMetricsIsTrue() {
+	_keyops := make(map[string]keyops.KeyOps)
+	_keyops["gcp"] = suite.keyops
+	_keyops["azure"] = suite.keyops
 	// overwrite default yale instance with one where IgnoreUsageMetrics is true
 	suite.yale = newYaleFromComponents(
 		Options{
@@ -393,7 +403,7 @@ func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfIgnoreUsag
 		suite.cache,
 		suite.resourcemapper,
 		suite.authmetrics,
-		suite.keyops,
+		_keyops,
 		suite.keysync,
 		suite.slack,
 	)
@@ -571,6 +581,9 @@ func (suite *YaleSuite) TestYaleCorrectlyRetiresCacheEntryWithNoMatchingGcpSaKey
 }
 
 func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
+	_keyops := make(map[string]keyops.KeyOps)
+	_keyops["gcp"] = suite.keyops
+	_keyops["azure"] = suite.keyops
 	// overwrite default yale instance with one where slack client is a mock
 	_slack := slackmocks.NewSlackNotifier(suite.T())
 	suite.yale = newYaleFromComponents(
@@ -581,7 +594,7 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 		suite.cache,
 		suite.resourcemapper,
 		suite.authmetrics,
-		suite.keyops,
+		_keyops,
 		suite.keysync,
 		_slack,
 	)

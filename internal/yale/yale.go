@@ -13,6 +13,7 @@ import (
 	"github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/cutoff"
 	"github.com/broadinstitute/yale/internal/yale/keyops"
+	"github.com/broadinstitute/yale/internal/yale/keyops/azurekeyops"
 	"github.com/broadinstitute/yale/internal/yale/keysync"
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	"github.com/broadinstitute/yale/internal/yale/resourcemap"
@@ -27,7 +28,7 @@ type Yale struct { // Yale config
 	options     Options
 	cache       cache.Cache
 	resourcemap resourcemap.Mapper
-	keyops      keyops.KeyOps
+	keyops      map[string]keyops.KeyOps
 	keysync     keysync.KeySync
 	authmetrics authmetrics.AuthMetrics
 	slack       slack.SlackNotifier
@@ -55,9 +56,11 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 	for _, opt := range opts {
 		opt(&options)
 	}
+	_keyops := make(map[string]keyops.KeyOps)
+	_keyops["gcp"] = keyops.New(iam)
+	_keyops["azure"] = azurekeyops.New(azure)
 
 	_authmetrics := authmetrics.New(metrics, iam)
-	_keyops := keyops.New(iam)
 	_cache := cache.New(k8s, options.CacheNamespace)
 	_keysync := keysync.New(k8s, vault, _cache)
 	_resourcemap := resourcemap.New(crd, _cache)
@@ -66,7 +69,7 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 	return newYaleFromComponents(options, _cache, _resourcemap, _authmetrics, _keyops, _keysync, _slack)
 }
 
-func newYaleFromComponents(options Options, _cache cache.Cache, resourcemapper resourcemap.Mapper, _authmetrics authmetrics.AuthMetrics, _keyops keyops.KeyOps, _keysync keysync.KeySync, _slack slack.SlackNotifier) *Yale {
+func newYaleFromComponents(options Options, _cache cache.Cache, resourcemapper resourcemap.Mapper, _authmetrics authmetrics.AuthMetrics, _keyops map[string]keyops.KeyOps, _keysync keysync.KeySync, _slack slack.SlackNotifier) *Yale {
 	return &Yale{
 		options:     options,
 		cache:       _cache,
@@ -176,6 +179,7 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 	issued := false
 	email := entry.Identify()
 	project := entry.Scope()
+	_keyops := m.keyops["gcp"]
 
 	if entry.CurrentKey.ID != "" {
 		logs.Info.Printf("service account %s: checking if current key %s needs rotation (created at %s; rotation age is %d days)", email, entry.CurrentKey.ID, entry.CurrentKey.CreatedAt, cutoffs.RotateAfterDays())
@@ -194,7 +198,7 @@ func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, g
 			logs.Info.Printf("service account %s: no remaining GcpSaKeys for this service account in the cluster, won't issue new key", email)
 		} else {
 			logs.Info.Printf("service account %s: issuing new key", email)
-			newKey, json, err := m.keyops.Create(project, email)
+			newKey, json, err := _keyops.Create(project, email)
 			if err != nil {
 				return false, fmt.Errorf("error issuing new service account key for %s: %v", email, err)
 			}
@@ -231,6 +235,8 @@ func (m *Yale) disableOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error 
 
 func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 	// has enough time passed since rotation? if not, do nothing
+	_keyops := m.keyops["gcp"]
+
 	logs.Info.Printf("key %s (service account %s) was rotated at %s, disable cutoff is %d days", keyId, entry.Identify(), rotatedAt, cutoffs.DisableAfterDays())
 	if !cutoffs.ShouldDisable(rotatedAt) {
 		logs.Info.Printf("key %s (service account %s): too early to disable", keyId, entry.Identify())
@@ -250,7 +256,7 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 
 	// disable the key
 	logs.Info.Printf("disabling key %s (service account %s)...", keyId, entry.Identify())
-	if err = m.keyops.EnsureDisabled(keyops.Key{
+	if err = _keyops.EnsureDisabled(keyops.Key{
 		Scope:      entry.Scope(),
 		Identifier: entry.Identify(),
 		ID:         keyId,
@@ -298,6 +304,7 @@ func (m *Yale) deleteOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 
 func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 	// has enough time passed since this key was disabled? if not, do nothing
+	_keyops := m.keyops["gcp"]
 	logs.Info.Printf("key %s (service account %s) was disabled at %s, delete cutoff is %d days", keyId, entry.Identify(), disabledAt, cutoffs.DisableAfterDays())
 	if !cutoffs.ShouldDelete(disabledAt) {
 		logs.Info.Printf("key %s (service account %s): too early to delete", keyId, entry.Identify())
@@ -312,7 +319,7 @@ func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Ent
 
 	// delete key from GCP
 	logs.Info.Printf("key %s (service account %s) has reached delete cutoff; deleting it", key.ID, key.Identifier)
-	if err := m.keyops.DeleteIfDisabled(key); err != nil {
+	if err := _keyops.DeleteIfDisabled(key); err != nil {
 		return fmt.Errorf("error deleting key %s (service account %s): %v", keyId, entry.Identify(), err)
 	}
 
