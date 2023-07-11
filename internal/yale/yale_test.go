@@ -123,6 +123,21 @@ var sa3 = cache.GcpSaKeyEntryIdentifier{
 	Project: "p.com",
 }
 
+var clientSecret1 = cache.AzureClientSecretEntryIdentifier{
+	ApplicationID: "test-app-id-1",
+	TenantID:      "test-tenant-id",
+}
+
+var clientSecret2 = cache.AzureClientSecretEntryIdentifier{
+	ApplicationID: "test-app-id-2",
+	TenantID:      "test-tenant-id",
+}
+
+var clientSecret3 = cache.AzureClientSecretEntryIdentifier{
+	ApplicationID: "test-app-id-3",
+	TenantID:      "test-tenant-id",
+}
+
 var sa1key1 = key{
 	id:  "s1-key1",
 	sa:  sa1,
@@ -151,6 +166,12 @@ var sa3key1 = key{
 	id:  "s3-key1",
 	sa:  sa3,
 	pem: "dog",
+}
+
+var clientSecret1Key1 = key{
+	id:  "cs1-key1",
+	sa:  clientSecret1,
+	pem: "az-secret",
 }
 
 var gsk1 = apiv1b1.GcpSaKey{
@@ -222,6 +243,28 @@ var gsk3 = apiv1b1.GcpSaKey{
 	},
 }
 
+var acs1 = apiv1b1.AzureClientSecret{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "clientsecret1-acs",
+		Namespace: "ns-1",
+	},
+	Spec: apiv1b1.AzureClientSecretSpec{
+		AzureServicePrincipal: apiv1b1.AzureServicePrincipal{
+			ApplicationID: clientSecret1.ApplicationID,
+			TenantID:      clientSecret1.TenantID,
+		},
+		KeyRotation: apiv1b1.KeyRotation{
+			RotateAfter:  7,
+			DisableAfter: 7,
+			DeleteAfter:  3,
+		},
+		Secret: apiv1b1.Secret{
+			Name:                "clientsecret1-secret",
+			ClientSecretKeyName: "clientsecret-key",
+		},
+	},
+}
+
 func (suite *YaleSuite) TestYaleIssuesNewKeyForNewGcpSaKey() {
 	suite.seedGsks(gsk1)
 	suite.seedAzureClientSecrets()
@@ -242,6 +285,22 @@ func (suite *YaleSuite) TestYaleIssuesNewKeyForNewGcpSaKey() {
 		"key.pem":  sa1key1.pem,
 		"key.json": sa1key1.json(),
 	})
+}
+
+func (suite *YaleSuite) TestYaleIssuesNewClientSecretForNewAzureClientSecret() {
+	suite.seedGsks()
+	suite.seedAzureClientSecrets(acs1)
+	suite.expectCreateKey(clientSecret1Key1)
+
+	require.NoError(suite.T(), suite.yale.Run())
+
+	// ensure cache contains new client secret
+	entry, err := suite.cache.GetOrCreate(clientSecret1)
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), clientSecret1Key1.id, entry.CurrentKey.ID)
+	assert.Equal(suite.T(), clientSecret1Key1.json(), entry.CurrentKey.JSON)
+	suite.assertNow(entry.CurrentKey.CreatedAt)
+
 }
 
 func (suite *YaleSuite) TestYaleRotatesOldKey() {
