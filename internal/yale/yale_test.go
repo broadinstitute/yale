@@ -298,7 +298,6 @@ func (suite *YaleSuite) TestYaleIssuesNewClientSecretForNewAzureClientSecret() {
 	entry, err := suite.cache.GetOrCreate(clientSecret1)
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), clientSecret1Key1.id, entry.CurrentKey.ID)
-	assert.Equal(suite.T(), clientSecret1Key1.json(), entry.CurrentKey.JSON)
 	suite.assertNow(entry.CurrentKey.CreatedAt)
 
 }

@@ -94,9 +94,17 @@ func (m *Yale) Run() error {
 
 	errors := make(map[string]error)
 	for identifier, bundle := range resources {
-		if err = m.processServiceAccountAndReportErrors(bundle.Entry, bundle.GSKs); err != nil {
-			logs.Error.Printf("error processing service account %s: %v", identifier, err)
-			errors[identifier] = err
+		if bundle.Entry.Identifier.Type() == cache.GcpSaKey {
+			if err = m.processServiceAccountAndReportErrors(bundle.Entry, bundle.GSKs); err != nil {
+				logs.Error.Printf("error processing service account %s: %v", identifier, err)
+				errors[identifier] = err
+			}
+		} else if bundle.Entry.Identifier.Type() == cache.AzureClientSecret {
+			logs.Info.Printf("processing azure client secret %s", identifier)
+			if err = m.processAzureClientSecretAndReportErrors(bundle.Entry, bundle.AzClientSecrets); err != nil {
+				logs.Error.Printf("error processing azure client secret %s: %v", identifier, err)
+				errors[identifier] = err
+			}
 		}
 	}
 
@@ -115,6 +123,16 @@ func (m *Yale) processServiceAccountAndReportErrors(entry *cache.Entry, gsks []a
 	if err := m.processServiceAccount(entry, gsks); err != nil {
 		if reportErr := m.reportError(entry, err); reportErr != nil {
 			logs.Error.Printf("error reporting error for service account %s: %v", entry.Identify(), reportErr)
+		}
+		return err
+	}
+	return nil
+}
+
+func (m *Yale) processAzureClientSecretAndReportErrors(entry *cache.Entry, acss []apiv1b1.AzureClientSecret) error {
+	if err := m.processAzureClientSecret(entry, acss); err != nil {
+		if reportErr := m.reportError(entry, err); reportErr != nil {
+			logs.Error.Printf("error reporting error for azure client secret %s: %v", entry.Identify(), reportErr)
 		}
 		return err
 	}
@@ -141,6 +159,11 @@ func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GcpSaKey
 	if err = m.retireCacheEntryIfNeeded(entry, gsks); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (m *Yale) processAzureClientSecret(entry *cache.Entry, acss []apiv1b1.AzureClientSecret) error {
 
 	return nil
 }
