@@ -164,6 +164,18 @@ func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GcpSaKey
 }
 
 func (m *Yale) processAzureClientSecret(entry *cache.Entry, acss []apiv1b1.AzureClientSecret) error {
+	newKey, secret, err := m.keyops[azureKeyops].Create(entry.Scope(), entry.Identify())
+	if err != nil {
+		return err
+	}
+	logs.Info.Printf("created new service account key %s for %s", newKey.ID, entry.Identify())
+	entry.CurrentKey.ID = newKey.ID
+	entry.CurrentKey.JSON = string(secret)
+	entry.CurrentKey.CreatedAt = currentTime()
+
+	if err := m.cache.Save(entry); err != nil {
+		return fmt.Errorf("error saving cache entry for %s after key rotation: %v", entry.Identify(), err)
+	}
 
 	return nil
 }
@@ -184,7 +196,7 @@ func (m *Yale) syncKeyIfReady(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error
 		// nothing to sync yet
 		return nil
 	}
-	return m.keysync.SyncIfNeeded(entry, gsks...)
+	return m.keysync.SyncIfNeeded(entry, gsks, nil)
 }
 
 // rotateKey rotates the current active key for the service account, if needed.
@@ -196,7 +208,7 @@ func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv
 	if !rotated {
 		return nil
 	}
-	return m.keysync.SyncIfNeeded(entry, gsks...)
+	return m.keysync.SyncIfNeeded(entry, gsks, nil)
 }
 
 // issueNewKeyIfNeed given cache entry and gsk, checks if the entry's current active key needs to be rotated.

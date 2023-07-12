@@ -28,7 +28,7 @@ type KeySync interface {
 	//
 	// Note that this function will update the cache entry's SyncStatus map to reflect any sync's it performs,
 	// but it WILL NOT save the entry to the cache -- that's the caller's responsibility!
-	SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GcpSaKey) error
+	SyncIfNeeded(entry *cache.Entry, gsks []apiv1b1.GcpSaKey, azureClientSecrets []apiv1b1.AzureClientSecret) error
 }
 
 func New(k8s kubernetes.Interface, vault *vaultapi.Client, cache cache.Cache) KeySync {
@@ -47,7 +47,7 @@ type keysync struct {
 	clusterSecrets map[string]struct{}
 }
 
-func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks ...apiv1b1.GcpSaKey) error {
+func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks []apiv1b1.GcpSaKey, azureClientSecrets []apiv1b1.AzureClientSecret) error {
 	for _, gsk := range gsks {
 		syncRequired, statusHash, err := k.syncRequired(entry, gsk)
 		if err != nil {

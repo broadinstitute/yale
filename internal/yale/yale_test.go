@@ -298,6 +298,7 @@ func (suite *YaleSuite) TestYaleIssuesNewClientSecretForNewAzureClientSecret() {
 	entry, err := suite.cache.GetOrCreate(clientSecret1)
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), clientSecret1Key1.id, entry.CurrentKey.ID)
+	assert.Equal(suite.T(), clientSecret1Key1.json(), entry.CurrentKey.JSON)
 	suite.assertNow(entry.CurrentKey.CreatedAt)
 
 }
@@ -798,5 +799,9 @@ func (k key) keyopsFormat() keyops.Key {
 }
 
 func (k key) json() string {
-	return `{"email":"` + k.sa.Identify() + `","private_key":"` + k.pem + `"}`
+	if k.sa.Type() == cache.GcpSaKey {
+		return `{"email":"` + k.sa.Identify() + `","private_key":"` + k.pem + `"}`
+	} else {
+		return k.pem
+	}
 }
