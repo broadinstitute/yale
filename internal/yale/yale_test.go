@@ -128,15 +128,15 @@ var clientSecret1 = cache.AzureClientSecretEntryIdentifier{
 	TenantID:      "test-tenant-id",
 }
 
-var clientSecret2 = cache.AzureClientSecretEntryIdentifier{
-	ApplicationID: "test-app-id-2",
-	TenantID:      "test-tenant-id",
-}
+// var clientSecret2 = cache.AzureClientSecretEntryIdentifier{
+// 	ApplicationID: "test-app-id-2",
+// 	TenantID:      "test-tenant-id",
+// }
 
-var clientSecret3 = cache.AzureClientSecretEntryIdentifier{
-	ApplicationID: "test-app-id-3",
-	TenantID:      "test-tenant-id",
-}
+// var clientSecret3 = cache.AzureClientSecretEntryIdentifier{
+// 	ApplicationID: "test-app-id-3",
+// 	TenantID:      "test-tenant-id",
+// }
 
 var sa1key1 = key{
 	id:  "s1-key1",
