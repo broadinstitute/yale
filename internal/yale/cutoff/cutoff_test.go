@@ -1,12 +1,13 @@
 package cutoff
 
 import (
+	"testing"
+	"time"
+
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
-	"time"
 )
 
 func Test_Cutoffs(t *testing.T) {
@@ -514,7 +515,7 @@ func Test_computeIgnoreUsageMetrics(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, computeIgnoreUsageMetrics(tc.input))
+			assert.Equal(t, tc.expected, computeIgnoreUsageMetricsGSK(tc.input))
 		})
 	}
 }

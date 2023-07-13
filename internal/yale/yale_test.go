@@ -300,7 +300,6 @@ func (suite *YaleSuite) TestYaleIssuesNewClientSecretForNewAzureClientSecret() {
 	assert.Equal(suite.T(), clientSecret1Key1.id, entry.CurrentKey.ID)
 	assert.Equal(suite.T(), clientSecret1Key1.json(), entry.CurrentKey.JSON)
 	suite.assertNow(entry.CurrentKey.CreatedAt)
-
 }
 
 func (suite *YaleSuite) TestYaleRotatesOldKey() {

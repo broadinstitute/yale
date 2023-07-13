@@ -142,7 +142,7 @@ func (m *Yale) processAzureClientSecretAndReportErrors(entry *cache.Entry, acss 
 func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
 	var err error
 
-	cutoffs := m.computeCutoffs(entry, gsks)
+	cutoffs := m.computeCutoffs(entry, gsks, nil)
 
 	if err = m.syncKeyIfReady(entry, gsks); err != nil {
 		return err
@@ -182,12 +182,12 @@ func (m *Yale) processAzureClientSecret(entry *cache.Entry, acss []apiv1b1.Azure
 
 // computeCutoffs computes the cutoffs for key rotation/disabling/deletion based on the GcpSaKey resources
 // for this service account
-func (m *Yale) computeCutoffs(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) cutoff.Cutoffs {
-	if len(gsks) == 0 {
-		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will use Yale's default cutoffs to retire old keys", entry.Identify())
+func (m *Yale) computeCutoffs(entry *cache.Entry, gsks []apiv1b1.GcpSaKey, azureClientSecrets []apiv1b1.AzureClientSecret) cutoff.Cutoffs {
+	if len(gsks) == 0 && len(azureClientSecrets) == 0 {
+		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey or AzureClientSecret resources in the cluster; will use Yale's default cutoffs to retire old keys", entry.Identify())
 		return cutoff.NewWithDefaults()
 	}
-	return cutoff.New(gsks...)
+	return cutoff.New(gsks)
 }
 
 // syncKeyIfReady if cache entry has a current/active key, perform a keysync
