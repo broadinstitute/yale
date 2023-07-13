@@ -164,23 +164,15 @@ func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GcpSaKey
 }
 
 func (m *Yale) processAzureClientSecret(entry *cache.Entry, azureClientSecrets []apiv1b1.AzureClientSecret) error {
-	_ = computeCutoffs(entry, azureClientSecrets)
+	var err error
+	cutoffs := computeCutoffs(entry, azureClientSecrets)
 
-	if err := m.syncClientSecretIfReady(entry, azureClientSecrets); err != nil {
+	if err = m.syncClientSecretIfReady(entry, azureClientSecrets); err != nil {
 		return err
 	}
 
-	newKey, secret, err := m.keyops[azureKeyops].Create(entry.Scope(), entry.Identify())
-	if err != nil {
+	if err = m.rotateClientSecret(entry, cutoffs, azureClientSecrets); err != nil {
 		return err
-	}
-	logs.Info.Printf("created new client secret %s for %s", newKey.ID, entry.Identify())
-	entry.CurrentKey.ID = newKey.ID
-	entry.CurrentKey.JSON = string(secret)
-	entry.CurrentKey.CreatedAt = currentTime()
-
-	if err := m.cache.Save(entry); err != nil {
-		return fmt.Errorf("error saving cache entry for %s after key rotation: %v", entry.Identify(), err)
 	}
 
 	return nil
@@ -232,12 +224,27 @@ func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv
 	return syncYaleResourceIfReady(m.keysync, entry, gsks)
 }
 
+func (m *Yale) rotateClientSecret(entry *cache.Entry, cutoffs cutoff.Cutoffs, azureClientSecrets []apiv1b1.AzureClientSecret) error {
+	rotated, err := m.issueNewClientSecretIfNeeded(entry, cutoffs, azureClientSecrets)
+	if err != nil {
+		return err
+	}
+	if !rotated {
+		return nil
+	}
+	return syncYaleResourceIfReady(m.keysync, entry, azureClientSecrets)
+}
+
 // issueNewKeyIfNeed given cache entry and gsk, checks if the entry's current active key needs to be rotated.
 // if a rotation is needed (or the cache entry is new/empty), it issues a new sa key, adds it
 // to the cache entry, then saves the updated cache entry to k8s.
 // returns a boolean that will be true if a new key was issued, false otherwise
 func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GcpSaKey) (bool, error) {
 	return issueNewYaleResourceIfNeeded(m.keyops[gcpKeyops], m.cache, m.slack, entry, cutoffs, gsks)
+}
+
+func (m *Yale) issueNewClientSecretIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, azureClientSecrets []apiv1b1.AzureClientSecret) (bool, error) {
+	return issueNewYaleResourceIfNeeded(m.keyops[azureKeyops], m.cache, m.slack, entry, cutoffs, azureClientSecrets)
 }
 
 func issueNewYaleResourceIfNeeded[Y apiv1b1.YaleCRD](keyops keyops.KeyOps, yaleCache cache.Cache, slack slack.SlackNotifier, entry *cache.Entry, cutoffs cutoff.Cutoffs, yaleCRDs []Y) (bool, error) {
