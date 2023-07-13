@@ -671,7 +671,7 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 		RotatedKeys:  map[string]time.Time{},
 		DisabledKeys: map[string]time.Time{},
 		LastError: cache.LastError{
-			Message:            "error issuing new service account key for s3@p.com: oh noes",
+			Message:            "error issuing new secret for s3@p.com: oh noes",
 			Timestamp:          lastNotification,
 			LastNotificationAt: lastNotification,
 		},
@@ -681,7 +681,7 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 	_slack.EXPECT().KeyIssued(mock.Anything, sa2key1.id).Return(nil)
 	// set expectation that yale notifies for the s1 error (but not s3)
 	_slack.EXPECT().Error(mock.Anything, mock.MatchedBy(func(s string) bool {
-		return strings.HasSuffix(s, "error issuing new service account key for s1@p.com: uh-oh")
+		return strings.HasSuffix(s, "error issuing new secret for s1@p.com: uh-oh")
 	})).Return(nil)
 
 	err := suite.yale.Run()
@@ -706,14 +706,14 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 	// make sure the cache entries for s1 and s3 have error information
 	entry, err = suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "error issuing new service account key for s1@p.com: uh-oh", entry.LastError.Message)
+	assert.Equal(suite.T(), "error issuing new secret for s1@p.com: uh-oh", entry.LastError.Message)
 	suite.assertNow(entry.LastError.Timestamp)
 	suite.assertNow(entry.LastError.LastNotificationAt)
 
 	// s3 should NOT have sent an error, because it was already sent recently
 	entry, err = suite.cache.GetOrCreate(sa3)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "error issuing new service account key for s3@p.com: oh noes", entry.LastError.Message)
+	assert.Equal(suite.T(), "error issuing new secret for s3@p.com: oh noes", entry.LastError.Message)
 	suite.assertNow(entry.LastError.Timestamp)
 	assert.Equal(suite.T(), lastNotification, entry.LastError.LastNotificationAt)
 }

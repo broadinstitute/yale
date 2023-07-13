@@ -8,6 +8,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+type YaleCRD interface {
+	GcpSaKey | AzureClientSecret
+}
+
 type GCPSaKeySpec struct {
 	GoogleServiceAccount GoogleServiceAccount `json:"googleServiceAccount"`
 	Secret               Secret               `json:"secret"`

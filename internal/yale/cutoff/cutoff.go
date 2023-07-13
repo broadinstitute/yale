@@ -51,25 +51,20 @@ type Cutoffs interface {
 	DeleteAfterDays() int
 }
 
-// cutoffable is a union of the types that are able to be used to compute cutoffs
-type cutoffable interface {
-	apiv1b1.GcpSaKey | apiv1b1.AzureClientSecret
-}
-
 func NewWithDefaults() Cutoffs {
 	return newWithThresholds(minimums, time.Now())
 }
 
-func New[C cutoffable](cutoffables []C) Cutoffs {
-	return newWithCustomTime(cutoffables, time.Now())
+func New[Y apiv1b1.YaleCRD](yaleCRDs []Y) Cutoffs {
+	return newWithCustomTime(yaleCRDs, time.Now())
 }
 
-func newWithCustomTime[C cutoffable](cutoffables []C, now time.Time) cutoffs {
-	if len(cutoffables) < 1 {
+func newWithCustomTime[Y apiv1b1.YaleCRD](yaleCRDs []Y, now time.Time) cutoffs {
+	if len(yaleCRDs) < 1 {
 		panic("at least one GcpSaKey or AzureClientSecret must be supplied in order to compute cutoffs")
 	}
 
-	return newWithThresholds(computeThresholds(cutoffables), now)
+	return newWithThresholds(computeThresholds(yaleCRDs), now)
 }
 
 func newWithThresholds(t thresholds, now time.Time) cutoffs {
@@ -142,8 +137,8 @@ func (c cutoffs) daysAgo(n int) time.Time {
 }
 
 // computeThresholds take a set of gsks and collapse them into a set of agreed-upon thresholds
-func computeThresholds[C cutoffable](cutoffables []C) thresholds {
-	switch cs := any(&cutoffables).(type) {
+func computeThresholds[Y apiv1b1.YaleCRD](yaleCRDs []Y) thresholds {
+	switch cs := any(&yaleCRDs).(type) {
 	case *[]apiv1b1.GcpSaKey:
 		gsks := *cs
 		t := thresholds{
@@ -159,7 +154,7 @@ func computeThresholds[C cutoffable](cutoffables []C) thresholds {
 			ignoreUsageMetrics: computeIgnoreUsageMetricsGSK(gsks),
 		}
 
-		if len(cutoffables) > 1 {
+		if len(yaleCRDs) > 1 {
 			logs.Info.Printf("computed key rotation thresholds for %s from %d GSKs: rotate after %d days, disable after %d days, delete after %d days", gsks[0].Spec.GoogleServiceAccount.Name, len(gsks), t.rotateAfter, t.disableAfter, t.deleteAfter)
 		}
 		return t
@@ -178,13 +173,13 @@ func computeThresholds[C cutoffable](cutoffables []C) thresholds {
 			ignoreUsageMetrics: computeIgnoreUsageMetricsAzureClientSecret(azureClientSecrets),
 		}
 
-		if len(cutoffables) > 1 {
+		if len(yaleCRDs) > 1 {
 			logs.Info.Printf("computed key rotation thresholds for %s from %d AzureClientSecrets: rotate after %d days, disable after %d days, delete after %d days", azureClientSecrets[0].Spec.AzureServicePrincipal.ApplicationID, len(azureClientSecrets), t.rotateAfter, t.disableAfter, t.deleteAfter)
 		}
 		return t
 
 	default:
-		panic(fmt.Sprintf("unknown yale resource type: %T", cutoffables))
+		panic(fmt.Sprintf("unknown yale resource type: %T", yaleCRDs))
 	}
 }
 

@@ -39,10 +39,6 @@ type Yale struct { // Yale config
 	slack       slack.SlackNotifier
 }
 
-type yaleCRD interface {
-	apiv1b1.GcpSaKey | apiv1b1.AzureClientSecret
-}
-
 type Options struct {
 	// CacheNamespace namespace where Yale will store its cache entries
 	CacheNamespace string
@@ -170,6 +166,10 @@ func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GcpSaKey
 func (m *Yale) processAzureClientSecret(entry *cache.Entry, azureClientSecrets []apiv1b1.AzureClientSecret) error {
 	_ = computeCutoffs(entry, azureClientSecrets)
 
+	if err := m.syncClientSecretIfReady(entry, azureClientSecrets); err != nil {
+		return err
+	}
+
 	newKey, secret, err := m.keyops[azureKeyops].Create(entry.Scope(), entry.Identify())
 	if err != nil {
 		return err
@@ -188,7 +188,7 @@ func (m *Yale) processAzureClientSecret(entry *cache.Entry, azureClientSecrets [
 
 // computeCutoffs computes the cutoffs for key rotation/disabling/deletion based on the GcpSaKey resources
 // for this service account
-func computeCutoffs[Y yaleCRD](entry *cache.Entry, yaleCRDs []Y) cutoff.Cutoffs {
+func computeCutoffs[Y apiv1b1.YaleCRD](entry *cache.Entry, yaleCRDs []Y) cutoff.Cutoffs {
 	if len(yaleCRDs) == 0 {
 		logs.Info.Printf("cache entry for %s has no corresponding %T resources in the cluster; will use Yale's default cutoffs to retire old keys", entry.Identify(), yaleCRDs)
 		return cutoff.NewWithDefaults()
@@ -198,11 +198,26 @@ func computeCutoffs[Y yaleCRD](entry *cache.Entry, yaleCRDs []Y) cutoff.Cutoffs 
 
 // syncKeyIfReady if cache entry has a current/active key, perform a keysync
 func (m *Yale) syncKeyIfReady(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
+	return syncYaleResourceIfReady(m.keysync, entry, gsks)
+}
+
+func (m *Yale) syncClientSecretIfReady(entry *cache.Entry, azureClientSecret []apiv1b1.AzureClientSecret) error {
+	return syncYaleResourceIfReady(m.keysync, entry, azureClientSecret)
+}
+
+func syncYaleResourceIfReady[Y apiv1b1.YaleCRD](keysync keysync.KeySync, entry *cache.Entry, yaleCRDs []Y) error {
 	if len(entry.CurrentKey.ID) == 0 {
 		// nothing to sync yet
 		return nil
 	}
-	return m.keysync.SyncIfNeeded(entry, gsks, nil)
+	switch crds := any(&yaleCRDs).(type) {
+	case *[]apiv1b1.GcpSaKey:
+		return keysync.SyncIfNeeded(entry, *crds, nil)
+	case *[]apiv1b1.AzureClientSecret:
+		return keysync.SyncIfNeeded(entry, nil, *crds)
+	default:
+		return fmt.Errorf("unknown yaleCRD type %T", yaleCRDs)
+	}
 }
 
 // rotateKey rotates the current active key for the service account, if needed.
@@ -214,7 +229,7 @@ func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv
 	if !rotated {
 		return nil
 	}
-	return m.keysync.SyncIfNeeded(entry, gsks, nil)
+	return syncYaleResourceIfReady(m.keysync, entry, gsks)
 }
 
 // issueNewKeyIfNeed given cache entry and gsk, checks if the entry's current active key needs to be rotated.
@@ -222,47 +237,48 @@ func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv
 // to the cache entry, then saves the updated cache entry to k8s.
 // returns a boolean that will be true if a new key was issued, false otherwise
 func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GcpSaKey) (bool, error) {
+	return issueNewYaleResourceIfNeeded(m.keyops[gcpKeyops], m.cache, m.slack, entry, cutoffs, gsks)
+}
+
+func issueNewYaleResourceIfNeeded[Y apiv1b1.YaleCRD](keyops keyops.KeyOps, yaleCache cache.Cache, slack slack.SlackNotifier, entry *cache.Entry, cutoffs cutoff.Cutoffs, yaleCRDs []Y) (bool, error) {
 	issued := false
-	email := entry.Identify()
-	project := entry.Scope()
-	_keyops := m.keyops[gcpKeyops]
+	identifier := entry.Identify()
+	scope := entry.Scope()
 
 	if entry.CurrentKey.ID != "" {
-		logs.Info.Printf("service account %s: checking if current key %s needs rotation (created at %s; rotation age is %d days)", email, entry.CurrentKey.ID, entry.CurrentKey.CreatedAt, cutoffs.RotateAfterDays())
-
+		logs.Info.Printf("%T %s: checking if current secret %s needs rotation (created at %s; rotation age is %d days)", entry.Type, identifier, entry.CurrentKey.ID, entry.CurrentKey.CreatedAt, cutoffs.RotateAfterDays())
 		if cutoffs.ShouldRotate(entry.CurrentKey.CreatedAt) {
-			logs.Info.Printf("service account %s: rotating key %s", email, entry.CurrentKey.ID)
+			logs.Info.Printf("%T %s: current secret %s needs rotation", entry.Type, identifier, entry.CurrentKey.ID)
 			entry.RotatedKeys[entry.CurrentKey.ID] = currentTime()
 			entry.CurrentKey = cache.CurrentKey{}
 		} else {
-			logs.Info.Printf("service account %s: current key %s does not need rotation", email, entry.CurrentKey.ID)
+			logs.Info.Printf("%T %s: current secret %s does not need rotation", entry.Type, identifier, entry.CurrentKey.ID)
 		}
 	}
 
 	if entry.CurrentKey.ID == "" {
-		if len(gsks) == 0 {
-			logs.Info.Printf("service account %s: no remaining GcpSaKeys for this service account in the cluster, won't issue new key", email)
+		if len(yaleCRDs) == 0 {
+			logs.Info.Printf("%T %s: no %T resources in cluster; will not issue new key", entry.Type, identifier, yaleCRDs)
 		} else {
-			logs.Info.Printf("service account %s: issuing new key", email)
-			newKey, json, err := _keyops.Create(project, email)
+			logs.Info.Printf("%T %s: issuing new key", entry.Type, identifier)
+			newKey, secret, err := keyops.Create(scope, identifier)
 			if err != nil {
-				return false, fmt.Errorf("error issuing new service account key for %s: %v", email, err)
+				return false, fmt.Errorf("error issuing new secret for %s: %v", identifier, err)
 			}
-
-			logs.Info.Printf("created new service account key %s for %s", newKey.ID, email)
+			logs.Info.Printf("%T %s: issued new secret %s", entry.Type, identifier, newKey.ID)
 			entry.CurrentKey.ID = newKey.ID
-			entry.CurrentKey.JSON = string(json)
+			entry.CurrentKey.JSON = string(secret)
 			entry.CurrentKey.CreatedAt = currentTime()
 			issued = true
 		}
 	}
 
-	if err := m.cache.Save(entry); err != nil {
-		return false, fmt.Errorf("error saving cache entry for %s after key rotation: %v", email, err)
+	if err := yaleCache.Save(entry); err != nil {
+		return false, fmt.Errorf("error saving cache entry for %s after key rotation: %v", identifier, err)
 	}
 
 	if issued {
-		if err := m.slack.KeyIssued(entry, entry.CurrentKey.ID); err != nil {
+		if err := slack.KeyIssued(entry, entry.CurrentKey.ID); err != nil {
 			return false, err
 		}
 	}
