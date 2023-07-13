@@ -39,6 +39,10 @@ type Yale struct { // Yale config
 	slack       slack.SlackNotifier
 }
 
+type yaleCRD interface {
+	apiv1b1.GcpSaKey | apiv1b1.AzureClientSecret
+}
+
 type Options struct {
 	// CacheNamespace namespace where Yale will store its cache entries
 	CacheNamespace string
@@ -142,7 +146,7 @@ func (m *Yale) processAzureClientSecretAndReportErrors(entry *cache.Entry, acss 
 func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
 	var err error
 
-	cutoffs := m.computeCutoffs(entry, gsks, nil)
+	cutoffs := computeCutoffs(entry, gsks)
 
 	if err = m.syncKeyIfReady(entry, gsks); err != nil {
 		return err
@@ -163,12 +167,14 @@ func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GcpSaKey
 	return nil
 }
 
-func (m *Yale) processAzureClientSecret(entry *cache.Entry, acss []apiv1b1.AzureClientSecret) error {
+func (m *Yale) processAzureClientSecret(entry *cache.Entry, azureClientSecrets []apiv1b1.AzureClientSecret) error {
+	_ = computeCutoffs(entry, azureClientSecrets)
+
 	newKey, secret, err := m.keyops[azureKeyops].Create(entry.Scope(), entry.Identify())
 	if err != nil {
 		return err
 	}
-	logs.Info.Printf("created new service account key %s for %s", newKey.ID, entry.Identify())
+	logs.Info.Printf("created new client secret %s for %s", newKey.ID, entry.Identify())
 	entry.CurrentKey.ID = newKey.ID
 	entry.CurrentKey.JSON = string(secret)
 	entry.CurrentKey.CreatedAt = currentTime()
@@ -182,12 +188,12 @@ func (m *Yale) processAzureClientSecret(entry *cache.Entry, acss []apiv1b1.Azure
 
 // computeCutoffs computes the cutoffs for key rotation/disabling/deletion based on the GcpSaKey resources
 // for this service account
-func (m *Yale) computeCutoffs(entry *cache.Entry, gsks []apiv1b1.GcpSaKey, azureClientSecrets []apiv1b1.AzureClientSecret) cutoff.Cutoffs {
-	if len(gsks) == 0 && len(azureClientSecrets) == 0 {
-		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey or AzureClientSecret resources in the cluster; will use Yale's default cutoffs to retire old keys", entry.Identify())
+func computeCutoffs[Y yaleCRD](entry *cache.Entry, yaleCRDs []Y) cutoff.Cutoffs {
+	if len(yaleCRDs) == 0 {
+		logs.Info.Printf("cache entry for %s has no corresponding %T resources in the cluster; will use Yale's default cutoffs to retire old keys", entry.Identify(), yaleCRDs)
 		return cutoff.NewWithDefaults()
 	}
-	return cutoff.New(gsks)
+	return cutoff.New(yaleCRDs)
 }
 
 // syncKeyIfReady if cache entry has a current/active key, perform a keysync
