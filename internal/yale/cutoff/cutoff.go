@@ -51,6 +51,7 @@ type Cutoffs interface {
 	DeleteAfterDays() int
 }
 
+// cutoffable is a union of the types that are able to be used to compute cutoffs
 type cutoffable interface {
 	apiv1b1.GcpSaKey | apiv1b1.AzureClientSecret
 }
