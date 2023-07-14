@@ -156,7 +156,7 @@ func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GcpSaKey
 	if err = m.rotateKey(entry, cutoffs, gsks); err != nil {
 		return err
 	}
-	if err = m.retireCacheEntryIfNeeded(entry, gsks); err != nil {
+	if err = retireCacheEntryIfNeeded(m.cache, entry, gsks); err != nil {
 		return err
 	}
 
@@ -170,8 +170,19 @@ func (m *Yale) processAzureClientSecret(entry *cache.Entry, azureClientSecrets [
 	if err = m.syncClientSecretIfReady(entry, azureClientSecrets); err != nil {
 		return err
 	}
+	if err = m.disableOldKeys(entry, cutoffs); err != nil {
+		return err
+	}
+
+	if err = m.disableOldKeys(entry, cutoffs); err != nil {
+		return err
+	}
 
 	if err = m.rotateClientSecret(entry, cutoffs, azureClientSecrets); err != nil {
+		return err
+	}
+
+	if err = retireCacheEntryIfNeeded(m.cache, entry, azureClientSecrets); err != nil {
 		return err
 	}
 
@@ -402,8 +413,8 @@ func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Ent
 	return m.slack.KeyDeleted(entry, key.ID)
 }
 
-func (m *Yale) retireCacheEntryIfNeeded(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
-	if len(gsks) > 0 {
+func retireCacheEntryIfNeeded[Y apiv1b1.YaleCRD](yaleCache cache.Cache, entry *cache.Entry, yaleCRDs []Y) error {
+	if len(yaleCRDs) > 0 {
 		return nil
 	}
 	if len(entry.CurrentKey.ID) > 0 {
@@ -420,7 +431,7 @@ func (m *Yale) retireCacheEntryIfNeeded(entry *cache.Entry, gsks []apiv1b1.GcpSa
 	}
 
 	logs.Info.Printf("cache entry for %s is empty and has no corresponding GcpSaKey resources in the cluster; deleting it", entry.Identify())
-	return m.cache.Delete(entry)
+	return yaleCache.Delete(entry)
 }
 
 const errorRepostDuration = 4 * time.Hour
