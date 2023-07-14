@@ -86,6 +86,7 @@ func newYaleFromComponents(options Options, _cache cache.Cache, resourcemapper r
 	}
 }
 
+// Run is the main entrypoint for Yale, and will perform a full sync of all yale-managed resources in the cluster
 func (m *Yale) Run() error {
 	resources, err := m.resourcemap.Build()
 	if err != nil {
@@ -119,6 +120,7 @@ func (m *Yale) Run() error {
 	return nil
 }
 
+// processYaleResourceAndReportErrors is a helper function that will process a Yale-managed resource, and report any errors that occur
 func processYaleResourceAndReportErrors[Y apiv1b1.YaleCRD](yale *Yale, entry *cache.Entry, yaleCRDs []Y) error {
 	if err := processYaleResource(yale, entry, yaleCRDs); err != nil {
 		if reportErr := yale.reportError(entry, err); reportErr != nil {
@@ -129,6 +131,7 @@ func processYaleResourceAndReportErrors[Y apiv1b1.YaleCRD](yale *Yale, entry *ca
 	return nil
 }
 
+// processYaleResource is a helper function that will process a Yale-managed resource
 func processYaleResource[Y apiv1b1.YaleCRD](yale *Yale, entry *cache.Entry, yaleCRDs []Y) error {
 	var err error
 	var keyOpsType string
@@ -171,6 +174,7 @@ func computeCutoffs[Y apiv1b1.YaleCRD](entry *cache.Entry, yaleCRDs []Y) cutoff.
 	return cutoff.New(yaleCRDs)
 }
 
+// syncYaleResourceIfReady will sync the active key for a cache entry if it exists to the keysync destination
 func syncYaleResourceIfReady[Y apiv1b1.YaleCRD](keysync keysync.KeySync, entry *cache.Entry, yaleCRDs []Y) error {
 	if len(entry.CurrentKey.ID) == 0 {
 		// nothing to sync yet
@@ -186,6 +190,7 @@ func syncYaleResourceIfReady[Y apiv1b1.YaleCRD](keysync keysync.KeySync, entry *
 	}
 }
 
+// rotateYaleResource will rotate the active secret for a cache entry if it is time to do so
 func rotateYaleResource[Y apiv1b1.YaleCRD](
 	keyops keyops.KeyOps,
 	cache cache.Cache,
@@ -205,6 +210,10 @@ func rotateYaleResource[Y apiv1b1.YaleCRD](
 	return syncYaleResourceIfReady(keysync, entry, yaleCRDs)
 }
 
+// issueNewYaleResourceIfNeeded given cache entry and yale CRD, checks if the entry's current active secret needs to be rotated.
+// if a rotation is needed (or the cache entry is new/empty), it issues a new secret, adds it
+// to the cache entry, then saves the updated cache entry to k8s.
+// returns a boolean that will be true if a new key was issued, false otherwise
 func issueNewYaleResourceIfNeeded[Y apiv1b1.YaleCRD](
 	keyops keyops.KeyOps,
 	yaleCache cache.Cache,
