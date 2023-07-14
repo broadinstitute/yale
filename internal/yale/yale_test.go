@@ -300,6 +300,41 @@ func (suite *YaleSuite) TestYaleIssuesNewClientSecretForNewAzureClientSecret() {
 	assert.Equal(suite.T(), clientSecret1Key1.id, entry.CurrentKey.ID)
 	assert.Equal(suite.T(), clientSecret1Key1.json(), entry.CurrentKey.JSON)
 	suite.assertNow(entry.CurrentKey.CreatedAt)
+
+	suite.assertSecretHasData("ns-1", "clientsecret1-secret", map[string]string{
+		"key.pem":  clientSecret1Key1.pem,
+		"key.json": clientSecret1Key1.json(),
+	})
+}
+
+func (suite *YaleSuite) TestYaleIssuesNewSecretsForMultipleResourceTypes() {
+	suite.seedGsks(gsk1)
+	suite.seedAzureClientSecrets(acs1)
+
+	suite.expectCreateKey(sa1key1)
+	suite.expectCreateKey(clientSecret1Key1)
+
+	require.NoError(suite.T(), suite.yale.Run())
+
+	// ensure cache contains new client secret
+	entry, err := suite.cache.GetOrCreate(clientSecret1)
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), clientSecret1Key1.id, entry.CurrentKey.ID)
+	assert.Equal(suite.T(), clientSecret1Key1.json(), entry.CurrentKey.JSON)
+	suite.assertNow(entry.CurrentKey.CreatedAt)
+
+	// make sure the cache contains the new key
+	entry, err = suite.cache.GetOrCreate(sa1)
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), sa1key1.id, entry.CurrentKey.ID)
+	assert.Equal(suite.T(), sa1key1.json(), entry.CurrentKey.JSON)
+	suite.assertNow(entry.CurrentKey.CreatedAt)
+
+	// make sure the new key was replicated to the secret in the gsk spec
+	suite.assertSecretHasData("ns-1", "s1-secret", map[string]string{
+		"key.pem":  sa1key1.pem,
+		"key.json": sa1key1.json(),
+	})
 }
 
 func (suite *YaleSuite) TestYaleRotatesOldKey() {
