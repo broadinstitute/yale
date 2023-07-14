@@ -186,7 +186,15 @@ func syncYaleResourceIfReady[Y apiv1b1.YaleCRD](keysync keysync.KeySync, entry *
 	}
 }
 
-func rotateYaleResource[Y apiv1b1.YaleCRD](keyops keyops.KeyOps, cache cache.Cache, slack slack.SlackNotifier, keysync keysync.KeySync, entry *cache.Entry, cutoffs cutoff.Cutoffs, yaleCRDs []Y) error {
+func rotateYaleResource[Y apiv1b1.YaleCRD](
+	keyops keyops.KeyOps,
+	cache cache.Cache,
+	slack slack.SlackNotifier,
+	keysync keysync.KeySync,
+	entry *cache.Entry,
+	cutoffs cutoff.Cutoffs,
+	yaleCRDs []Y,
+) error {
 	rotated, err := issueNewYaleResourceIfNeeded(keyops, cache, slack, entry, cutoffs, yaleCRDs)
 	if err != nil {
 		return err
@@ -197,7 +205,14 @@ func rotateYaleResource[Y apiv1b1.YaleCRD](keyops keyops.KeyOps, cache cache.Cac
 	return syncYaleResourceIfReady(keysync, entry, yaleCRDs)
 }
 
-func issueNewYaleResourceIfNeeded[Y apiv1b1.YaleCRD](keyops keyops.KeyOps, yaleCache cache.Cache, slack slack.SlackNotifier, entry *cache.Entry, cutoffs cutoff.Cutoffs, yaleCRDs []Y) (bool, error) {
+func issueNewYaleResourceIfNeeded[Y apiv1b1.YaleCRD](
+	keyops keyops.KeyOps,
+	yaleCache cache.Cache,
+	slack slack.SlackNotifier,
+	entry *cache.Entry,
+	cutoffs cutoff.Cutoffs,
+	yaleCRDs []Y,
+) (bool, error) {
 	issued := false
 	identifier := entry.Identify()
 	scope := entry.Scope()
