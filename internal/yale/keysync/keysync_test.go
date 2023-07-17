@@ -83,7 +83,8 @@ func (suite *KeySyncSuite) Test_KeySync_CreatesK8sSecret() {
 	suite.assertK8sSecreDoesNotExist("my-namespace", "my-secret")
 
 	// run a key sync
-	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, []apiv1b1.GcpSaKey{gsk}, nil))
+	gsks := []apiv1b1.GcpSaKey{gsk}
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, GcpSaKeysToSyncable(gsks)))
 
 	secret, err := suite.getSecret("my-namespace", "my-secret")
 	require.NoError(suite.T(), err)
@@ -152,7 +153,8 @@ func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
 	suite.cache.EXPECT().Save(entry).Return(nil)
 
 	// run a key sync to create the secret once
-	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, []apiv1b1.GcpSaKey{gsk}, nil))
+	gsks := []apiv1b1.GcpSaKey{gsk}
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, GcpSaKeysToSyncable(gsks)))
 
 	secret, err := suite.getSecret("my-namespace", "my-secret")
 	require.NoError(suite.T(), err)
@@ -227,7 +229,8 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications()
 	suite.cache.EXPECT().Save(entry).Return(nil)
 
 	// run a key sync to create the K8s secret and perform the vault replications
-	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, []apiv1b1.GcpSaKey{gsk}, nil))
+	gsks := []apiv1b1.GcpSaKey{gsk}
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, GcpSaKeysToSyncable(gsks)))
 
 	// verify K8s secret was created
 	_, err := suite.getSecret("my-namespace", "my-secret")
@@ -285,7 +288,8 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsASyncIfSyncStatusIsUpToDateButSe
 	suite.cache.EXPECT().Save(entry).Return(nil)
 
 	// run a key sync to create the secret once
-	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, []apiv1b1.GcpSaKey{gsk}, nil))
+	gsks := []apiv1b1.GcpSaKey{gsk}
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, GcpSaKeysToSyncable(gsks)))
 
 	secret, err := suite.getSecret("my-namespace", "my-secret")
 	require.NoError(suite.T(), err)
@@ -336,7 +340,8 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 	suite.cache.EXPECT().Save(entry).Return(nil)
 
 	// run a key sync to create the secret once
-	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, []apiv1b1.GcpSaKey{gsk}, nil))
+	gsks := []apiv1b1.GcpSaKey{gsk}
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, GcpSaKeysToSyncable(gsks)))
 
 	secret, err := suite.getSecret("my-namespace", "my-secret")
 	require.NoError(suite.T(), err)
@@ -373,7 +378,8 @@ func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
 	suite.cache.EXPECT().Save(entry).Return(nil)
 
 	// run a key sync
-	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, []apiv1b1.GcpSaKey{gsk}, nil))
+	gsks := []apiv1b1.GcpSaKey{gsk}
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, GcpSaKeysToSyncable(gsks)))
 
 	// make sure the cache entry's sync status map has exactly one record was updated with correct key-sync records
 	assert.Len(suite.T(), entry.SyncStatus, 1) // length should b

@@ -2,10 +2,12 @@ package v1beta1
 
 import (
 	"encoding"
+	"encoding/json"
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type YaleCRD interface {
@@ -154,4 +156,44 @@ func (in *GCPSaKeyList) DeepCopyObject() runtime.Object {
 		}
 	}
 	return &out
+}
+
+func (g GcpSaKey) Name() string {
+	return g.ObjectMeta.Name
+}
+
+func (g GcpSaKey) Namespace() string {
+	return g.ObjectMeta.Namespace
+}
+
+func (g GcpSaKey) SecretName() string {
+	return g.Spec.Secret.Name
+}
+
+func (g GcpSaKey) SpecBytes() ([]byte, error) {
+	return json.Marshal(g.Spec)
+}
+
+func (g GcpSaKey) VaultReplications() []VaultReplication {
+	return g.Spec.VaultReplications
+}
+
+func (g GcpSaKey) APIVersion() string {
+	return g.TypeMeta.APIVersion
+}
+
+func (g GcpSaKey) Kind() string {
+	return g.TypeMeta.Kind
+}
+
+func (g GcpSaKey) UID() types.UID {
+	return g.ObjectMeta.UID
+}
+
+func (g GcpSaKey) Labels() map[string]string {
+	return g.ObjectMeta.Labels
+}
+
+func (g GcpSaKey) Secret() Secret {
+	return g.Spec.Secret
 }

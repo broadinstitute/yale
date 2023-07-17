@@ -141,11 +141,11 @@ func (m *mapper) listGcpSaKeys() ([]v1beta1.GcpSaKey, error) {
 
 	for _, gsk := range list.Items {
 		if gsk.Spec.GoogleServiceAccount.Name == "" {
-			logs.Warn.Printf("GcpSaKey resource %s/%s has invalid spec: missing google service account name", gsk.Namespace, gsk.Name)
+			logs.Warn.Printf("GcpSaKey resource %s/%s has invalid spec: missing google service account name", gsk.ObjectMeta.Namespace, gsk.ObjectMeta.Name)
 			continue
 		}
 		if gsk.Spec.GoogleServiceAccount.Project == "" {
-			logs.Warn.Printf("GcpSaKey resource %s/%s has invalid spec: missing google service account project", gsk.Namespace, gsk.Name)
+			logs.Warn.Printf("GcpSaKey resource %s/%s has invalid spec: missing google service account project", gsk.ObjectMeta.Namespace, gsk.ObjectMeta.Name)
 			continue
 		}
 		result = append(result, gsk)
@@ -164,11 +164,11 @@ func (m *mapper) listAzureClientSecrets() ([]v1beta1.AzureClientSecret, error) {
 	var result []v1beta1.AzureClientSecret
 	for _, azureClientSecret := range list.Items {
 		if azureClientSecret.Spec.AzureServicePrincipal.ApplicationID == "" {
-			logs.Warn.Printf("AzureClientSecret resource %s/%s has invalid spec: missing azure service principal application id", azureClientSecret.Namespace, azureClientSecret.Name)
+			logs.Warn.Printf("AzureClientSecret resource %s/%s has invalid spec: missing azure service principal application id", azureClientSecret.Namespace(), azureClientSecret.Name())
 			continue
 		}
 		if azureClientSecret.Spec.AzureServicePrincipal.TenantID == "" {
-			logs.Warn.Printf("AzureClientSecret resource %s/%s has invalid spec: missing azure service principal tenant id", azureClientSecret.Namespace, azureClientSecret.Name)
+			logs.Warn.Printf("AzureClientSecret resource %s/%s has invalid spec: missing azure service principal tenant id", azureClientSecret.Namespace(), azureClientSecret.Name())
 			continue
 		}
 		result = append(result, azureClientSecret)
@@ -195,8 +195,8 @@ func validateResourceBundle(bundle *Bundle) error {
 			for _, gsk := range bundle.GSKs {
 				if gsk.Spec.GoogleServiceAccount.Project != cmp.Spec.GoogleServiceAccount.Project {
 					return fmt.Errorf("project mismatch: GcpSaKey resource %s/%s for %s has invalid spec: project %s does not match %s/%s project %s",
-						gsk.Namespace, gsk.Name, gsk.Spec.GoogleServiceAccount.Name, gsk.Spec.GoogleServiceAccount.Project,
-						cmp.Namespace, cmp.Name, cmp.Spec.GoogleServiceAccount.Project)
+						gsk.ObjectMeta.Namespace, gsk.ObjectMeta.Name, gsk.Spec.GoogleServiceAccount.Name, gsk.Spec.GoogleServiceAccount.Project,
+						cmp.ObjectMeta.Namespace, cmp.ObjectMeta.Name, cmp.Spec.GoogleServiceAccount.Project)
 				}
 			}
 		}
@@ -210,7 +210,7 @@ func validateResourceBundle(bundle *Bundle) error {
 		if bundle.Entry.Scope() != cmp.Spec.GoogleServiceAccount.Project {
 			return fmt.Errorf("project mismatch: cache entry for service account %s has project %s, but GcpSaKey resources like %s/%s have project %s",
 				bundle.Entry.Identify(), bundle.Entry.Scope(),
-				cmp.Namespace, cmp.Name, cmp.Spec.GoogleServiceAccount.Project)
+				cmp.ObjectMeta.Namespace, cmp.ObjectMeta.Name, cmp.Spec.GoogleServiceAccount.Project)
 		}
 		return nil
 
@@ -223,8 +223,8 @@ func validateResourceBundle(bundle *Bundle) error {
 			for _, azClientSecret := range bundle.AzClientSecrets {
 				if azClientSecret.Spec.AzureServicePrincipal.TenantID != cmp.Spec.AzureServicePrincipal.TenantID {
 					return fmt.Errorf("application id mismatch: AzureClientSecret resource %s/%s for %s has invalid spec: application id %s does not match %s/%s application id %s",
-						azClientSecret.Namespace, azClientSecret.Name, azClientSecret.Spec.AzureServicePrincipal.TenantID, azClientSecret.Spec.AzureServicePrincipal.TenantID,
-						cmp.Namespace, cmp.Name, cmp.Spec.AzureServicePrincipal.TenantID)
+						azClientSecret.Namespace(), azClientSecret.Name(), azClientSecret.Spec.AzureServicePrincipal.TenantID, azClientSecret.Spec.AzureServicePrincipal.TenantID,
+						cmp.Namespace(), cmp.Name(), cmp.Spec.AzureServicePrincipal.TenantID)
 				}
 			}
 		}
@@ -238,7 +238,7 @@ func validateResourceBundle(bundle *Bundle) error {
 		if bundle.Entry.Scope() != cmp.Spec.AzureServicePrincipal.TenantID {
 			return fmt.Errorf("application id mismatch: cache entry for application client id %s has application id %s, but AzureClientSecret resources like %s/%s have application id %s",
 				bundle.Entry.Identify(), bundle.Entry.Scope(),
-				cmp.Namespace, cmp.Name, cmp.Spec.AzureServicePrincipal.TenantID)
+				cmp.Namespace(), cmp.Name(), cmp.Spec.AzureServicePrincipal.TenantID)
 		}
 
 		return nil

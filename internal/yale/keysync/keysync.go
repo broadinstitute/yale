@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -28,7 +29,39 @@ type KeySync interface {
 	//
 	// Note that this function will update the cache entry's SyncStatus map to reflect any sync's it performs,
 	// but it WILL NOT save the entry to the cache -- that's the caller's responsibility!
-	SyncIfNeeded(entry *cache.Entry, gsks []apiv1b1.GcpSaKey, azureClientSecrets []apiv1b1.AzureClientSecret) error
+	SyncIfNeeded(entry *cache.Entry, gsks []Syncable) error
+}
+
+// Syncable is an interface for objects that can be synced to a Kubernetes secret
+// It is a collection of getter methods that return the information needed to sync to a k8s
+// secret or vault path.
+type Syncable interface {
+	Name() string
+	Namespace() string
+	SecretName() string
+	Secret() apiv1b1.Secret
+	SpecBytes() ([]byte, error)
+	VaultReplications() []apiv1b1.VaultReplication
+	APIVersion() string
+	Kind() string
+	UID() types.UID
+	Labels() map[string]string
+}
+
+func GcpSaKeysToSyncable(gsks []apiv1b1.GcpSaKey) []Syncable {
+	var result []Syncable
+	for _, syncable := range gsks {
+		result = append(result, syncable)
+	}
+	return result
+}
+
+func AzureClientSecretsToSyncable(acs []apiv1b1.AzureClientSecret) []Syncable {
+	var result []Syncable
+	for _, syncable := range acs {
+		result = append(result, syncable)
+	}
+	return result
 }
 
 func New(k8s kubernetes.Interface, vault *vaultapi.Client, cache cache.Cache) KeySync {
@@ -47,7 +80,7 @@ type keysync struct {
 	clusterSecrets map[string]struct{}
 }
 
-func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks []apiv1b1.GcpSaKey, azureClientSecrets []apiv1b1.AzureClientSecret) error {
+func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks []Syncable) error {
 	for _, gsk := range gsks {
 		syncRequired, statusHash, err := k.syncRequired(entry, gsk)
 		if err != nil {
@@ -56,12 +89,12 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks []apiv1b1.GcpSaKey, azur
 		if !syncRequired {
 			continue
 		}
-		logs.Info.Printf("gsk %s in %s: starting key sync", gsk.Name, gsk.Namespace)
+		logs.Info.Printf("gsk %s in %s: starting key sync", gsk.Name(), gsk.Namespace())
 		if err = k.syncToK8sSecret(entry, gsk); err != nil {
-			return fmt.Errorf("gsk %s in %s: error syncing to K8s secret: %v", gsk.Name, gsk.Namespace, err)
+			return fmt.Errorf("gsk %s in %s: error syncing to K8s secret: %v", gsk.Name(), gsk.Namespace(), err)
 		}
 		if err = k.replicateKeyToVault(entry, gsk); err != nil {
-			return fmt.Errorf("gsk %s in %s: error syncing to Vault: %v", gsk.Name, gsk.Namespace, err)
+			return fmt.Errorf("gsk %s in %s: error syncing to Vault: %v", gsk.Name(), gsk.Namespace(), err)
 		}
 		entry.SyncStatus[statusKey(gsk)] = statusHash
 	}
@@ -86,7 +119,7 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, gsks []apiv1b1.GcpSaKey, azur
 //
 // this method also returns the computed status hash, which is used to update the cache entry's SyncStatus map
 // after a successful sync
-func (k *keysync) syncRequired(entry *cache.Entry, gsk apiv1b1.GcpSaKey) (bool, string, error) {
+func (k *keysync) syncRequired(entry *cache.Entry, gsk Syncable) (bool, string, error) {
 	// compute the statusHash for the gsk
 	computedHash, err := computeStatusHash(entry, gsk)
 	if err != nil {
@@ -100,23 +133,23 @@ func (k *keysync) syncRequired(entry *cache.Entry, gsk apiv1b1.GcpSaKey) (bool, 
 		return false, "", err
 	}
 	if !secretExists {
-		logs.Info.Printf("gsk %s in %s: secret %s does not exist, key sync is needed", gsk.Name, gsk.Namespace, gsk.Spec.Secret.Name)
+		logs.Info.Printf("gsk %s in %s: secret %s does not exist, key sync is needed", gsk.Name(), gsk.Namespace(), gsk.SecretName())
 		return true, computedHash, nil
 	}
 
 	cachedHash := entry.SyncStatus[statusKey(gsk)]
 
-	logs.Info.Printf("gsk %s in %s: sync status should be %q, is %q", gsk.Name, gsk.Namespace, computedHash, cachedHash)
+	logs.Info.Printf("gsk %s in %s: sync status should be %q, is %q", gsk.Name(), gsk.Namespace(), computedHash, cachedHash)
 	if cachedHash == computedHash {
 		return false, computedHash, nil
 	}
 	return true, computedHash, nil
 }
 
-func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk apiv1b1.GcpSaKey) error {
-	namespace := gsk.Namespace
+func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk Syncable) error {
+	namespace := gsk.Namespace()
 
-	secret, err := k.k8s.CoreV1().Secrets(namespace).Get(context.Background(), gsk.Spec.Secret.Name, metav1.GetOptions{})
+	secret, err := k.k8s.CoreV1().Secrets(namespace).Get(context.Background(), gsk.SecretName(), metav1.GetOptions{})
 	var create bool
 
 	if err != nil {
@@ -125,24 +158,24 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk apiv1b1.GcpSaKey) erro
 			// https://kubernetes.io/docs/concepts/overview/working-with-objects/owners-dependents
 			var ownerRef = []metav1.OwnerReference{
 				{
-					APIVersion: gsk.APIVersion,
-					Kind:       gsk.Kind,
-					Name:       gsk.Name,
-					UID:        gsk.UID,
+					APIVersion: gsk.APIVersion(),
+					Kind:       gsk.Kind(),
+					Name:       gsk.Name(),
+					UID:        gsk.UID(),
 				},
 			}
 
 			secret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace:       gsk.Namespace,
-					Name:            gsk.Spec.Secret.Name,
+					Namespace:       gsk.Namespace(),
+					Name:            gsk.SecretName(),
 					OwnerReferences: ownerRef,
 				},
 				Type: corev1.SecretTypeOpaque,
 			}
 			create = true
 		} else {
-			return fmt.Errorf("gsk %s in %s: error retrieving referenced secret %s: %v", gsk.Name, gsk.Namespace, gsk.Spec.Secret.Name, err)
+			return fmt.Errorf("gsk %s in %s: error retrieving referenced secret %s: %v", gsk.Name(), gsk.Namespace(), gsk.SecretName(), err)
 		}
 	}
 
@@ -150,7 +183,7 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk apiv1b1.GcpSaKey) erro
 	if secret.Labels == nil {
 		secret.Labels = map[string]string{}
 	}
-	for k, v := range gsk.Labels {
+	for k, v := range gsk.Labels() {
 		secret.Labels[k] = v
 	}
 
@@ -163,35 +196,35 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk apiv1b1.GcpSaKey) erro
 	// extract pem-formatted key from the service account key JSON
 	pemFormatted, err := extractPemKey(entry)
 	if err != nil {
-		return fmt.Errorf("gsk %s in %s: error extracting PEM-formatted key for %s: %v", gsk.Name, gsk.Namespace, entry.Identify(), err)
+		return fmt.Errorf("gsk %s in %s: error extracting PEM-formatted key for %s: %v", gsk.Name(), gsk.Namespace(), entry.Identify(), err)
 	}
 
 	// add the key data to the secret
 	if secret.Data == nil {
 		secret.Data = map[string][]byte{}
 	}
-	secret.Data[gsk.Spec.Secret.JsonKeyName] = []byte(entry.CurrentKey.JSON)
-	secret.Data[gsk.Spec.Secret.PemKeyName] = []byte(pemFormatted)
+	secret.Data[gsk.Secret().JsonKeyName] = []byte(entry.CurrentKey.JSON)
+	secret.Data[gsk.Secret().PemKeyName] = []byte(pemFormatted)
 
 	if create {
-		_, err = k.k8s.CoreV1().Secrets(gsk.Namespace).Create(context.Background(), secret, metav1.CreateOptions{})
+		_, err = k.k8s.CoreV1().Secrets(gsk.Namespace()).Create(context.Background(), secret, metav1.CreateOptions{})
 	} else {
-		_, err = k.k8s.CoreV1().Secrets(gsk.Namespace).Update(context.Background(), secret, metav1.UpdateOptions{})
+		_, err = k.k8s.CoreV1().Secrets(gsk.Namespace()).Update(context.Background(), secret, metav1.UpdateOptions{})
 	}
 	if err != nil {
-		return fmt.Errorf("error syncing service account key %s to secret %s/%s: %v", entry.CurrentKey.ID, gsk.Namespace, secret.Name, err)
+		return fmt.Errorf("error syncing service account key %s to secret %s/%s: %v", entry.CurrentKey.ID, gsk.Namespace(), secret.Name, err)
 	}
-	logs.Info.Printf("synced service account key %s to secret %s/%s", entry.CurrentKey.ID, gsk.Namespace, gsk.Spec.Secret.Name)
+	logs.Info.Printf("synced service account key %s to secret %s/%s", entry.CurrentKey.ID, gsk.Namespace(), gsk.SecretName())
 	return nil
 }
 
-func (k *keysync) replicateKeyToVault(entry *cache.Entry, gsk apiv1b1.GcpSaKey) error {
-	if len(gsk.Spec.VaultReplications) == 0 {
+func (k *keysync) replicateKeyToVault(entry *cache.Entry, gsk Syncable) error {
+	if len(gsk.VaultReplications()) == 0 {
 		// no replications to perform
 		return nil
 	}
 
-	for _, spec := range gsk.Spec.VaultReplications {
+	for _, spec := range gsk.VaultReplications() {
 		msg := fmt.Sprintf("replicating key %s for %s to Vault (format %s, path %s, key %s)",
 			entry.CurrentKey.ID, entry.Identify(), spec.Format, spec.Path, spec.Key)
 		logs.Info.Print(msg)
@@ -205,7 +238,7 @@ func (k *keysync) replicateKeyToVault(entry *cache.Entry, gsk apiv1b1.GcpSaKey) 
 		}
 	}
 
-	logs.Info.Printf("replicated key %s for %s to %d Vault paths", entry.CurrentKey.ID, entry.Identify(), len(gsk.Spec.VaultReplications))
+	logs.Info.Printf("replicated key %s for %s to %d Vault paths", entry.CurrentKey.ID, entry.Identify(), len(gsk.VaultReplications()))
 
 	return nil
 }
@@ -260,12 +293,12 @@ func extractPemKey(entry *cache.Entry) (string, error) {
 // prune references to old gsks that no longer exists from the sync status map
 // We do this because K8s imposes a size limit of 1mb on secrets, and in
 // BEE clusters new BEEs with unique names are constantly being created and deleted
-func pruneOldSyncStatuses(entry *cache.Entry, gsks ...apiv1b1.GcpSaKey) {
+func pruneOldSyncStatuses(entry *cache.Entry, crds ...Syncable) {
 	keepKeys := make(map[string]struct{})
 
 	// build a map of keys for gsks that currently exist in the cluster
-	for _, gsk := range gsks {
-		key := statusKey(gsk)
+	for _, crd := range crds {
+		key := statusKey(crd)
 		keepKeys[key] = struct{}{}
 	}
 
@@ -281,14 +314,14 @@ func pruneOldSyncStatuses(entry *cache.Entry, gsks ...apiv1b1.GcpSaKey) {
 // compute the expected status map value for a given gsk, which is the sha256 checksum
 // of the gsk's spec, concatenated with the ID of the cache entry's current service account key
 // eg. "<sha-256-sum>:<key-id>"
-func computeStatusHash(entry *cache.Entry, gsk apiv1b1.GcpSaKey) (string, error) {
-	data, err := json.Marshal(gsk.Spec)
+func computeStatusHash(entry *cache.Entry, crd Syncable) (string, error) {
+	data, err := crd.SpecBytes()
 	if err != nil {
-		return "", fmt.Errorf("gsk %s in %s: error marshalling gsk spec to JSON: %v", gsk.Name, gsk.Namespace, err)
+		return "", fmt.Errorf("gsk %s in %s: error marshalling gsk spec to JSON: %v", crd.Name(), crd.Namespace(), err)
 	}
 	checksum, err := sha256Sum(data)
 	if err != nil {
-		return "", fmt.Errorf("gsk %s in %s: error computing sha265sum for gsk spec: %v", gsk.Name, gsk.Namespace, err)
+		return "", fmt.Errorf("gsk %s in %s: error computing sha265sum for gsk spec: %v", crd.Name(), crd.Namespace(), err)
 	}
 	return checksum + ":" + entry.CurrentKey.ID, nil
 }
@@ -305,13 +338,13 @@ func sha256Sum(data []byte) (string, error) {
 
 // return the key for a gsk in the sync status map
 // eg. "<namespace>/<name>"
-func statusKey(gsk apiv1b1.GcpSaKey) string {
-	return qualifiedName(gsk.Namespace, gsk.Name)
+func statusKey(crd Syncable) string {
+	return qualifiedName(crd.Namespace(), crd.Name())
 }
 
 // return the key for a secret in the secrets map in the form "<namespace>/<name>"
-func secretKeyForGsk(gsk apiv1b1.GcpSaKey) string {
-	return qualifiedName(gsk.Namespace, gsk.Spec.Secret.Name)
+func secretKeyForGsk(crd Syncable) string {
+	return qualifiedName(crd.Namespace(), crd.SecretName())
 }
 
 // return the key for a secret in the secrets map in the form "<namespace>/<name>"
@@ -326,12 +359,12 @@ func qualifiedName(namespace string, name string) string {
 
 // clusterHasSecret returns true if the secret specified in the gsk's secret spec
 // exists in the cluster, false otherwise
-func (k *keysync) clusterHasSecret(gsk apiv1b1.GcpSaKey) (bool, error) {
+func (k *keysync) clusterHasSecret(crd Syncable) (bool, error) {
 	secrets, err := k.getClusterSecrets()
 	if err != nil {
 		return false, err
 	}
-	_, exists := secrets[secretKeyForGsk(gsk)]
+	_, exists := secrets[secretKeyForGsk(crd)]
 	return exists, nil
 }
 

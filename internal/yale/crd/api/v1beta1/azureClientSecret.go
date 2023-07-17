@@ -1,8 +1,11 @@
 package v1beta1
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type AzureClientSecretSpec struct {
@@ -63,4 +66,44 @@ func (in *AzureClientSecretList) DeepCopyObject() runtime.Object {
 		}
 	}
 	return &out
+}
+
+func (g AzureClientSecret) Name() string {
+	return g.ObjectMeta.Name
+}
+
+func (g AzureClientSecret) Namespace() string {
+	return g.ObjectMeta.Namespace
+}
+
+func (g AzureClientSecret) SecretName() string {
+	return g.Spec.Secret.Name
+}
+
+func (g AzureClientSecret) SpecBytes() ([]byte, error) {
+	return json.Marshal(g.Spec)
+}
+
+func (g AzureClientSecret) VaultReplications() []VaultReplication {
+	return g.Spec.VaultReplications
+}
+
+func (g AzureClientSecret) APIVersion() string {
+	return g.TypeMeta.APIVersion
+}
+
+func (g AzureClientSecret) Kind() string {
+	return g.TypeMeta.Kind
+}
+
+func (g AzureClientSecret) UID() types.UID {
+	return g.ObjectMeta.UID
+}
+
+func (g AzureClientSecret) Labels() map[string]string {
+	return g.ObjectMeta.Labels
+}
+
+func (g AzureClientSecret) Secret() Secret {
+	return g.Spec.Secret
 }

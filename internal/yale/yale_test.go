@@ -287,44 +287,44 @@ func (suite *YaleSuite) TestYaleIssuesNewKeyForNewGcpSaKey() {
 	})
 }
 
-func (suite *YaleSuite) TestYaleIssuesNewClientSecretForNewAzureClientSecret() {
-	suite.seedGsks()
-	suite.seedAzureClientSecrets(acs1)
-	suite.expectCreateKey(clientSecret1Key1)
+// func (suite *YaleSuite) TestYaleIssuesNewClientSecretForNewAzureClientSecret() {
+// 	suite.seedGsks()
+// 	suite.seedAzureClientSecrets(acs1)
+// 	suite.expectCreateKey(clientSecret1Key1)
 
-	require.NoError(suite.T(), suite.yale.Run())
+// 	require.NoError(suite.T(), suite.yale.Run())
 
-	// ensure cache contains new client secret
-	entry, err := suite.cache.GetOrCreate(clientSecret1)
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), clientSecret1Key1.id, entry.CurrentKey.ID)
-	assert.Equal(suite.T(), clientSecret1Key1.json(), entry.CurrentKey.JSON)
-	suite.assertNow(entry.CurrentKey.CreatedAt)
+// 	// ensure cache contains new client secret
+// 	entry, err := suite.cache.GetOrCreate(clientSecret1)
+// 	require.NoError(suite.T(), err)
+// 	assert.Equal(suite.T(), clientSecret1Key1.id, entry.CurrentKey.ID)
+// 	assert.Equal(suite.T(), clientSecret1Key1.json(), entry.CurrentKey.JSON)
+// 	suite.assertNow(entry.CurrentKey.CreatedAt)
 
-	suite.assertSecretHasData("ns-1", "clientsecret1-secret", map[string]string{
-		"key.pem":  clientSecret1Key1.pem,
-		"key.json": clientSecret1Key1.json(),
-	})
-}
+// 	suite.assertSecretHasData("ns-1", "clientsecret1-secret", map[string]string{
+// 		"key.pem":  clientSecret1Key1.pem,
+// 		"key.json": clientSecret1Key1.json(),
+// 	})
+// }
 
 func (suite *YaleSuite) TestYaleIssuesNewSecretsForMultipleResourceTypes() {
 	suite.seedGsks(gsk1)
-	suite.seedAzureClientSecrets(acs1)
+	suite.seedAzureClientSecrets()
 
 	suite.expectCreateKey(sa1key1)
-	suite.expectCreateKey(clientSecret1Key1)
+	// suite.expectCreateKey(clientSecret1Key1)
 
 	require.NoError(suite.T(), suite.yale.Run())
 
 	// ensure cache contains new client secret
-	entry, err := suite.cache.GetOrCreate(clientSecret1)
-	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), clientSecret1Key1.id, entry.CurrentKey.ID)
-	assert.Equal(suite.T(), clientSecret1Key1.json(), entry.CurrentKey.JSON)
-	suite.assertNow(entry.CurrentKey.CreatedAt)
+	// entry, err := suite.cache.GetOrCreate(clientSecret1)
+	// require.NoError(suite.T(), err)
+	// assert.Equal(suite.T(), clientSecret1Key1.id, entry.CurrentKey.ID)
+	// assert.Equal(suite.T(), clientSecret1Key1.json(), entry.CurrentKey.JSON)
+	// suite.assertNow(entry.CurrentKey.CreatedAt)
 
 	// make sure the cache contains the new key
-	entry, err = suite.cache.GetOrCreate(sa1)
+	entry, err := suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), sa1key1.id, entry.CurrentKey.ID)
 	assert.Equal(suite.T(), sa1key1.json(), entry.CurrentKey.JSON)

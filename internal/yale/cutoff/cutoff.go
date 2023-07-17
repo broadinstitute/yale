@@ -191,14 +191,14 @@ func computeThresholdGSK(gsks []apiv1b1.GcpSaKey, fieldFn func(apiv1b1.GcpSaKey)
 		v := fieldFn(gsk)
 		minV := fieldFn(min)
 		if v < minV {
-			logs.Warn.Printf("found different %s values in GcpSaKey resources for %s: %s/%s=%d and %s/%s=%d", fieldName, gsk.Spec.GoogleServiceAccount.Name, min.Namespace, min.Name, minV, gsk.Namespace, gsk.Name, v)
+			logs.Warn.Printf("found different %s values in GcpSaKey resources for %s: %s/%s=%d and %s/%s=%d", fieldName, gsk.Spec.GoogleServiceAccount.Name, min.ObjectMeta.Namespace, min.ObjectMeta.Name, minV, gsk.ObjectMeta.Namespace, gsk.ObjectMeta.Name, v)
 			min = gsk
 		}
 	}
 
 	minV := fieldFn(min)
 	if minV < floor {
-		logs.Warn.Printf("GcpSaKey %s/%s for %s has invalid %s value %d; rounding up to %d", min.Namespace, min.Name, min.Spec.GoogleServiceAccount.Name, fieldName, minV, floor)
+		logs.Warn.Printf("GcpSaKey %s/%s for %s has invalid %s value %d; rounding up to %d", min.ObjectMeta.Namespace, min.ObjectMeta.Name, min.Spec.GoogleServiceAccount.Name, fieldName, minV, floor)
 		return floor
 	}
 	return minV
@@ -210,14 +210,14 @@ func computeThresholdAzureClientSecret(azureClientSecrets []apiv1b1.AzureClientS
 		v := fieldFn(azureClientSecret)
 		minV := fieldFn(min)
 		if v < minV {
-			logs.Warn.Printf("found different %s values in AzureClientSecret resources for %s: %s/%s=%d and %s/%s=%d", fieldName, azureClientSecret.Spec.AzureServicePrincipal.ApplicationID, min.Namespace, min.Name, minV, azureClientSecret.Namespace, azureClientSecret.Name, v)
+			logs.Warn.Printf("found different %s values in AzureClientSecret resources for %s: %s/%s=%d and %s/%s=%d", fieldName, azureClientSecret.Spec.AzureServicePrincipal.ApplicationID, min.Namespace(), min.Name(), minV, azureClientSecret.Namespace(), azureClientSecret.Name(), v)
 			min = azureClientSecret
 		}
 	}
 
 	minV := fieldFn(min)
 	if minV < floor {
-		logs.Warn.Printf("AzureClientSecret %s/%s for %s has invalid %s value %d; rounding up to %d", min.Namespace, min.Name, min.Spec.AzureServicePrincipal.ApplicationID, fieldName, minV, floor)
+		logs.Warn.Printf("AzureClientSecret %s/%s for %s has invalid %s value %d; rounding up to %d", min.Namespace(), min.Name(), min.Spec.AzureServicePrincipal.ApplicationID, fieldName, minV, floor)
 		return floor
 	}
 	return minV
@@ -230,7 +230,7 @@ func computeIgnoreUsageMetricsGSK(gsks []apiv1b1.GcpSaKey) bool {
 	first := gsks[0]
 	for _, gsk := range gsks {
 		if gsk.Spec.KeyRotation.IgnoreUsageMetrics != first.Spec.KeyRotation.IgnoreUsageMetrics {
-			logs.Warn.Printf("`IgnoreUsageMetrics` field differs between GcpSaKey resources for %s: %s/%s=%t and %s/%s=%t; usage metrics will not be ignored", gsk.Spec.GoogleServiceAccount.Name, first.Namespace, first.Name, first.Spec.KeyRotation.IgnoreUsageMetrics, gsk.Namespace, gsk.Name, gsk.Spec.KeyRotation.IgnoreUsageMetrics)
+			logs.Warn.Printf("`IgnoreUsageMetrics` field differs between GcpSaKey resources for %s: %s/%s=%t and %s/%s=%t; usage metrics will not be ignored", gsk.Spec.GoogleServiceAccount.Name, first.ObjectMeta.Namespace, first.ObjectMeta.Name, first.Spec.KeyRotation.IgnoreUsageMetrics, gsk.ObjectMeta.Namespace, gsk.ObjectMeta.Name, gsk.Spec.KeyRotation.IgnoreUsageMetrics)
 			return false
 		}
 	}
@@ -244,7 +244,7 @@ func computeIgnoreUsageMetricsAzureClientSecret(azureClientSecrets []apiv1b1.Azu
 	first := azureClientSecrets[0]
 	for _, azureClientSecret := range azureClientSecrets {
 		if azureClientSecret.Spec.KeyRotation.IgnoreUsageMetrics != first.Spec.KeyRotation.IgnoreUsageMetrics {
-			logs.Warn.Printf("`IgnoreUsageMetrics` field differs between AzureClientSecret resources for %s: %s/%s=%t and %s/%s=%t; usage metrics will not be ignored", azureClientSecret.Spec.AzureServicePrincipal.ApplicationID, first.Namespace, first.Name, first.Spec.KeyRotation.IgnoreUsageMetrics, azureClientSecret.Namespace, azureClientSecret.Name, azureClientSecret.Spec.KeyRotation.IgnoreUsageMetrics)
+			logs.Warn.Printf("`IgnoreUsageMetrics` field differs between AzureClientSecret resources for %s: %s/%s=%t and %s/%s=%t; usage metrics will not be ignored", azureClientSecret.Spec.AzureServicePrincipal.ApplicationID, first.Namespace(), first.Name(), first.Spec.KeyRotation.IgnoreUsageMetrics, azureClientSecret.Namespace(), azureClientSecret.Name(), azureClientSecret.Spec.KeyRotation.IgnoreUsageMetrics)
 			return false
 		}
 	}

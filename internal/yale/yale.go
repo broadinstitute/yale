@@ -175,16 +175,16 @@ func computeCutoffs[Y apiv1b1.YaleCRD](entry *cache.Entry, yaleCRDs []Y) cutoff.
 }
 
 // syncYaleResourceIfReady will sync the active key for a cache entry if it exists to the keysync destination
-func syncYaleResourceIfReady[Y apiv1b1.YaleCRD](keysync keysync.KeySync, entry *cache.Entry, yaleCRDs []Y) error {
+func syncYaleResourceIfReady[Y apiv1b1.YaleCRD](_keysync keysync.KeySync, entry *cache.Entry, yaleCRDs []Y) error {
 	if len(entry.CurrentKey.ID) == 0 {
 		// nothing to sync yet
 		return nil
 	}
 	switch crds := any(&yaleCRDs).(type) {
 	case *[]apiv1b1.GcpSaKey:
-		return keysync.SyncIfNeeded(entry, *crds, nil)
+		return _keysync.SyncIfNeeded(entry, keysync.GcpSaKeysToSyncable(*crds))
 	case *[]apiv1b1.AzureClientSecret:
-		return keysync.SyncIfNeeded(entry, nil, *crds)
+		return _keysync.SyncIfNeeded(entry, keysync.AzureClientSecretsToSyncable(*crds))
 	default:
 		return fmt.Errorf("unknown yaleCRD type %T", yaleCRDs)
 	}
