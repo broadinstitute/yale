@@ -302,8 +302,7 @@ func (suite *YaleSuite) TestYaleIssuesNewClientSecretForNewAzureClientSecret() {
 	suite.assertNow(entry.CurrentKey.CreatedAt)
 
 	suite.assertSecretHasData("ns-1", "clientsecret1-secret", map[string]string{
-		"key.pem":  clientSecret1Key1.pem,
-		"key.json": clientSecret1Key1.json(),
+		"clientsecret-key": clientSecret1Key1.json(),
 	})
 }
 

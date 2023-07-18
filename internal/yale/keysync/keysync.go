@@ -193,18 +193,26 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk Syncable) error {
 	}
 	secret.Annotations["reloader.stakater.com/match"] = "true"
 
-	// extract pem-formatted key from the service account key JSON
-	pemFormatted, err := extractPemKey(entry)
-	if err != nil {
-		return fmt.Errorf("gsk %s in %s: error extracting PEM-formatted key for %s: %v", gsk.Name(), gsk.Namespace(), entry.Identify(), err)
-	}
-
 	// add the key data to the secret
 	if secret.Data == nil {
 		secret.Data = map[string][]byte{}
 	}
-	secret.Data[gsk.Secret().JsonKeyName] = []byte(entry.CurrentKey.JSON)
-	secret.Data[gsk.Secret().PemKeyName] = []byte(pemFormatted)
+
+	// extract pem-formatted key from the service account key JSON if dealing with a GCP SA key type
+	if entry.Type == cache.GcpSaKey {
+		pemFormatted, err := extractPemKey(entry)
+		if err != nil {
+			return fmt.Errorf("gsk %s in %s: error extracting PEM-formatted key for %s: %v", gsk.Name(), gsk.Namespace(), entry.Identify(), err)
+		}
+		// add the key data to the secret
+		if secret.Data == nil {
+			secret.Data = make(map[string][]byte)
+		}
+		secret.Data[gsk.Secret().JsonKeyName] = []byte(entry.CurrentKey.JSON)
+		secret.Data[gsk.Secret().PemKeyName] = []byte(pemFormatted)
+	} else if entry.Type == cache.AzureClientSecret {
+		secret.Data[gsk.Secret().ClientSecretKeyName] = []byte(entry.CurrentKey.JSON)
+	}
 
 	if create {
 		_, err = k.k8s.CoreV1().Secrets(gsk.Namespace()).Create(context.Background(), secret, metav1.CreateOptions{})

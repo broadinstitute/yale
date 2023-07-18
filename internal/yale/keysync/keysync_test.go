@@ -57,6 +57,7 @@ func (suite *KeySyncSuite) Test_KeySync_CreatesK8sSecret() {
 	entry := &cache.Entry{}
 	entry.CurrentKey.JSON = key1.json
 	entry.CurrentKey.ID = key1.id
+	entry.Type = cache.GcpSaKey
 	entry.SyncStatus = map[string]string{} // no prior syncs recorded in the map
 
 	gsk := apiv1b1.GcpSaKey{
@@ -114,6 +115,7 @@ func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
 	entry := &cache.Entry{}
 	entry.CurrentKey.JSON = key1.json
 	entry.CurrentKey.ID = key1.id
+	entry.Type = cache.GcpSaKey
 	entry.SyncStatus = map[string]string{} // no prior syncs recorded in the map
 
 	gsk := apiv1b1.GcpSaKey{
@@ -260,7 +262,7 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsASyncIfSyncStatusIsUpToDateButSe
 	entry := &cache.Entry{}
 	entry.CurrentKey.JSON = key1.json
 	entry.CurrentKey.ID = key1.id
-
+	entry.Type = cache.GcpSaKey
 	// pretend cache entry has already been synced for this gsk
 	entry.SyncStatus = map[string]string{
 		"my-namespace/my-gsk": "515a2a04abd78d13b0df1e4bc0163e1a787439fd968f364794083fa995fed009:" + key1.id,
@@ -303,7 +305,7 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 	entry := &cache.Entry{}
 	entry.CurrentKey.JSON = key1.json
 	entry.CurrentKey.ID = key1.id
-
+	entry.Type = cache.GcpSaKey
 	// pretend cache entry has already been synced for this gsk
 	entry.SyncStatus = map[string]string{
 		"my-namespace/my-gsk": "bcb8be041cfe2fc4da92ced123f56cb2cc1d6eeb10175d2b4e4348a16c2c235f:" + key1.id,
@@ -354,6 +356,7 @@ func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
 	entry := &cache.Entry{}
 	entry.CurrentKey.JSON = key1.json
 	entry.CurrentKey.ID = key1.id
+	entry.Type = cache.GcpSaKey
 	entry.SyncStatus = map[string]string{
 		"my-namespace/my-gsk":         "bcb8be041cfe2fc4da92ced123f56cb2cc1d6eeb10175d2b4e4348a16c2c235f:" + key1.id, // should not be deleted
 		"my-namespace/deleted-gsk":    "bcb8be041cfe2fc4da92ced123f56cb2cc1d6eeb10175d2b4e4348a16c2c235f:" + key1.id, // should be deleted
