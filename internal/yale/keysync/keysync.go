@@ -355,13 +355,13 @@ func sha256Sum(data []byte) (string, error) {
 
 // return the key for a gsk in the sync status map
 // eg. "<namespace>/<name>"
-func statusKey(crd Syncable) string {
-	return qualifiedName(crd.Namespace(), crd.Name())
+func statusKey(syncable Syncable) string {
+	return qualifiedName(syncable.Namespace(), syncable.Name())
 }
 
 // return the key for a secret in the secrets map in the form "<namespace>/<name>"
-func secretKeyForGsk(crd Syncable) string {
-	return qualifiedName(crd.Namespace(), crd.SecretName())
+func secretKeyForGsk(syncable Syncable) string {
+	return qualifiedName(syncable.Namespace(), syncable.SecretName())
 }
 
 // return the key for a secret in the secrets map in the form "<namespace>/<name>"
@@ -376,12 +376,12 @@ func qualifiedName(namespace string, name string) string {
 
 // clusterHasSecret returns true if the secret specified in the gsk's secret spec
 // exists in the cluster, false otherwise
-func (k *keysync) clusterHasSecret(crd Syncable) (bool, error) {
+func (k *keysync) clusterHasSecret(syncable Syncable) (bool, error) {
 	secrets, err := k.getClusterSecrets()
 	if err != nil {
 		return false, err
 	}
-	_, exists := secrets[secretKeyForGsk(crd)]
+	_, exists := secrets[secretKeyForGsk(syncable)]
 	return exists, nil
 }
 
