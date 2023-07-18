@@ -334,6 +334,10 @@ func (suite *YaleSuite) TestYaleIssuesNewSecretsForMultipleResourceTypes() {
 		"key.pem":  sa1key1.pem,
 		"key.json": sa1key1.json(),
 	})
+
+	suite.assertSecretHasData("ns-1", "clientsecret1-secret", map[string]string{
+		"clientsecret-key": clientSecret1Key1.json(),
+	})
 }
 
 func (suite *YaleSuite) TestYaleRotatesOldKey() {
