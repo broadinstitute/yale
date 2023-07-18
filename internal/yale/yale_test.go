@@ -128,15 +128,15 @@ var clientSecret1 = cache.AzureClientSecretEntryIdentifier{
 	TenantID:      "test-tenant-id",
 }
 
-// var clientSecret2 = cache.AzureClientSecretEntryIdentifier{
-// 	ApplicationID: "test-app-id-2",
-// 	TenantID:      "test-tenant-id",
-// }
+var clientSecret2 = cache.AzureClientSecretEntryIdentifier{
+	ApplicationID: "test-app-id-2",
+	TenantID:      "test-tenant-id",
+}
 
-// var clientSecret3 = cache.AzureClientSecretEntryIdentifier{
-// 	ApplicationID: "test-app-id-3",
-// 	TenantID:      "test-tenant-id",
-// }
+var clientSecret3 = cache.AzureClientSecretEntryIdentifier{
+	ApplicationID: "test-app-id-3",
+	TenantID:      "test-tenant-id",
+}
 
 var sa1key1 = key{
 	id:  "s1-key1",
@@ -171,6 +171,30 @@ var sa3key1 = key{
 var clientSecret1Key1 = key{
 	id:  "cs1-key1",
 	sa:  clientSecret1,
+	pem: "az-secret",
+}
+
+var clientSecret1Key2 = key{
+	id:  "cs1-key2",
+	sa:  clientSecret1,
+	pem: "az-seceret2",
+}
+
+var clientSecret1Key3 = key{
+	id:  "cs1-key3",
+	sa:  clientSecret1,
+	pem: "az-secret3",
+}
+
+var clientSecret2Key1 = key{
+	id:  "cs2-key1",
+	sa:  clientSecret2,
+	pem: "az-secret",
+}
+
+var clientSecret3Key1 = key{
+	id:  "cs3-key1",
+	sa:  clientSecret3,
 	pem: "az-secret",
 }
 
@@ -265,6 +289,50 @@ var acs1 = apiv1b1.AzureClientSecret{
 	},
 }
 
+var acs2 = apiv1b1.AzureClientSecret{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "clientsecret2-acs",
+		Namespace: "ns-2",
+	},
+	Spec: apiv1b1.AzureClientSecretSpec{
+		AzureServicePrincipal: apiv1b1.AzureServicePrincipal{
+			ApplicationID: clientSecret2.ApplicationID,
+			TenantID:      clientSecret2.TenantID,
+		},
+		KeyRotation: apiv1b1.KeyRotation{
+			RotateAfter:  7,
+			DisableAfter: 7,
+			DeleteAfter:  3,
+		},
+		Secret: apiv1b1.Secret{
+			Name:                "clientsecret2-secret",
+			ClientSecretKeyName: "clientsecret-key",
+		},
+	},
+}
+
+var acs3 = apiv1b1.AzureClientSecret{
+	ObjectMeta: metav1.ObjectMeta{
+		Name:      "clientsecret3-acs",
+		Namespace: "ns-3",
+	},
+	Spec: apiv1b1.AzureClientSecretSpec{
+		AzureServicePrincipal: apiv1b1.AzureServicePrincipal{
+			ApplicationID: clientSecret3.ApplicationID,
+			TenantID:      clientSecret3.TenantID,
+		},
+		KeyRotation: apiv1b1.KeyRotation{
+			RotateAfter:  7,
+			DisableAfter: 7,
+			DeleteAfter:  3,
+		},
+		Secret: apiv1b1.Secret{
+			Name:                "clientsecret3-secret",
+			ClientSecretKeyName: "clientsecret-key",
+		},
+	},
+}
+
 func (suite *YaleSuite) TestYaleIssuesNewKeyForNewGcpSaKey() {
 	suite.seedGsks(gsk1)
 	suite.seedAzureClientSecrets()
@@ -342,7 +410,7 @@ func (suite *YaleSuite) TestYaleIssuesNewSecretsForMultipleResourceTypes() {
 
 func (suite *YaleSuite) TestYaleRotatesOldKey() {
 	suite.seedGsks(gsk1)
-	suite.seedAzureClientSecrets()
+	suite.seedAzureClientSecrets(acs1)
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
@@ -354,19 +422,42 @@ func (suite *YaleSuite) TestYaleRotatesOldKey() {
 		},
 	})
 
+	suite.seedCacheEntries(&cache.Entry{
+		Identifier: clientSecret1,
+		Type:       cache.AzureClientSecret,
+		CurrentKey: cache.CurrentKey{
+			ID:        clientSecret1Key1.id,
+			JSON:      clientSecret1Key1.json(),
+			CreatedAt: eightDaysAgo,
+		},
+	})
+
 	suite.expectCreateKey(sa1key2)
+	suite.expectCreateKey(clientSecret1Key2)
 
 	require.NoError(suite.T(), suite.yale.Run())
 
 	// make sure the cache contains the new key
 	entry, err := suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
+
+	entryAcs, err := suite.cache.GetOrCreate(clientSecret1)
+	require.NoError(suite.T(), err)
+
 	assert.Equal(suite.T(), sa1key2.id, entry.CurrentKey.ID)
 	assert.Equal(suite.T(), sa1key2.json(), entry.CurrentKey.JSON)
 	suite.assertNow(entry.CurrentKey.CreatedAt)
 
+	assert.Equal(suite.T(), clientSecret1Key2.id, entryAcs.CurrentKey.ID)
+	assert.Equal(suite.T(), clientSecret1Key2.json(), entryAcs.CurrentKey.JSON)
+	suite.assertNow(entryAcs.CurrentKey.CreatedAt)
+
 	// make sure the cache entry's rotated section includes the old key
 	t, exists := entry.RotatedKeys[sa1key1.id]
+	assert.True(suite.T(), exists)
+	suite.assertNow(t)
+
+	t, exists = entryAcs.RotatedKeys[clientSecret1Key1.id]
 	assert.True(suite.T(), exists)
 	suite.assertNow(t)
 
@@ -375,11 +466,15 @@ func (suite *YaleSuite) TestYaleRotatesOldKey() {
 		"key.pem":  sa1key2.pem,
 		"key.json": sa1key2.json(),
 	})
+
+	suite.assertSecretHasData("ns-1", "clientsecret1-secret", map[string]string{
+		"clientsecret-key": clientSecret1Key2.json(),
+	})
 }
 
 func (suite *YaleSuite) TestYaleDisablesOldKeyIfNotInUse() {
 	suite.seedGsks(gsk1)
-	suite.seedAzureClientSecrets()
+	suite.seedAzureClientSecrets(acs1)
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
@@ -394,8 +489,23 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNotInUse() {
 		},
 	})
 
+	suite.seedCacheEntries(&cache.Entry{
+		Identifier: clientSecret1,
+		Type:       cache.AzureClientSecret,
+		CurrentKey: cache.CurrentKey{
+			ID:        clientSecret1Key2.id,
+			JSON:      clientSecret1Key2.json(),
+			CreatedAt: now,
+		},
+		RotatedKeys: map[string]time.Time{
+			clientSecret1Key1.id: eightDaysAgo,
+		},
+	})
+
 	suite.expectLastAuthTime(sa1key1, fourDaysAgo)
+	suite.expectLastAuthTime(clientSecret1Key1, fourDaysAgo)
 	suite.expectDisableKey(sa1key1)
+	suite.expectDisableKey(clientSecret1Key1)
 
 	require.NoError(suite.T(), suite.yale.Run())
 
@@ -403,19 +513,29 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNotInUse() {
 	entry, err := suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
 
+	entryAcs, err := suite.cache.GetOrCreate(clientSecret1)
+	require.NoError(suite.T(), err)
+
 	// make sure the cache entry's rotated section does not include the old key
 	_, exists := entry.RotatedKeys[sa1key1.id]
 	assert.False(suite.T(), exists)
 
+	_, exists = entryAcs.RotatedKeys[clientSecret1Key1.id]
+	assert.False(suite.T(), exists)
+
 	// make sure the cache entry's disabled section includes the old key
 	t, exists := entry.DisabledKeys[sa1key1.id]
+	assert.True(suite.T(), exists)
+	suite.assertNow(t)
+
+	t, exists = entryAcs.DisabledKeys[clientSecret1Key1.id]
 	assert.True(suite.T(), exists)
 	suite.assertNow(t)
 }
 
 func (suite *YaleSuite) TestYaleDisablesOldKeyIfNoUsageDataAvailable() {
 	suite.seedGsks(gsk1)
-	suite.seedAzureClientSecrets()
+	suite.seedAzureClientSecrets(acs1)
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
@@ -430,8 +550,24 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNoUsageDataAvailable() {
 		},
 	})
 
+	suite.seedCacheEntries(&cache.Entry{
+		Identifier: clientSecret1,
+		Type:       cache.AzureClientSecret,
+		CurrentKey: cache.CurrentKey{
+			ID:        clientSecret1Key2.id,
+			JSON:      clientSecret1Key2.json(),
+			CreatedAt: now,
+		},
+		RotatedKeys: map[string]time.Time{
+			clientSecret1Key1.id: eightDaysAgo,
+		},
+	})
+
 	suite.expectNoLastAuthTime(sa1key1)
 	suite.expectDisableKey(sa1key1)
+
+	suite.expectNoLastAuthTime(clientSecret1Key1)
+	suite.expectDisableKey(clientSecret1Key1)
 
 	require.NoError(suite.T(), suite.yale.Run())
 
@@ -439,19 +575,29 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNoUsageDataAvailable() {
 	entry, err := suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
 
+	entryAcs, err := suite.cache.GetOrCreate(clientSecret1)
+	require.NoError(suite.T(), err)
+
 	// make sure the cache entry's rotated section does not include the old key
 	_, exists := entry.RotatedKeys[sa1key1.id]
+	assert.False(suite.T(), exists)
+
+	_, exists = entryAcs.RotatedKeys[clientSecret1Key1.id]
 	assert.False(suite.T(), exists)
 
 	// make sure the cache entry's disabled section includes the old key
 	t, exists := entry.DisabledKeys[sa1key1.id]
 	assert.True(suite.T(), exists)
 	suite.assertNow(t)
+
+	t, exists = entryAcs.DisabledKeys[clientSecret1Key1.id]
+	assert.True(suite.T(), exists)
+	suite.assertNow(t)
 }
 
 func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 	suite.seedGsks(gsk1)
-	suite.seedAzureClientSecrets()
+	suite.seedAzureClientSecrets(acs1)
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
@@ -466,7 +612,21 @@ func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 		},
 	})
 
+	suite.seedCacheEntries(&cache.Entry{
+		Identifier: clientSecret1,
+		Type:       cache.AzureClientSecret,
+		CurrentKey: cache.CurrentKey{
+			ID:        clientSecret1Key2.id,
+			JSON:      clientSecret1Key2.json(),
+			CreatedAt: now,
+		},
+		RotatedKeys: map[string]time.Time{
+			clientSecret1Key1.id: eightDaysAgo,
+		},
+	})
+
 	suite.expectLastAuthTime(sa1key1, fourHoursAgo)
+	suite.expectLastAuthTime(clientSecret1Key1, fourHoursAgo)
 
 	err := suite.yale.Run()
 	require.Error(suite.T(), err)
@@ -476,13 +636,23 @@ func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 	entry, err := suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
 
+	entryAcs, err := suite.cache.GetOrCreate(clientSecret1)
+	require.NoError(suite.T(), err)
+
 	// make sure the cache entry's rotated section does not include the old key
 	t, exists := entry.RotatedKeys[sa1key1.id]
 	assert.True(suite.T(), exists)
 	assert.Equal(suite.T(), eightDaysAgo, t)
 
+	t, exists = entryAcs.RotatedKeys[clientSecret1Key1.id]
+	assert.True(suite.T(), exists)
+	assert.Equal(suite.T(), eightDaysAgo, t)
+
 	// make sure the cache entry's disabled section includes the old key
 	_, exists = entry.DisabledKeys[sa1key1.id]
+	assert.False(suite.T(), exists)
+
+	_, exists = entryAcs.DisabledKeys[clientSecret1Key1.id]
 	assert.False(suite.T(), exists)
 }
 
@@ -505,7 +675,7 @@ func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfIgnoreUsag
 	)
 
 	suite.seedGsks(gsk1)
-	suite.seedAzureClientSecrets()
+	suite.seedAzureClientSecrets(acs1)
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
@@ -520,8 +690,22 @@ func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfIgnoreUsag
 		},
 	})
 
+	suite.seedCacheEntries(&cache.Entry{
+		Identifier: clientSecret1,
+		Type:       cache.AzureClientSecret,
+		CurrentKey: cache.CurrentKey{
+			ID:        clientSecret1Key2.id,
+			JSON:      clientSecret1Key2.json(),
+			CreatedAt: now,
+		},
+		RotatedKeys: map[string]time.Time{
+			clientSecret1Key1.id: eightDaysAgo,
+		},
+	})
+
 	// note: we intentionally don't use suite.expectLastAuthTime to set up a mock - we expect it to NOT be called it
 	suite.expectDisableKey(sa1key1)
+	suite.expectDisableKey(clientSecret1Key1)
 
 	err := suite.yale.Run()
 	require.NoError(suite.T(), err)
@@ -530,19 +714,29 @@ func (suite *YaleSuite) TestYaleDoesNotCheckIfRotatedKeyIsStillInUseIfIgnoreUsag
 	entry, err := suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
 
+	entryAcs, err := suite.cache.GetOrCreate(clientSecret1)
+	require.NoError(suite.T(), err)
+
 	// make sure the cache entry's rotated section does not include the old key
 	_, exists := entry.RotatedKeys[sa1key1.id]
+	assert.False(suite.T(), exists)
+
+	_, exists = entryAcs.RotatedKeys[clientSecret1Key1.id]
 	assert.False(suite.T(), exists)
 
 	// make sure the cache entry's disabled section includes the old key
 	t, exists := entry.DisabledKeys[sa1key1.id]
 	assert.True(suite.T(), exists)
 	suite.assertNow(t)
+
+	t, exists = entryAcs.DisabledKeys[clientSecret1Key1.id]
+	assert.True(suite.T(), exists)
+	suite.assertNow(t)
 }
 
 func (suite *YaleSuite) TestYaleDoesNotRotateDisableOrDeleteKeysThatAreNotOldEnough() {
 	suite.seedGsks(gsk1)
-	suite.seedAzureClientSecrets()
+	suite.seedAzureClientSecrets(acs1)
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
@@ -560,10 +754,29 @@ func (suite *YaleSuite) TestYaleDoesNotRotateDisableOrDeleteKeysThatAreNotOldEno
 		},
 	})
 
+	suite.seedCacheEntries(&cache.Entry{
+		Identifier: clientSecret1,
+		Type:       cache.AzureClientSecret,
+		CurrentKey: cache.CurrentKey{
+			ID:        clientSecret1Key3.id,
+			JSON:      clientSecret1Key3.json(),
+			CreatedAt: now,
+		},
+		RotatedKeys: map[string]time.Time{
+			clientSecret1Key2.id: now,
+		},
+		DisabledKeys: map[string]time.Time{
+			clientSecret1Key1.id: now,
+		},
+	})
+
 	require.NoError(suite.T(), suite.yale.Run())
 
 	// validate cache entry
 	entry, err := suite.cache.GetOrCreate(sa1)
+	require.NoError(suite.T(), err)
+
+	entryAcs, err := suite.cache.GetOrCreate(clientSecret1)
 	require.NoError(suite.T(), err)
 
 	// make sure the cache entry's rotated section still includes key2
@@ -571,15 +784,23 @@ func (suite *YaleSuite) TestYaleDoesNotRotateDisableOrDeleteKeysThatAreNotOldEno
 	assert.True(suite.T(), exists)
 	suite.assertNow(t)
 
+	t, exists = entryAcs.RotatedKeys[clientSecret1Key2.id]
+	assert.True(suite.T(), exists)
+	suite.assertNow(t)
+
 	// make sure the cache entry's disabled section still includes key1
 	t, exists = entry.DisabledKeys[sa1key1.id]
+	assert.True(suite.T(), exists)
+	suite.assertNow(t)
+
+	t, exists = entryAcs.DisabledKeys[clientSecret1Key1.id]
 	assert.True(suite.T(), exists)
 	suite.assertNow(t)
 }
 
 func (suite *YaleSuite) TestYaleDeletesOldKeys() {
 	suite.seedGsks(gsk1)
-	suite.seedAzureClientSecrets()
+	suite.seedAzureClientSecrets(acs1)
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
@@ -594,7 +815,21 @@ func (suite *YaleSuite) TestYaleDeletesOldKeys() {
 		},
 	})
 
+	suite.seedCacheEntries(&cache.Entry{
+		Identifier: clientSecret1,
+		Type:       cache.AzureClientSecret,
+		CurrentKey: cache.CurrentKey{
+			ID:        clientSecret1Key2.id,
+			JSON:      clientSecret1Key2.json(),
+			CreatedAt: now,
+		},
+		DisabledKeys: map[string]time.Time{
+			clientSecret1Key1.id: eightDaysAgo,
+		},
+	})
+
 	suite.expectDeleteKey(sa1key1)
+	suite.expectDeleteKey(clientSecret1Key1)
 
 	require.NoError(suite.T(), suite.yale.Run())
 
@@ -602,11 +837,15 @@ func (suite *YaleSuite) TestYaleDeletesOldKeys() {
 	entry, err := suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
 
+	entryAcs, err := suite.cache.GetOrCreate(clientSecret1)
+	require.NoError(suite.T(), err)
+
 	// make sure the cache entry's disabled section is empty
 	assert.Empty(suite.T(), entry.DisabledKeys)
+	assert.Empty(suite.T(), entryAcs.DisabledKeys)
 }
 
-func (suite *YaleSuite) TestYaleCorrectlyProcessesCacheEntryWithNoMatchingGcpSaKeys() {
+func (suite *YaleSuite) TestYaleCorrectlyProcessesCacheEntryWithNoMatchingYaleCRDs() {
 	suite.seedGsks()
 	suite.seedAzureClientSecrets()
 
@@ -626,9 +865,29 @@ func (suite *YaleSuite) TestYaleCorrectlyProcessesCacheEntryWithNoMatchingGcpSaK
 		},
 	})
 
+	suite.seedCacheEntries(&cache.Entry{
+		Identifier: clientSecret1,
+		Type:       cache.AzureClientSecret,
+		CurrentKey: cache.CurrentKey{
+			ID:        clientSecret1Key1.id,
+			JSON:      clientSecret1Key1.json(),
+			CreatedAt: eightDaysAgo,
+		},
+		RotatedKeys: map[string]time.Time{
+			clientSecret1Key2.id: eightDaysAgo,
+		},
+		DisabledKeys: map[string]time.Time{
+			clientSecret1Key3.id: eightDaysAgo,
+		},
+	})
+
 	suite.expectLastAuthTime(sa1key2, eightDaysAgo)
 	suite.expectDisableKey(sa1key2)
 	suite.expectDeleteKey(sa1key3)
+
+	suite.expectLastAuthTime(clientSecret1Key2, eightDaysAgo)
+	suite.expectDisableKey(clientSecret1Key2)
+	suite.expectDeleteKey(clientSecret1Key3)
 
 	require.NoError(suite.T(), suite.yale.Run())
 
@@ -636,8 +895,12 @@ func (suite *YaleSuite) TestYaleCorrectlyProcessesCacheEntryWithNoMatchingGcpSaK
 	entry, err := suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
 
+	entryAcs, err := suite.cache.GetOrCreate(clientSecret1)
+	require.NoError(suite.T(), err)
+
 	// make sure no replacement key was issued
 	assert.Empty(suite.T(), entry.CurrentKey)
+	assert.Empty(suite.T(), entryAcs.CurrentKey)
 
 	// make sure the old current key was rotated
 	assert.Len(suite.T(), entry.RotatedKeys, 1)
@@ -645,9 +908,19 @@ func (suite *YaleSuite) TestYaleCorrectlyProcessesCacheEntryWithNoMatchingGcpSaK
 	assert.True(suite.T(), exists)
 	suite.assertNow(t)
 
+	assert.Len(suite.T(), entryAcs.RotatedKeys, 1)
+	t, exists = entryAcs.RotatedKeys[clientSecret1Key1.id]
+	assert.True(suite.T(), exists)
+	suite.assertNow(t)
+
 	// make sure the old rotated key was disabled
 	assert.Len(suite.T(), entry.DisabledKeys, 1)
 	t, exists = entry.DisabledKeys[sa1key2.id]
+	assert.True(suite.T(), exists)
+	suite.assertNow(t)
+
+	assert.Len(suite.T(), entryAcs.DisabledKeys, 1)
+	t, exists = entryAcs.DisabledKeys[clientSecret1Key2.id]
 	assert.True(suite.T(), exists)
 	suite.assertNow(t)
 }
@@ -666,7 +939,18 @@ func (suite *YaleSuite) TestYaleCorrectlyRetiresCacheEntryWithNoMatchingGcpSaKey
 		},
 	})
 
+	suite.seedCacheEntries(&cache.Entry{
+		Identifier:  clientSecret1,
+		Type:        cache.AzureClientSecret,
+		CurrentKey:  cache.CurrentKey{},
+		RotatedKeys: map[string]time.Time{},
+		DisabledKeys: map[string]time.Time{
+			clientSecret1Key1.id: eightDaysAgo,
+		},
+	})
+
 	suite.expectDeleteKey(sa1key1)
+	suite.expectDeleteKey(clientSecret1Key1)
 
 	require.NoError(suite.T(), suite.yale.Run())
 
@@ -695,11 +979,15 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 		_slack,
 	)
 	suite.seedGsks(gsk1, gsk2, gsk3)
-	suite.seedAzureClientSecrets()
+	suite.seedAzureClientSecrets(acs1, acs2, acs3)
 
 	suite.expectCreateKeyReturnsErr(sa1key1, fmt.Errorf("uh-oh"))
 	suite.expectCreateKey(sa2key1)
 	suite.expectCreateKeyReturnsErr(sa3key1, fmt.Errorf("oh noes"))
+
+	suite.expectCreateKeyReturnsErr(clientSecret1Key1, fmt.Errorf("uh-oh"))
+	suite.expectCreateKey(clientSecret2Key1)
+	suite.expectCreateKeyReturnsErr(clientSecret3Key1, fmt.Errorf("oh noes"))
 
 	lastNotification := now.Add(-20 * time.Minute)
 	suite.seedCacheEntries(&cache.Entry{
@@ -715,6 +1003,19 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 		},
 	})
 
+	suite.seedCacheEntries(&cache.Entry{
+		Identifier:   clientSecret3,
+		Type:         cache.AzureClientSecret,
+		CurrentKey:   cache.CurrentKey{},
+		RotatedKeys:  map[string]time.Time{},
+		DisabledKeys: map[string]time.Time{},
+		LastError: cache.LastError{
+			Message:            "error issuing new secret for test-app-id-3: oh noes",
+			Timestamp:          lastNotification,
+			LastNotificationAt: lastNotification,
+		},
+	})
+
 	// expect that a key issue notification is sent for sa2key1
 	_slack.EXPECT().KeyIssued(mock.Anything, sa2key1.id).Return(nil)
 	// set expectation that yale notifies for the s1 error (but not s3)
@@ -722,10 +1023,17 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 		return strings.HasSuffix(s, "error issuing new secret for s1@p.com: uh-oh")
 	})).Return(nil)
 
+	_slack.EXPECT().KeyIssued(mock.Anything, clientSecret2Key1.id).Return(nil)
+	_slack.EXPECT().Error(mock.Anything, mock.MatchedBy(func(s string) bool {
+		return strings.HasSuffix(s, "error issuing new secret for test-app-id-1: uh-oh")
+	})).Return(nil)
+
 	err := suite.yale.Run()
 	require.Error(suite.T(), err)
 	assert.ErrorContains(suite.T(), err, "s1@p.com: uh-oh")
 	assert.ErrorContains(suite.T(), err, "s3@p.com: oh noes")
+	assert.ErrorContains(suite.T(), err, "test-app-id-1: uh-oh")
+	assert.ErrorContains(suite.T(), err, "test-app-id-3: oh noes")
 
 	// make sure the cache contains the new keys for sa2
 	entry, err := suite.cache.GetOrCreate(sa2)
@@ -735,10 +1043,21 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 	suite.assertNow(entry.CurrentKey.CreatedAt)
 	assert.Empty(suite.T(), entry.LastError)
 
+	entryAcs, err := suite.cache.GetOrCreate(clientSecret2)
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), clientSecret2Key1.id, entryAcs.CurrentKey.ID)
+	assert.Equal(suite.T(), clientSecret2Key1.json(), entryAcs.CurrentKey.JSON)
+	suite.assertNow(entryAcs.CurrentKey.CreatedAt)
+	assert.Empty(suite.T(), entryAcs.LastError)
+
 	// make sure the new key were replicated to the secret in the gsk spec
 	suite.assertSecretHasData("ns-2", "s2-secret", map[string]string{
 		"key.pem":  sa2key1.pem,
 		"key.json": sa2key1.json(),
+	})
+
+	suite.assertSecretHasData("ns-2", "clientsecret2-secret", map[string]string{
+		"clientsecret-key": clientSecret2Key1.json(),
 	})
 
 	// make sure the cache entries for s1 and s3 have error information
@@ -748,12 +1067,25 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 	suite.assertNow(entry.LastError.Timestamp)
 	suite.assertNow(entry.LastError.LastNotificationAt)
 
+	entryAcs, err = suite.cache.GetOrCreate(clientSecret1)
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), "error issuing new secret for test-app-id-1: uh-oh", entryAcs.LastError.Message)
+	suite.assertNow(entryAcs.LastError.Timestamp)
+	suite.assertNow(entryAcs.LastError.LastNotificationAt)
+
 	// s3 should NOT have sent an error, because it was already sent recently
 	entry, err = suite.cache.GetOrCreate(sa3)
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), "error issuing new secret for s3@p.com: oh noes", entry.LastError.Message)
 	suite.assertNow(entry.LastError.Timestamp)
 	assert.Equal(suite.T(), lastNotification, entry.LastError.LastNotificationAt)
+
+	entryAcs, err = suite.cache.GetOrCreate(clientSecret3)
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), "error issuing new secret for test-app-id-3: oh noes", entryAcs.LastError.Message)
+	suite.assertNow(entryAcs.LastError.Timestamp)
+	assert.Equal(suite.T(), lastNotification, entryAcs.LastError.LastNotificationAt)
+
 }
 
 func (suite *YaleSuite) seedGsks(gsks ...apiv1b1.GcpSaKey) {
