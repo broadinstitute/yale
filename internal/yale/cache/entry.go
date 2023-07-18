@@ -110,6 +110,16 @@ const (
 	AzureClientSecret
 )
 
+func (e EntryType) String() string {
+	switch e {
+	case GcpSaKey:
+		return "GcpSaKey"
+	case AzureClientSecret:
+		return "AzureClientSecret"
+	}
+	return fmt.Sprintf("unknown entry type: %d", e)
+}
+
 type Entry struct {
 	// EntryIdentifier identifying information for the service account the key belongs to
 	Identifier

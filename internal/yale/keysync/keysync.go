@@ -175,7 +175,7 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk Syncable) error {
 			}
 			create = true
 		} else {
-			return fmt.Errorf("gsk %s in %s: error retrieving referenced secret %s: %v", gsk.Name(), gsk.Namespace(), gsk.SecretName(), err)
+			return fmt.Errorf("%s %s in %s: error retrieving referenced secret %s: %v", entry.Type, gsk.Name(), gsk.Namespace(), gsk.SecretName(), err)
 		}
 	}
 
@@ -202,7 +202,7 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk Syncable) error {
 	if entry.Type == cache.GcpSaKey {
 		pemFormatted, err := extractPemKey(entry)
 		if err != nil {
-			return fmt.Errorf("gsk %s in %s: error extracting PEM-formatted key for %s: %v", gsk.Name(), gsk.Namespace(), entry.Identify(), err)
+			return fmt.Errorf("%s %s in %s: error extracting PEM-formatted key for %s: %v", entry.Type, gsk.Name(), gsk.Namespace(), entry.Identify(), err)
 		}
 		// add the key data to the secret
 		if secret.Data == nil {
@@ -220,9 +220,9 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, gsk Syncable) error {
 		_, err = k.k8s.CoreV1().Secrets(gsk.Namespace()).Update(context.Background(), secret, metav1.UpdateOptions{})
 	}
 	if err != nil {
-		return fmt.Errorf("error syncing service account key %s to secret %s/%s: %v", entry.CurrentKey.ID, gsk.Namespace(), secret.Name, err)
+		return fmt.Errorf("error syncing %s %s to secret %s/%s: %v", entry.Type, entry.CurrentKey.ID, gsk.Namespace(), secret.Name, err)
 	}
-	logs.Info.Printf("synced service account key %s to secret %s/%s", entry.CurrentKey.ID, gsk.Namespace(), gsk.SecretName())
+	logs.Info.Printf("synced %s %s to secret %s/%s", entry.Type, entry.CurrentKey.ID, gsk.Namespace(), gsk.SecretName())
 	return nil
 }
 
@@ -254,10 +254,13 @@ func (k *keysync) replicateKeyToVault(entry *cache.Entry, gsk Syncable) error {
 func prepareVaultSecret(entry *cache.Entry, spec apiv1b1.VaultReplication) (map[string]interface{}, error) {
 	asJson := []byte(entry.CurrentKey.JSON)
 	base64Encoded := base64.StdEncoding.EncodeToString(asJson)
-
-	asPem, err := extractPemKey(entry)
-	if err != nil {
-		return nil, err
+	var asPem string
+	if entry.Type == cache.GcpSaKey {
+		var err error
+		asPem, err = extractPemKey(entry)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	secret := make(map[string]interface{})
@@ -268,6 +271,9 @@ func prepareVaultSecret(entry *cache.Entry, spec apiv1b1.VaultReplication) (map[
 
 	switch spec.Format {
 	case apiv1b1.Map:
+		if entry.Type == cache.AzureClientSecret {
+			return nil, fmt.Errorf("error decoding client secret to secret map: Azure client secret is not a JSON object. Map type vault replication is only supported for GCP service account keys")
+		}
 		if err := json.Unmarshal(asJson, &secret); err != nil {
 			return nil, fmt.Errorf("error decoding private key to secret map: %v", err)
 		}
@@ -276,6 +282,9 @@ func prepareVaultSecret(entry *cache.Entry, spec apiv1b1.VaultReplication) (map[
 	case apiv1b1.Base64:
 		secret[secretKey] = base64Encoded
 	case apiv1b1.PEM:
+		if entry.Type == cache.AzureClientSecret {
+			return nil, fmt.Errorf("error decoding client secret to PEM: Azure client secret is not a JSON object. PEM type vault replication is only supported for GCP service account keys")
+		}
 		secret[secretKey] = asPem
 	default:
 		panic(fmt.Errorf("unsupported Vault replication format: %#v", spec.Format))
