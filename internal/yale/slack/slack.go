@@ -70,17 +70,17 @@ func (s *slackNotifier) buildAndSendMessage(evt event, entry *cache.Entry, field
 
 	switch evt {
 	case keyIssuedEvent:
-		attachment.Title = "Service Account Key Issued"
-		attachment.Text = fmt.Sprintf("A new %s was issued in `%s`", linker.hyperlink("service account key"), entry.Scope())
+		attachment.Title = fmt.Sprintf("%s Issued", entry.Type)
+		attachment.Text = fmt.Sprintf("A new %s was issued in `%s`", linker.hyperlink(), entry.Scope())
 	case keyDisabledEvent:
-		attachment.Title = "Service Account Key Disabled"
-		attachment.Text = fmt.Sprintf("A %s was disabled in `%s`", linker.hyperlink("service account key"), entry.Scope())
+		attachment.Title = fmt.Sprintf("%s Disabled", entry.Type)
+		attachment.Text = fmt.Sprintf("A %s was disabled in `%s`", linker.hyperlink(), entry.Scope())
 	case keyDeletedEvent:
-		attachment.Title = "Service Account Key Deleted"
-		attachment.Text = fmt.Sprintf("A %s was deleted in `%s`", linker.hyperlink("service account key"), entry.Scope())
+		attachment.Title = fmt.Sprintf("%s Deleted", entry.Type)
+		attachment.Text = fmt.Sprintf("A %s was deleted in `%s`", linker.hyperlink(), entry.Scope())
 	case errorEvent:
 		attachment.Title = "Error"
-		attachment.Text = fmt.Sprintf("Error processing %s in `%s`", linker.hyperlink("service account"), entry.Scope())
+		attachment.Text = fmt.Sprintf("Error processing %s in `%s`", linker.hyperlink(), entry.Scope())
 	}
 
 	attachment.Fields = append(attachment.Fields, slack.AttachmentField{
@@ -128,6 +128,6 @@ func (h serviceAccountLinker) url() string {
 	return fmt.Sprintf("https://console.cloud.google.com/iam-admin/serviceaccounts/details/%s?project=%s", h.entry.Identify(), h.entry.Scope())
 }
 
-func (h serviceAccountLinker) hyperlink(text string) string {
-	return fmt.Sprintf("<%s|%s>", h.url(), text)
+func (h serviceAccountLinker) hyperlink() string {
+	return fmt.Sprintf("<%s|%s>", h.url(), h.entry.Type)
 }

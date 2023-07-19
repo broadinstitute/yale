@@ -24,9 +24,9 @@ func Test_SlackNotifier_KeyIssued(t *testing.T) {
 			Attachments: []slack.Attachment{
 				{
 					Color:     okColor,
-					Title:     "Service Account Key Issued",
+					Title:     "GcpSaKey Issued",
 					TitleLink: "https://console.cloud.google.com/iam-admin/serviceaccounts/details/sa1@p.com?project=p",
-					Text:      "A new <https://console.cloud.google.com/iam-admin/serviceaccounts/details/sa1@p.com?project=p|service account key> was issued in `p`",
+					Text:      "A new <https://console.cloud.google.com/iam-admin/serviceaccounts/details/sa1@p.com?project=p|GcpSaKey> was issued in `p`",
 					Fields: []slack.AttachmentField{
 						{
 							Title: "Email",
@@ -42,6 +42,7 @@ func Test_SlackNotifier_KeyIssued(t *testing.T) {
 	).Return(nil)
 
 	require.NoError(t, s.KeyIssued(&cache.Entry{
+		Type: cache.GcpSaKey,
 		Identifier: cache.GcpSaKeyEntryIdentifier{
 			Email:   "sa1@p.com",
 			Project: "p",
@@ -62,9 +63,9 @@ func Test_SlackNotifier_KeyDisabled(t *testing.T) {
 			Attachments: []slack.Attachment{
 				{
 					Color:     okColor,
-					Title:     "Service Account Key Disabled",
+					Title:     "GcpSaKey Disabled",
 					TitleLink: "https://console.cloud.google.com/iam-admin/serviceaccounts/details/sa1@p.com?project=p",
-					Text:      "A <https://console.cloud.google.com/iam-admin/serviceaccounts/details/sa1@p.com?project=p|service account key> was disabled in `p`",
+					Text:      "A <https://console.cloud.google.com/iam-admin/serviceaccounts/details/sa1@p.com?project=p|GcpSaKey> was disabled in `p`",
 					Fields: []slack.AttachmentField{
 						{
 							Title: "Email",
@@ -80,6 +81,7 @@ func Test_SlackNotifier_KeyDisabled(t *testing.T) {
 	).Return(nil)
 
 	require.NoError(t, s.KeyDisabled(&cache.Entry{
+		Type: cache.GcpSaKey,
 		Identifier: cache.GcpSaKeyEntryIdentifier{
 			Email:   "sa1@p.com",
 			Project: "p",
@@ -100,9 +102,9 @@ func Test_SlackNotifier_KeyDeleted(t *testing.T) {
 			Attachments: []slack.Attachment{
 				{
 					Color:     okColor,
-					Title:     "Service Account Key Deleted",
+					Title:     "GcpSaKey Deleted",
 					TitleLink: "https://console.cloud.google.com/iam-admin/serviceaccounts/details/sa1@p.com?project=p",
-					Text:      "A <https://console.cloud.google.com/iam-admin/serviceaccounts/details/sa1@p.com?project=p|service account key> was deleted in `p`",
+					Text:      "A <https://console.cloud.google.com/iam-admin/serviceaccounts/details/sa1@p.com?project=p|GcpSaKey> was deleted in `p`",
 					Fields: []slack.AttachmentField{
 						{
 							Title: "Email",
@@ -118,6 +120,7 @@ func Test_SlackNotifier_KeyDeleted(t *testing.T) {
 	).Return(nil)
 
 	require.NoError(t, s.KeyDeleted(&cache.Entry{
+		Type: cache.GcpSaKey,
 		Identifier: cache.GcpSaKeyEntryIdentifier{
 			Email:   "sa1@p.com",
 			Project: "p",
@@ -140,7 +143,7 @@ func Test_SlackNotifier_Error(t *testing.T) {
 					Color:     errorColor,
 					Title:     "Error",
 					TitleLink: "https://console.cloud.google.com/iam-admin/serviceaccounts/details/sa1@p.com?project=p",
-					Text:      "Error processing <https://console.cloud.google.com/iam-admin/serviceaccounts/details/sa1@p.com?project=p|service account> in `p`",
+					Text:      "Error processing <https://console.cloud.google.com/iam-admin/serviceaccounts/details/sa1@p.com?project=p|GcpSaKey> in `p`",
 					Fields: []slack.AttachmentField{
 						{
 							Title: "Email",
@@ -156,6 +159,7 @@ func Test_SlackNotifier_Error(t *testing.T) {
 	).Return(nil)
 
 	require.NoError(t, s.Error(&cache.Entry{
+		Type: cache.GcpSaKey,
 		Identifier: cache.GcpSaKeyEntryIdentifier{
 			Email:   "sa1@p.com",
 			Project: "p",
