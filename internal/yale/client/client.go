@@ -106,7 +106,7 @@ func Build(local bool, kubeconfig string) (*Clients, error) {
 		return nil, fmt.Errorf("error building Vault client: %v", err)
 	}
 
-	azure, err := buildAzureGraphClient()
+	azure, err := buildAzureGraphClient(local)
 	if err != nil {
 		return nil, fmt.Errorf("error building Azure Graph client: %v", err)
 	}
@@ -189,13 +189,18 @@ func buildVaultClient() (*vaultapi.Client, error) {
 	return client, nil
 }
 
-func buildAzureGraphClient() (*msgraph.ApplicationsClient, error) {
+func buildAzureGraphClient(local bool) (*msgraph.ApplicationsClient, error) {
 	environment := environments.AzurePublic()
+
 	credentials := auth.Credentials{
-		Environment:                       *environment,
-		EnableAuthenticatingUsingAzureCLI: true,
+		Environment: *environment,
 	}
 
+	if local {
+		credentials.EnableAuthenticatingUsingAzureCLI = true
+	} else {
+		credentials.EnableAuthenticationUsingOIDC = true
+	}
 	authorizer, err := auth.NewAuthorizerFromCredentials(context.TODO(), credentials, environment.MicrosoftGraph)
 	if err != nil {
 		return nil, err
