@@ -199,8 +199,16 @@ func buildAzureGraphClient(local bool) (*msgraph.ApplicationsClient, error) {
 	if local {
 		credentials.EnableAuthenticatingUsingAzureCLI = true
 	} else {
+		tenantID, clientID, err := getYaleAppRegistrationTenantAndClientIDs()
+		if err != nil {
+			return nil, fmt.Errorf("error getting Yale app registration tenant and client IDs: %v", err)
+		}
+		credentials.TenantID = tenantID
+		credentials.ClientID = clientID
+		credentials.OIDCAssertionToken = "placeholder"
 		credentials.EnableAuthenticationUsingOIDC = true
 	}
+
 	authorizer, err := auth.NewAuthorizerFromCredentials(context.TODO(), credentials, environment.MicrosoftGraph)
 	if err != nil {
 		return nil, err
@@ -209,4 +217,23 @@ func buildAzureGraphClient(local bool) (*msgraph.ApplicationsClient, error) {
 	client := msgraph.NewApplicationsClient()
 	client.BaseClient.Authorizer = authorizer
 	return client, nil
+}
+
+const (
+	yaleClientIDEnvVar string = "YALE_APP_REGISTRATION_CLIENT_ID"
+	yaleTenantIDEnvVar string = "YALE_APP_REGISTRATION_TENANT_ID"
+)
+
+func getYaleAppRegistrationTenantAndClientIDs() (tenantID, clientID string, err error) {
+	tenantID, ok := os.LookupEnv(yaleTenantIDEnvVar)
+	if !ok {
+		return "", "", fmt.Errorf("%s not set", yaleTenantIDEnvVar)
+	}
+
+	clientID, ok = os.LookupEnv(yaleClientIDEnvVar)
+	if !ok {
+		return "", "", fmt.Errorf("%s not set", yaleClientIDEnvVar)
+	}
+
+	return
 }
