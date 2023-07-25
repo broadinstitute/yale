@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/broadinstitute/yale/internal/yale/logs"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -168,34 +169,42 @@ func (e *Entry) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("error unmarshaling Entry JSON: %v", err)
 	}
 
-	entryType, ok := entryData["Type"].(float64)
-	if !ok {
-		return fmt.Errorf("error unmarshaling Entry JSON: Type is not a number")
-	}
-	e.Type = EntryType(entryType)
+	_, exists := entryData["Type"]
+	if !exists {
+		logs.Info.Print("unmarshaling legacy cache entry")
+		if err := e.handleUnmarshalLegacyCacheEntry(entryData); err != nil {
+			return err
+		}
+	} else {
+		entryType, ok := entryData["Type"].(float64)
+		if !ok {
+			return fmt.Errorf("error unmarshaling Entry JSON: Type is not a number")
+		}
+		e.Type = EntryType(entryType)
 
-	// extract the identifier data
-	identifierData, err := json.Marshal(entryData["Identifier"])
-	if err != nil {
-		return fmt.Errorf("error unmarshaling Entry JSON: %v", err)
-	}
-	switch e.Type {
-	case GcpSaKey:
-		var identifier GcpSaKeyEntryIdentifier
-		err = json.Unmarshal(identifierData, &identifier)
+		// extract the identifier data
+		identifierData, err := json.Marshal(entryData["Identifier"])
 		if err != nil {
-			return fmt.Errorf("error unmarshaling GcpSaKeyEntryIdentifier: Identifier is not a GcpSaKeyEntryIdentifier")
+			return fmt.Errorf("error unmarshaling Entry JSON: %v", err)
 		}
-		e.Identifier = identifier
-	case AzureClientSecret:
-		var identifier AzureClientSecretEntryIdentifier
-		err = json.Unmarshal(identifierData, &identifier)
-		if err != nil {
-			return fmt.Errorf("error unmarshaling AzureClientSecretEntryIdentifier: Identifier is not a AzureClientSecretEntryIdentifier")
+		switch e.Type {
+		case GcpSaKey:
+			var identifier GcpSaKeyEntryIdentifier
+			err = json.Unmarshal(identifierData, &identifier)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling GcpSaKeyEntryIdentifier: Identifier is not a GcpSaKeyEntryIdentifier")
+			}
+			e.Identifier = identifier
+		case AzureClientSecret:
+			var identifier AzureClientSecretEntryIdentifier
+			err = json.Unmarshal(identifierData, &identifier)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling AzureClientSecretEntryIdentifier: Identifier is not a AzureClientSecretEntryIdentifier")
+			}
+			e.Identifier = identifier
+		default:
+			return fmt.Errorf("unsupported Entry type: %v", e.Type)
 		}
-		e.Identifier = identifier
-	default:
-		return fmt.Errorf("unsupported Entry type: %v", e.Type)
 	}
 
 	currentKeyData, err := json.Marshal(entryData["CurrentKey"])
@@ -295,5 +304,30 @@ func (c *Entry) unmarshalFromSecret(s *corev1.Secret) error {
 	if c.SyncStatus == nil {
 		c.SyncStatus = make(map[string]string)
 	}
+	return nil
+}
+
+func (e *Entry) handleUnmarshalLegacyCacheEntry(entryData map[string]interface{}) error {
+	// legacy cache entries will not have the Type field set, so we need to set it here
+	// legacy cache entries are guaranteed to be GcpSaKey entries
+	e.Type = GcpSaKey
+
+	// rather than having an identifier field, legacy cache entries will instead have a ServiceServiceAccount field
+	// unmarshal the service account data into a GcpSaKeyEntryIdentifier
+	_, exists := entryData["ServiceAccount"]
+	if !exists {
+		return fmt.Errorf("error unmarshaling legacy cache entry: missing ServiceAccount field")
+	}
+
+	serviceAccountData, err := json.Marshal(entryData["ServiceAccount"])
+	if err != nil {
+		return fmt.Errorf("error parsing service account data: %v", err)
+	}
+	var identifier GcpSaKeyEntryIdentifier
+	err = json.Unmarshal(serviceAccountData, &identifier)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling GcpSaKeyEntryIdentifier: ServiceAccount is not a GcpSaKeyEntryIdentifier")
+	}
+	e.Identifier = identifier
 	return nil
 }
