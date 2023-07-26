@@ -109,6 +109,8 @@ func scan[T any](r resource[T], secrets []secret) []reference {
 
 	reloader := parseReloaderAnnotations(r.annotations)
 
+	ignore := parseIgnoreAnnotations(r.annotations)
+
 	scanner := bufio.NewScanner(bytes.NewReader(r.document.content))
 	var lineoffset int
 	for scanner.Scan() {
@@ -133,8 +135,12 @@ func scan[T any](r resource[T], secrets []secret) []reference {
 				logs.Debug.Printf("%s: will reload (%s)", ref.summarize(), reason)
 				continue
 			}
-
-			logs.Debug.Printf("%s: WILL NOT reload on changes", ref.summarize())
+			logs.Info.Printf("%s: WILL NOT reload on changes", ref.summarize())
+			fmt.Println("why this is not working?")
+			if ignore.ignoresSecret(s.name) {
+				logs.Info.Printf("%s: ignoring missing reloader annotation", ref.summarize())
+				continue
+			}
 
 			matches = append(matches, ref)
 		}
