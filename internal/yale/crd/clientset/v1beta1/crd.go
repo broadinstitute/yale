@@ -9,6 +9,7 @@ import (
 
 type YaleCRDInterface interface {
 	GcpSaKeys() GcpSaKeyInterface
+	AzureClientSecrets() AzureClientSecretInterface
 }
 
 type YaleCRDClient struct {
@@ -33,6 +34,13 @@ func NewForConfig(c *rest.Config) (*YaleCRDClient, error) {
 // GcpSaKeys returns an interface for interacting with GCP SA keys
 func (c *YaleCRDClient) GcpSaKeys() GcpSaKeyInterface {
 	return &gcpsakeyClient{
+		restClient: c.restClient,
+	}
+}
+
+// AzureClientSecrets returns an interface for interacting with Azure client secrets
+func (c *YaleCRDClient) AzureClientSecrets() AzureClientSecretInterface {
+	return &azureClientSecretClient{
 		restClient: c.restClient,
 	}
 }

@@ -1,8 +1,11 @@
 package yale
 
 import (
-	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"fmt"
+	"strings"
+	"time"
+
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
 	"github.com/broadinstitute/yale/internal/yale/authmetrics"
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	"github.com/broadinstitute/yale/internal/yale/client"
@@ -10,22 +13,27 @@ import (
 	"github.com/broadinstitute/yale/internal/yale/crd/clientset/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/cutoff"
 	"github.com/broadinstitute/yale/internal/yale/keyops"
+	"github.com/broadinstitute/yale/internal/yale/keyops/azurekeyops"
 	"github.com/broadinstitute/yale/internal/yale/keysync"
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	"github.com/broadinstitute/yale/internal/yale/resourcemap"
 	"github.com/broadinstitute/yale/internal/yale/slack"
 	vaultapi "github.com/hashicorp/vault/api"
+	"github.com/manicminer/hamilton/msgraph"
 	"google.golang.org/api/iam/v1"
 	"k8s.io/client-go/kubernetes"
-	"strings"
-	"time"
+)
+
+const (
+	gcpKeyops   = "gcp"
+	azureKeyops = "azure"
 )
 
 type Yale struct { // Yale config
 	options     Options
 	cache       cache.Cache
 	resourcemap resourcemap.Mapper
-	keyops      keyops.KeyOps
+	keyops      map[string]keyops.KeyOps
 	keysync     keysync.KeySync
 	authmetrics authmetrics.AuthMetrics
 	slack       slack.SlackNotifier
@@ -42,10 +50,10 @@ type Options struct {
 
 // NewYale /* Construct a new Yale Manager */
 func NewYale(clients *client.Clients, opts ...func(*Options)) *Yale {
-	return newYaleFromClients(clients.GetK8s(), clients.GetCRDs(), clients.GetIAM(), clients.GetMetrics(), clients.GetVault(), opts...)
+	return newYaleFromClients(clients.GetK8s(), clients.GetCRDs(), clients.GetIAM(), clients.GetMetrics(), clients.GetVault(), clients.GetAzure(), opts...)
 }
 
-func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, opts ...func(*Options)) *Yale {
+func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, azure *msgraph.ApplicationsClient, opts ...func(*Options)) *Yale {
 	options := Options{
 		CacheNamespace:     cache.DefaultCacheNamespace,
 		IgnoreUsageMetrics: false,
@@ -53,9 +61,11 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 	for _, opt := range opts {
 		opt(&options)
 	}
+	_keyops := make(map[string]keyops.KeyOps)
+	_keyops[gcpKeyops] = keyops.New(iam)
+	_keyops[azureKeyops] = azurekeyops.New(azure)
 
 	_authmetrics := authmetrics.New(metrics, iam)
-	_keyops := keyops.New(iam)
 	_cache := cache.New(k8s, options.CacheNamespace)
 	_keysync := keysync.New(k8s, vault, _cache)
 	_resourcemap := resourcemap.New(crd, _cache)
@@ -64,7 +74,7 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 	return newYaleFromComponents(options, _cache, _resourcemap, _authmetrics, _keyops, _keysync, _slack)
 }
 
-func newYaleFromComponents(options Options, _cache cache.Cache, resourcemapper resourcemap.Mapper, _authmetrics authmetrics.AuthMetrics, _keyops keyops.KeyOps, _keysync keysync.KeySync, _slack slack.SlackNotifier) *Yale {
+func newYaleFromComponents(options Options, _cache cache.Cache, resourcemapper resourcemap.Mapper, _authmetrics authmetrics.AuthMetrics, _keyops map[string]keyops.KeyOps, _keysync keysync.KeySync, _slack slack.SlackNotifier) *Yale {
 	return &Yale{
 		options:     options,
 		cache:       _cache,
@@ -76,6 +86,7 @@ func newYaleFromComponents(options Options, _cache cache.Cache, resourcemapper r
 	}
 }
 
+// Run is the main entrypoint for Yale, and will perform a full sync of all yale-managed resources in the cluster
 func (m *Yale) Run() error {
 	resources, err := m.resourcemap.Build()
 	if err != nil {
@@ -83,52 +94,71 @@ func (m *Yale) Run() error {
 	}
 
 	errors := make(map[string]error)
-	for email, bundle := range resources {
-		if err = m.processServiceAccountAndReportErrors(bundle.Entry, bundle.GSKs); err != nil {
-			logs.Error.Printf("error processing service account %s: %v", email, err)
-			errors[email] = err
+	for identifier, bundle := range resources {
+		logs.Info.Printf("processing %s %s", bundle.Entry.Type, identifier)
+		if bundle.Entry.Identifier.Type() == cache.GcpSaKey {
+			if err = processYaleResourceAndReportErrors(m, bundle.Entry, bundle.GSKs); err != nil {
+				logs.Error.Printf("error processing %s %s: %v", bundle.Entry.Type, identifier, err)
+				errors[identifier] = err
+			}
+		} else if bundle.Entry.Identifier.Type() == cache.AzureClientSecret {
+
+			if err = processYaleResourceAndReportErrors(m, bundle.Entry, bundle.AzClientSecrets); err != nil {
+				logs.Error.Printf("error processing %s %s: %v", bundle.Entry.Type, identifier, err)
+				errors[identifier] = err
+			}
 		}
 	}
 
 	if len(errors) > 0 {
 		var sb strings.Builder
-		for email, eerr := range errors {
-			sb.WriteString(fmt.Sprintf("%s: %v\n", email, eerr))
+		for email, err := range errors {
+			sb.WriteString(fmt.Sprintf("%s: %v\n", email, err))
 		}
-		return fmt.Errorf("error processing GcpSaKeys for %d service accounts: %s", len(errors), sb.String())
+		return fmt.Errorf("error processing yale managed resource for %d identifier: %s", len(errors), sb.String())
 	}
 
 	return nil
 }
 
-func (m *Yale) processServiceAccountAndReportErrors(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
-	if err := m.processServiceAccount(entry, gsks); err != nil {
-		if reportErr := m.reportError(entry, err); reportErr != nil {
-			logs.Error.Printf("error reporting error for service account %s: %v", entry.ServiceAccount.Email, reportErr)
+// processYaleResourceAndReportErrors is a helper function that will process a Yale-managed resource, and report any errors that occur
+func processYaleResourceAndReportErrors[Y apiv1b1.YaleCRD](yale *Yale, entry *cache.Entry, yaleCRDs []Y) error {
+	if err := processYaleResource(yale, entry, yaleCRDs); err != nil {
+		if reportErr := yale.reportError(entry, err); reportErr != nil {
+			logs.Error.Printf("error reporting error for %s: %v", entry.Identify(), reportErr)
 		}
 		return err
 	}
 	return nil
 }
 
-func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
+// processYaleResource is a helper function that will process a Yale-managed resource
+func processYaleResource[Y apiv1b1.YaleCRD](yale *Yale, entry *cache.Entry, yaleCRDs []Y) error {
 	var err error
+	var keyOpsType string
+	if entry.Type == cache.GcpSaKey {
+		keyOpsType = gcpKeyops
+	} else if entry.Type == cache.AzureClientSecret {
+		keyOpsType = azureKeyops
+	} else {
+		return fmt.Errorf("unknown entry type %T", entry.Type)
+	}
 
-	cutoffs := m.computeCutoffs(entry, gsks)
+	cutoffs := computeCutoffs(entry, yaleCRDs)
 
-	if err = m.syncKeyIfReady(entry, gsks); err != nil {
+	if err = syncYaleResourceIfReady(yale.keysync, entry, yaleCRDs); err != nil {
 		return err
 	}
-	if err = m.deleteOldKeys(entry, cutoffs); err != nil {
+	if err = yale.deleteOldKeys(entry, cutoffs); err != nil {
 		return err
 	}
-	if err = m.disableOldKeys(entry, cutoffs); err != nil {
+	if err = yale.disableOldKeys(entry, cutoffs); err != nil {
 		return err
 	}
-	if err = m.rotateKey(entry, cutoffs, gsks); err != nil {
+	if err = rotateYaleResource(yale.keyops[keyOpsType], yale.cache, yale.slack, yale.keysync, entry, cutoffs, yaleCRDs); err != nil {
 		return err
 	}
-	if err = m.retireCacheEntryIfNeeded(entry, gsks); err != nil {
+	if err = retireCacheEntryIfNeeded(yale.cache, entry, yaleCRDs); err != nil {
 		return err
 	}
 
@@ -137,80 +167,100 @@ func (m *Yale) processServiceAccount(entry *cache.Entry, gsks []apiv1b1.GcpSaKey
 
 // computeCutoffs computes the cutoffs for key rotation/disabling/deletion based on the GcpSaKey resources
 // for this service account
-func (m *Yale) computeCutoffs(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) cutoff.Cutoffs {
-	if len(gsks) == 0 {
-		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will use Yale's default cutoffs to retire old keys", entry.ServiceAccount.Email)
+func computeCutoffs[Y apiv1b1.YaleCRD](entry *cache.Entry, yaleCRDs []Y) cutoff.Cutoffs {
+	if len(yaleCRDs) == 0 {
+		logs.Info.Printf("cache entry for %s has no corresponding %T resources in the cluster; will use Yale's default cutoffs to retire old keys", entry.Identify(), yaleCRDs)
 		return cutoff.NewWithDefaults()
 	}
-	return cutoff.New(gsks...)
+	return cutoff.New(yaleCRDs)
 }
 
-// syncKeyIfReady if cache entry has a current/active key, perform a keysync
-func (m *Yale) syncKeyIfReady(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
+// syncYaleResourceIfReady will sync the active key for a cache entry if it exists to the keysync destination
+func syncYaleResourceIfReady[Y apiv1b1.YaleCRD](_keysync keysync.KeySync, entry *cache.Entry, yaleCRDs []Y) error {
 	if len(entry.CurrentKey.ID) == 0 {
 		// nothing to sync yet
 		return nil
 	}
-	return m.keysync.SyncIfNeeded(entry, gsks...)
+	switch crds := any(&yaleCRDs).(type) {
+	case *[]apiv1b1.GcpSaKey:
+		return _keysync.SyncIfNeeded(entry, keysync.GcpSaKeysToSyncable(*crds))
+	case *[]apiv1b1.AzureClientSecret:
+		return _keysync.SyncIfNeeded(entry, keysync.AzureClientSecretsToSyncable(*crds))
+	default:
+		return fmt.Errorf("unknown yaleCRD type %T", yaleCRDs)
+	}
 }
 
-// rotateKey rotates the current active key for the service account, if needed.
-func (m *Yale) rotateKey(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GcpSaKey) error {
-	rotated, err := m.issueNewKeyIfNeeded(entry, cutoffs, gsks)
+// rotateYaleResource will rotate the active secret for a cache entry if it is time to do so
+func rotateYaleResource[Y apiv1b1.YaleCRD](
+	keyops keyops.KeyOps,
+	cache cache.Cache,
+	slack slack.SlackNotifier,
+	keysync keysync.KeySync,
+	entry *cache.Entry,
+	cutoffs cutoff.Cutoffs,
+	yaleCRDs []Y,
+) error {
+	rotated, err := issueNewYaleResourceIfNeeded(keyops, cache, slack, entry, cutoffs, yaleCRDs)
 	if err != nil {
 		return err
 	}
 	if !rotated {
 		return nil
 	}
-	return m.keysync.SyncIfNeeded(entry, gsks...)
+	return syncYaleResourceIfReady(keysync, entry, yaleCRDs)
 }
 
-// issueNewKeyIfNeed given cache entry and gsk, checks if the entry's current active key needs to be rotated.
-// if a rotation is needed (or the cache entry is new/empty), it issues a new sa key, adds it
+// issueNewYaleResourceIfNeeded given cache entry and yale CRD, checks if the entry's current active secret needs to be rotated.
+// if a rotation is needed (or the cache entry is new/empty), it issues a new secret, adds it
 // to the cache entry, then saves the updated cache entry to k8s.
 // returns a boolean that will be true if a new key was issued, false otherwise
-func (m *Yale) issueNewKeyIfNeeded(entry *cache.Entry, cutoffs cutoff.Cutoffs, gsks []apiv1b1.GcpSaKey) (bool, error) {
+func issueNewYaleResourceIfNeeded[Y apiv1b1.YaleCRD](
+	keyops keyops.KeyOps,
+	yaleCache cache.Cache,
+	slack slack.SlackNotifier,
+	entry *cache.Entry,
+	cutoffs cutoff.Cutoffs,
+	yaleCRDs []Y,
+) (bool, error) {
 	issued := false
-	email := entry.ServiceAccount.Email
-	project := entry.ServiceAccount.Project
+	identifier := entry.Identify()
+	scope := entry.Scope()
 
 	if entry.CurrentKey.ID != "" {
-		logs.Info.Printf("service account %s: checking if current key %s needs rotation (created at %s; rotation age is %d days)", email, entry.CurrentKey.ID, entry.CurrentKey.CreatedAt, cutoffs.RotateAfterDays())
-
+		logs.Info.Printf("%s %s: checking if current secret %s needs rotation (created at %s; rotation age is %d days)", entry.Type, identifier, entry.CurrentKey.ID, entry.CurrentKey.CreatedAt, cutoffs.RotateAfterDays())
 		if cutoffs.ShouldRotate(entry.CurrentKey.CreatedAt) {
-			logs.Info.Printf("service account %s: rotating key %s", email, entry.CurrentKey.ID)
+			logs.Info.Printf("%s %s: current secret %s needs rotation", entry.Type, identifier, entry.CurrentKey.ID)
 			entry.RotatedKeys[entry.CurrentKey.ID] = currentTime()
 			entry.CurrentKey = cache.CurrentKey{}
 		} else {
-			logs.Info.Printf("service account %s: current key %s does not need rotation", email, entry.CurrentKey.ID)
+			logs.Info.Printf("%s %s: current secret %s does not need rotation", entry.Type, identifier, entry.CurrentKey.ID)
 		}
 	}
 
 	if entry.CurrentKey.ID == "" {
-		if len(gsks) == 0 {
-			logs.Info.Printf("service account %s: no remaining GcpSaKeys for this service account in the cluster, won't issue new key", email)
+		if len(yaleCRDs) == 0 {
+			logs.Info.Printf("%s %s: no %T resources in cluster; will not issue new key", entry.Type, identifier, yaleCRDs)
 		} else {
-			logs.Info.Printf("service account %s: issuing new key", email)
-			newKey, json, err := m.keyops.Create(project, email)
+			logs.Info.Printf("%s %s: issuing new key", entry.Type, identifier)
+			newKey, secret, err := keyops.Create(scope, identifier)
 			if err != nil {
-				return false, fmt.Errorf("error issuing new service account key for %s: %v", email, err)
+				return false, fmt.Errorf("error issuing new secret for %s: %v", identifier, err)
 			}
-
-			logs.Info.Printf("created new service account key %s for %s", newKey.ID, email)
+			logs.Info.Printf("%s %s: issued new secret %s", entry.Type, identifier, newKey.ID)
 			entry.CurrentKey.ID = newKey.ID
-			entry.CurrentKey.JSON = string(json)
+			entry.CurrentKey.JSON = string(secret)
 			entry.CurrentKey.CreatedAt = currentTime()
 			issued = true
 		}
 	}
 
-	if err := m.cache.Save(entry); err != nil {
-		return false, fmt.Errorf("error saving cache entry for %s after key rotation: %v", email, err)
+	if err := yaleCache.Save(entry); err != nil {
+		return false, fmt.Errorf("error saving cache entry for %s after key rotation: %v", identifier, err)
 	}
 
 	if issued {
-		if err := m.slack.KeyIssued(entry, entry.CurrentKey.ID); err != nil {
+		if err := slack.KeyIssued(entry, entry.CurrentKey.ID); err != nil {
 			return false, err
 		}
 	}
@@ -229,9 +279,11 @@ func (m *Yale) disableOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error 
 
 func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 	// has enough time passed since rotation? if not, do nothing
-	logs.Info.Printf("key %s (service account %s) was rotated at %s, disable cutoff is %d days", keyId, entry.ServiceAccount.Email, rotatedAt, cutoffs.DisableAfterDays())
+	_keyops := m.keyops[gcpKeyops]
+
+	logs.Info.Printf("key %s (%s %s) was rotated at %s, disable cutoff is %d days", keyId, entry.Type, entry.Identify(), rotatedAt, cutoffs.DisableAfterDays())
 	if !cutoffs.ShouldDisable(rotatedAt) {
-		logs.Info.Printf("key %s (service account %s): too early to disable", keyId, entry.ServiceAccount.Email)
+		logs.Info.Printf("key %s (%s %s): too early to disable", keyId, entry.Type, entry.Identify())
 		return nil
 	}
 
@@ -242,18 +294,18 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 	}
 	if lastAuthTime != nil {
 		if !cutoffs.SafeToDisable(*lastAuthTime) {
-			return fmt.Errorf("key %s (service account %s) was rotated at %s but was last used to authenticate at %s; please find out what's still using this key and fix it", keyId, entry.ServiceAccount.Email, rotatedAt, *lastAuthTime)
+			return fmt.Errorf("key %s (%s %s) was rotated at %s but was last used to authenticate at %s; please find out what's still using this key and fix it", keyId, entry.Type, entry.Identify(), rotatedAt, *lastAuthTime)
 		}
 	}
 
 	// disable the key
-	logs.Info.Printf("disabling key %s (service account %s)...", keyId, entry.ServiceAccount.Email)
-	if err = m.keyops.EnsureDisabled(keyops.Key{
-		Project:             entry.ServiceAccount.Project,
-		ServiceAccountEmail: entry.ServiceAccount.Email,
-		ID:                  keyId,
+	logs.Info.Printf("disabling key %s (%s %s)...", keyId, entry.Type, entry.Identify())
+	if err = _keyops.EnsureDisabled(keyops.Key{
+		Scope:      entry.Scope(),
+		Identifier: entry.Identify(),
+		ID:         keyId,
 	}); err != nil {
-		return fmt.Errorf("error disabling key %s (service account %s): %v", keyId, entry.ServiceAccount.Email, err)
+		return fmt.Errorf("error disabling key %s (%s %s): %v", keyId, entry.Type, entry.Identify(), err)
 	}
 
 	// update cache entry to reflect that the key was successfully disabled
@@ -271,16 +323,16 @@ func (m *Yale) lastAuthTime(keyId string, entry *cache.Entry) (*time.Time, error
 		return nil, nil
 	}
 
-	logs.Info.Printf("key %s (service account %s) has reached disable cutoff; checking if still in use", keyId, entry.ServiceAccount.Email)
-	lastAuthTime, err := m.authmetrics.LastAuthTime(entry.ServiceAccount.Project, entry.ServiceAccount.Email, keyId)
+	logs.Info.Printf("key %s (%s %s) has reached disable cutoff; checking if still in use", keyId, entry.Type, entry.Identify())
+	lastAuthTime, err := m.authmetrics.LastAuthTime(entry.Scope(), entry.Identify(), keyId)
 	if err != nil {
-		return nil, fmt.Errorf("error determining last authentication time for key %s (service account %s): %v", keyId, entry.ServiceAccount.Email, err)
+		return nil, fmt.Errorf("error determining last authentication time for key %s (%s %s): %v", keyId, entry.Type, entry.Identify(), err)
 	}
 	if lastAuthTime == nil {
-		logs.Info.Printf("could not identify last authentication time for key %s (service account %s); assuming key is not in use", keyId, entry.ServiceAccount.Email)
+		logs.Info.Printf("could not identify last authentication time for key %s (%s %s); assuming key is not in use", keyId, entry.Type, entry.Identify())
 		return nil, nil
 	}
-	logs.Info.Printf("last authentication time for key %s (service account %s): %s", keyId, entry.ServiceAccount.Email, *lastAuthTime)
+	logs.Info.Printf("last authentication time for key %s (%s %s): %s", keyId, entry.Type, entry.Identify(), *lastAuthTime)
 	return lastAuthTime, nil
 }
 
@@ -296,53 +348,54 @@ func (m *Yale) deleteOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 
 func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 	// has enough time passed since this key was disabled? if not, do nothing
-	logs.Info.Printf("key %s (service account %s) was disabled at %s, delete cutoff is %d days", keyId, entry.ServiceAccount.Email, disabledAt, cutoffs.DisableAfterDays())
+	_keyops := m.keyops[gcpKeyops]
+	logs.Info.Printf("key %s (%s %s) was disabled at %s, delete cutoff is %d days", keyId, entry.Type, entry.Identify(), disabledAt, cutoffs.DisableAfterDays())
 	if !cutoffs.ShouldDelete(disabledAt) {
-		logs.Info.Printf("key %s (service account %s): too early to delete", keyId, entry.ServiceAccount.Email)
+		logs.Info.Printf("key %s (%s %s): too early to delete", keyId, entry.Type, entry.Identify())
 		return nil
 	}
 
 	key := keyops.Key{
-		Project:             entry.ServiceAccount.Project,
-		ServiceAccountEmail: entry.ServiceAccount.Email,
-		ID:                  keyId,
+		Scope:      entry.Scope(),
+		Identifier: entry.Identify(),
+		ID:         keyId,
 	}
 
 	// delete key from GCP
-	logs.Info.Printf("key %s (service account %s) has reached delete cutoff; deleting it", key.ID, key.ServiceAccountEmail)
-	if err := m.keyops.DeleteIfDisabled(key); err != nil {
-		return fmt.Errorf("error deleting key %s (service account %s): %v", keyId, entry.ServiceAccount.Email, err)
+	logs.Info.Printf("key %s (%s %s) has reached delete cutoff; deleting it", key.ID, entry.Type, key.Identifier)
+	if err := _keyops.DeleteIfDisabled(key); err != nil {
+		return fmt.Errorf("error deleting key %s (%s %s): %v", keyId, entry.Type, entry.Identify(), err)
 	}
 
 	// delete key from cache entry
 	delete(entry.DisabledKeys, keyId)
 	if err := m.cache.Save(entry); err != nil {
-		return fmt.Errorf("error updating cache entry for %s after key deletion: %v", entry.ServiceAccount.Email, err)
+		return fmt.Errorf("error updating cache entry for %s after key deletion: %v", entry.Identify(), err)
 	}
 
-	logs.Info.Printf("deleted key %s (service account %s)", key.ID, key.ServiceAccountEmail)
+	logs.Info.Printf("deleted key %s (%s %s)", key.ID, entry.Type, key.Identifier)
 	return m.slack.KeyDeleted(entry, key.ID)
 }
 
-func (m *Yale) retireCacheEntryIfNeeded(entry *cache.Entry, gsks []apiv1b1.GcpSaKey) error {
-	if len(gsks) > 0 {
+func retireCacheEntryIfNeeded[Y apiv1b1.YaleCRD](yaleCache cache.Cache, entry *cache.Entry, yaleCRDs []Y) error {
+	if len(yaleCRDs) > 0 {
 		return nil
 	}
 	if len(entry.CurrentKey.ID) > 0 {
-		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will not delete it because it still has a current key", entry.ServiceAccount.Email)
+		logs.Info.Printf("cache entry for %s has no corresponding %s resources in the cluster; will not delete it because it still has a current key", entry.Identify(), entry.Type)
 		return nil
 	}
 	if len(entry.RotatedKeys) > 0 {
-		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will not delete it because it still has keys to disable", entry.ServiceAccount.Email)
+		logs.Info.Printf("cache entry for %s has no corresponding %s resources in the cluster; will not delete it because it still has keys to disable", entry.Identify(), entry.Type)
 		return nil
 	}
 	if len(entry.DisabledKeys) > 0 {
-		logs.Info.Printf("cache entry for %s has no corresponding GcpSaKey resources in the cluster; will not delete it because it still has keys to delete", entry.ServiceAccount.Email)
+		logs.Info.Printf("cache entry for %s has no corresponding %s resources in the cluster; will not delete it because it still has keys to delete", entry.Identify(), entry.Type)
 		return nil
 	}
 
-	logs.Info.Printf("cache entry for %s is empty and has no corresponding GcpSaKey resources in the cluster; deleting it", entry.ServiceAccount.Email)
-	return m.cache.Delete(entry)
+	logs.Info.Printf("cache entry for %s is empty and has no corresponding %s resources in the cluster; deleting it", entry.Identify(), entry.Type)
+	return yaleCache.Delete(entry)
 }
 
 const errorRepostDuration = 4 * time.Hour

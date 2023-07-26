@@ -1,12 +1,13 @@
 package cutoff
 
 import (
+	"testing"
+	"time"
+
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
-	"time"
 )
 
 func Test_Cutoffs(t *testing.T) {
@@ -205,6 +206,41 @@ func Test_Cutoffs(t *testing.T) {
 			}
 		})
 	}
+
+	// test with v1beta1.AzureClientSecret too
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			azureClientSecret := v1beta1.AzureClientSecret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-azureClientSecret",
+					Namespace: "test-namespace",
+				},
+				Spec: v1beta1.AzureClientSecretSpec{
+					KeyRotation: tc.input,
+				},
+			}
+			c := newWithCustomTime([]v1beta1.AzureClientSecret{azureClientSecret}, now)
+
+			assert.Equal(t, tc.expectedThresholds.rotateAfter, c.RotateAfterDays())
+			assert.Equal(t, tc.expectedThresholds.disableAfter, c.DisableAfterDays())
+			assert.Equal(t, tc.expectedThresholds.deleteAfter, c.DeleteAfterDays())
+
+			assert.Equal(t, tc.expectedCutoffs.rotateCutoff, c.rotateCutoff().Format(layout))
+			assert.Equal(t, tc.expectedCutoffs.disableCutoff, c.disableCutoff().Format(layout))
+			assert.Equal(t, tc.expectedCutoffs.safeToDisableCutoff, c.safeToDisableCutoff().Format(layout))
+			assert.Equal(t, tc.expectedCutoffs.deleteCutoff, c.deleteCutoff().Format(layout))
+
+			for _, sc := range tc.shouldChecks {
+				timestamp, err := time.Parse(layout, sc.input)
+				require.NoError(t, err, "input: %q", sc.input)
+
+				assert.Equal(t, sc.rotate, c.ShouldRotate(timestamp), "input: %q", sc.input)
+				assert.Equal(t, sc.disable, c.ShouldDisable(timestamp), "input: %q", sc.input)
+				assert.Equal(t, sc.safeDisable, c.SafeToDisable(timestamp), "input: %q", sc.input)
+				assert.Equal(t, sc.delete, c.ShouldDelete(timestamp), "input: %q", sc.input)
+			}
+		})
+	}
 }
 
 func Test_computeThresholds(t *testing.T) {
@@ -329,6 +365,153 @@ func Test_computeThresholds(t *testing.T) {
 						},
 						GoogleServiceAccount: v1beta1.GoogleServiceAccount{
 							Name: "my-sa@p.com",
+						},
+					},
+				},
+			},
+			expected: thresholds{
+				rotateAfter:  7,
+				disableAfter: 9,
+				deleteAfter:  3,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, computeThresholds(tc.input))
+		})
+	}
+}
+
+func Test_computeThresholdsAzureClientSecrets(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    []v1beta1.AzureClientSecret
+		expected thresholds
+	}{
+		{
+			name: "should return correct thresholds for a single gsk",
+			input: []v1beta1.AzureClientSecret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-gsk-1",
+						Namespace: "test-namespace",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter:  7,
+							DisableAfter: 8,
+							DeleteAfter:  9,
+						},
+						AzureServicePrincipal: v1beta1.AzureServicePrincipal{
+							ApplicationID: "test-application-id",
+							TenantID:      "test-tenant-id",
+						},
+					},
+				},
+			},
+			expected: thresholds{
+				rotateAfter:  7,
+				disableAfter: 8,
+				deleteAfter:  9,
+			},
+		},
+		{
+			name: "should round up to configured minimums",
+			input: []v1beta1.AzureClientSecret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-gsk-1",
+						Namespace: "test-namespace",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter:  -1,
+							DisableAfter: 0,
+							DeleteAfter:  1,
+						},
+						AzureServicePrincipal: v1beta1.AzureServicePrincipal{
+							ApplicationID: "test-application-id",
+							TenantID:      "test-tenant-id",
+						},
+					},
+				},
+			},
+			expected: thresholds{
+				rotateAfter:  7,
+				disableAfter: 7,
+				deleteAfter:  3,
+			},
+		},
+		{
+			name: "should choose minimum valid value for multiple conflicting GSK specs",
+			input: []v1beta1.AzureClientSecret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-gsk-1",
+						Namespace: "test-ns-1",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter:  7,
+							DisableAfter: 12,
+							DeleteAfter:  1,
+						},
+						AzureServicePrincipal: v1beta1.AzureServicePrincipal{
+							ApplicationID: "test-application-id",
+							TenantID:      "test-tenant-id",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-gsk-2",
+						Namespace: "test-ns-2",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter:  6,
+							DisableAfter: 9,
+							DeleteAfter:  2,
+						},
+						AzureServicePrincipal: v1beta1.AzureServicePrincipal{
+							ApplicationID: "test-application-id",
+							TenantID:      "test-tenant-id",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-gsk-3",
+						Namespace: "test-ns-3",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter:  8,
+							DisableAfter: 22,
+							DeleteAfter:  1,
+						},
+						AzureServicePrincipal: v1beta1.AzureServicePrincipal{
+							ApplicationID: "test-application-id",
+							TenantID:      "test-tenant-id",
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test-gsk-4",
+						Namespace: "test-ns-4",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							RotateAfter:  2,
+							DisableAfter: 17,
+							DeleteAfter:  0,
+						},
+						AzureServicePrincipal: v1beta1.AzureServicePrincipal{
+							ApplicationID: "test-application-id",
+							TenantID:      "test-tenant-id",
 						},
 					},
 				},
@@ -514,7 +697,178 @@ func Test_computeIgnoreUsageMetrics(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, computeIgnoreUsageMetrics(tc.input))
+			assert.Equal(t, tc.expected, computeIgnoreUsageMetricsGSK(tc.input))
+		})
+	}
+}
+
+func Test_computeIgnoreUsageMetricsAzureClientSecrets(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    []v1beta1.AzureClientSecret
+		expected bool
+	}{
+		{
+			name:     "empty",
+			input:    []v1beta1.AzureClientSecret{},
+			expected: false,
+		},
+		{
+			name: "single gsk with ignoreUsageMetrics set to false",
+			input: []v1beta1.AzureClientSecret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-1",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: false,
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "single gsk with ignoreUsageMetrics set to true",
+			input: []v1beta1.AzureClientSecret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-1",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: true,
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "multiple gsks with ignoreUsageMetrics set to true",
+			input: []v1beta1.AzureClientSecret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-1",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: true,
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-2",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: true,
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-3",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: true,
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "multiple gsks with ignoreUsageMetrics set to false",
+			input: []v1beta1.AzureClientSecret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-1",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: false,
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-2",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: false,
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-3",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: false,
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "multiple gsks with ignoreUsageMetrics set to true and false",
+			input: []v1beta1.AzureClientSecret{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-1",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: true,
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-2",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: false,
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "gsk-3",
+						Namespace: "ns-1",
+					},
+					Spec: v1beta1.AzureClientSecretSpec{
+						KeyRotation: v1beta1.KeyRotation{
+							IgnoreUsageMetrics: true,
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, computeIgnoreUsageMetricsAzureClientSecret(tc.input))
 		})
 	}
 }

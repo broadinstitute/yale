@@ -2,11 +2,12 @@ package keyops
 
 import (
 	"encoding/base64"
+	"testing"
+
 	mockiam "github.com/broadinstitute/yale/internal/yale/keyops/testutils/iam"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/iam/v1"
-	"testing"
 )
 
 const testProject = "my-project"
@@ -32,8 +33,8 @@ func Test_KeyCreate(t *testing.T) {
 	key, data, err := ko.Create(testProject, testServiceAccount)
 	require.NoError(t, err)
 
-	assert.Equal(t, testProject, key.Project)
-	assert.Equal(t, testServiceAccount, key.ServiceAccountEmail)
+	assert.Equal(t, testProject, key.Scope)
+	assert.Equal(t, testServiceAccount, key.Identifier)
 	assert.Equal(t, testKeyId, key.ID)
 	assert.Equal(t, `{"foo":"bar"}`, string(data))
 }
@@ -49,9 +50,9 @@ func Test_EnsureDisabledDisablesKeyIfEnabled(t *testing.T) {
 	})
 
 	err := ko.EnsureDisabled(Key{
-		Project:             testProject,
-		ServiceAccountEmail: testServiceAccount,
-		ID:                  testKeyId,
+		Scope:      testProject,
+		Identifier: testServiceAccount,
+		ID:         testKeyId,
 	})
 
 	assert.NoError(t, err)
@@ -65,9 +66,9 @@ func Test_EnsureDisabledDoesNotDisableKeyIfAlreadyDisabled(t *testing.T) {
 		})
 	})
 	err := ko.EnsureDisabled(Key{
-		Project:             testProject,
-		ServiceAccountEmail: testServiceAccount,
-		ID:                  testKeyId,
+		Scope:      testProject,
+		Identifier: testServiceAccount,
+		ID:         testKeyId,
 	})
 	assert.NoError(t, err)
 }
@@ -81,9 +82,9 @@ func Test_DeleteDeletesKeyIfDisabled(t *testing.T) {
 		expect.DeleteServiceAccountKey(testProject, testServiceAccount, testKeyId).Returns()
 	})
 	err := ko.DeleteIfDisabled(Key{
-		Project:             testProject,
-		ServiceAccountEmail: testServiceAccount,
-		ID:                  testKeyId,
+		Scope:      testProject,
+		Identifier: testServiceAccount,
+		ID:         testKeyId,
 	})
 	assert.NoError(t, err)
 }
@@ -96,9 +97,9 @@ func Test_DeleteReturnsErrIfKeyNotDisabled(t *testing.T) {
 		})
 	})
 	err := ko.DeleteIfDisabled(Key{
-		Project:             testProject,
-		ServiceAccountEmail: testServiceAccount,
-		ID:                  testKeyId,
+		Scope:      testProject,
+		Identifier: testServiceAccount,
+		ID:         testKeyId,
 	})
 	assert.Error(t, err)
 	assert.ErrorContains(t, err, "is not disabled")

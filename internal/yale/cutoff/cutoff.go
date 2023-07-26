@@ -1,9 +1,11 @@
 package cutoff
 
 import (
+	"fmt"
+	"time"
+
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/logs"
-	"time"
 )
 
 type thresholds struct {
@@ -53,16 +55,16 @@ func NewWithDefaults() Cutoffs {
 	return newWithThresholds(minimums, time.Now())
 }
 
-func New(gsks ...apiv1b1.GcpSaKey) Cutoffs {
-	return newWithCustomTime(gsks, time.Now())
+func New[Y apiv1b1.YaleCRD](yaleCRDs []Y) Cutoffs {
+	return newWithCustomTime(yaleCRDs, time.Now())
 }
 
-func newWithCustomTime(gsks []apiv1b1.GcpSaKey, now time.Time) cutoffs {
-	if len(gsks) < 1 {
-		panic("at least one GcpSaKey must be supplied in order to compute cutoffs")
+func newWithCustomTime[Y apiv1b1.YaleCRD](yaleCRDs []Y, now time.Time) cutoffs {
+	if len(yaleCRDs) < 1 {
+		panic("at least one GcpSaKey or AzureClientSecret must be supplied in order to compute cutoffs")
 	}
 
-	return newWithThresholds(computeThresholds(gsks), now)
+	return newWithThresholds(computeThresholds(yaleCRDs), now)
 }
 
 func newWithThresholds(t thresholds, now time.Time) cutoffs {
@@ -135,54 +137,114 @@ func (c cutoffs) daysAgo(n int) time.Time {
 }
 
 // computeThresholds take a set of gsks and collapse them into a set of agreed-upon thresholds
-func computeThresholds(gsks []apiv1b1.GcpSaKey) thresholds {
-	t := thresholds{
-		rotateAfter: computeThreshold(gsks, func(gsk apiv1b1.GcpSaKey) int {
-			return gsk.Spec.KeyRotation.RotateAfter
-		}, minimums.rotateAfter, "RotateAfter"),
-		disableAfter: computeThreshold(gsks, func(gsk apiv1b1.GcpSaKey) int {
-			return gsk.Spec.KeyRotation.DisableAfter
-		}, minimums.disableAfter, "DisableAfter"),
-		deleteAfter: computeThreshold(gsks, func(gsk apiv1b1.GcpSaKey) int {
-			return gsk.Spec.KeyRotation.DeleteAfter
-		}, minimums.deleteAfter, "DeleteAfter"),
-		ignoreUsageMetrics: computeIgnoreUsageMetrics(gsks),
+func computeThresholds[Y apiv1b1.YaleCRD](yaleCRDs []Y) thresholds {
+	switch cs := any(&yaleCRDs).(type) {
+	case *[]apiv1b1.GcpSaKey:
+		gsks := *cs
+		t := thresholds{
+			rotateAfter: computeThresholdGSK(gsks, func(gsk apiv1b1.GcpSaKey) int {
+				return gsk.Spec.KeyRotation.RotateAfter
+			}, minimums.rotateAfter, "RotateAfter"),
+			disableAfter: computeThresholdGSK(gsks, func(gsk apiv1b1.GcpSaKey) int {
+				return gsk.Spec.KeyRotation.DisableAfter
+			}, minimums.disableAfter, "DisableAfter"),
+			deleteAfter: computeThresholdGSK(gsks, func(gsk apiv1b1.GcpSaKey) int {
+				return gsk.Spec.KeyRotation.DeleteAfter
+			}, minimums.deleteAfter, "DeleteAfter"),
+			ignoreUsageMetrics: computeIgnoreUsageMetricsGSK(gsks),
+		}
+
+		if len(yaleCRDs) > 1 {
+			logs.Info.Printf("computed key rotation thresholds for %s from %d GSKs: rotate after %d days, disable after %d days, delete after %d days", gsks[0].Spec.GoogleServiceAccount.Name, len(gsks), t.rotateAfter, t.disableAfter, t.deleteAfter)
+		}
+		return t
+	case *[]apiv1b1.AzureClientSecret:
+		azureClientSecrets := *cs
+		t := thresholds{
+			rotateAfter: computeThresholdAzureClientSecret(azureClientSecrets, func(acs apiv1b1.AzureClientSecret) int {
+				return acs.Spec.KeyRotation.RotateAfter
+			}, minimums.rotateAfter, "RotateAfter"),
+			disableAfter: computeThresholdAzureClientSecret(azureClientSecrets, func(acs apiv1b1.AzureClientSecret) int {
+				return acs.Spec.KeyRotation.DisableAfter
+			}, minimums.disableAfter, "DisableAfter"),
+			deleteAfter: computeThresholdAzureClientSecret(azureClientSecrets, func(acs apiv1b1.AzureClientSecret) int {
+				return acs.Spec.KeyRotation.DeleteAfter
+			}, minimums.deleteAfter, "DeleteAfter"),
+			ignoreUsageMetrics: computeIgnoreUsageMetricsAzureClientSecret(azureClientSecrets),
+		}
+
+		if len(yaleCRDs) > 1 {
+			logs.Info.Printf("computed key rotation thresholds for %s from %d AzureClientSecrets: rotate after %d days, disable after %d days, delete after %d days", azureClientSecrets[0].Spec.AzureServicePrincipal.ApplicationID, len(azureClientSecrets), t.rotateAfter, t.disableAfter, t.deleteAfter)
+		}
+		return t
+
+	default:
+		panic(fmt.Sprintf("unknown yale resource type: %T", yaleCRDs))
 	}
-	if len(gsks) > 1 {
-		logs.Info.Printf("computed key rotation thresholds for %s from %d GSKs: rotate after %d days, disable after %d days, delete after %d days", gsks[0].Spec.GoogleServiceAccount.Name, len(gsks), t.rotateAfter, t.disableAfter, t.deleteAfter)
-	}
-	return t
 }
 
-// computeThreshold take the rotate/disable/delete days values from a list of GSKs and return the lowest value,
+// computeThresholdGSK take the rotate/disable/delete days values from a list of GSKs and return the lowest value,
 // rounding up to the hardcoded minimums/floors for each attribute if necessary
-func computeThreshold(gsks []apiv1b1.GcpSaKey, fieldFn func(apiv1b1.GcpSaKey) int, floor int, fieldName string) int {
+func computeThresholdGSK(gsks []apiv1b1.GcpSaKey, fieldFn func(apiv1b1.GcpSaKey) int, floor int, fieldName string) int {
 	min := gsks[0]
 	for _, gsk := range gsks {
 		v := fieldFn(gsk)
 		minV := fieldFn(min)
 		if v < minV {
-			logs.Warn.Printf("found different %s values in GcpSaKey resources for %s: %s/%s=%d and %s/%s=%d", fieldName, gsk.Spec.GoogleServiceAccount.Name, min.Namespace, min.Name, minV, gsk.Namespace, gsk.Name, v)
+			logs.Warn.Printf("found different %s values in GcpSaKey resources for %s: %s/%s=%d and %s/%s=%d", fieldName, gsk.Spec.GoogleServiceAccount.Name, min.ObjectMeta.Namespace, min.ObjectMeta.Name, minV, gsk.ObjectMeta.Namespace, gsk.ObjectMeta.Name, v)
 			min = gsk
 		}
 	}
 
 	minV := fieldFn(min)
 	if minV < floor {
-		logs.Warn.Printf("GcpSaKey %s/%s for %s has invalid %s value %d; rounding up to %d", min.Namespace, min.Name, min.Spec.GoogleServiceAccount.Name, fieldName, minV, floor)
+		logs.Warn.Printf("GcpSaKey %s/%s for %s has invalid %s value %d; rounding up to %d", min.ObjectMeta.Namespace, min.ObjectMeta.Name, min.Spec.GoogleServiceAccount.Name, fieldName, minV, floor)
 		return floor
 	}
 	return minV
 }
 
-func computeIgnoreUsageMetrics(gsks []apiv1b1.GcpSaKey) bool {
+func computeThresholdAzureClientSecret(azureClientSecrets []apiv1b1.AzureClientSecret, fieldFn func(apiv1b1.AzureClientSecret) int, floor int, fieldName string) int {
+	min := azureClientSecrets[0]
+	for _, azureClientSecret := range azureClientSecrets {
+		v := fieldFn(azureClientSecret)
+		minV := fieldFn(min)
+		if v < minV {
+			logs.Warn.Printf("found different %s values in AzureClientSecret resources for %s: %s/%s=%d and %s/%s=%d", fieldName, azureClientSecret.Spec.AzureServicePrincipal.ApplicationID, min.Namespace(), min.Name(), minV, azureClientSecret.Namespace(), azureClientSecret.Name(), v)
+			min = azureClientSecret
+		}
+	}
+
+	minV := fieldFn(min)
+	if minV < floor {
+		logs.Warn.Printf("AzureClientSecret %s/%s for %s has invalid %s value %d; rounding up to %d", min.Namespace(), min.Name(), min.Spec.AzureServicePrincipal.ApplicationID, fieldName, minV, floor)
+		return floor
+	}
+	return minV
+}
+
+func computeIgnoreUsageMetricsGSK(gsks []apiv1b1.GcpSaKey) bool {
 	if len(gsks) == 0 {
 		return false
 	}
 	first := gsks[0]
 	for _, gsk := range gsks {
 		if gsk.Spec.KeyRotation.IgnoreUsageMetrics != first.Spec.KeyRotation.IgnoreUsageMetrics {
-			logs.Warn.Printf("`IgnoreUsageMetrics` field differs between GcpSaKey resources for %s: %s/%s=%t and %s/%s=%t; usage metrics will not be ignored", gsk.Spec.GoogleServiceAccount.Name, first.Namespace, first.Name, first.Spec.KeyRotation.IgnoreUsageMetrics, gsk.Namespace, gsk.Name, gsk.Spec.KeyRotation.IgnoreUsageMetrics)
+			logs.Warn.Printf("`IgnoreUsageMetrics` field differs between GcpSaKey resources for %s: %s/%s=%t and %s/%s=%t; usage metrics will not be ignored", gsk.Spec.GoogleServiceAccount.Name, first.ObjectMeta.Namespace, first.ObjectMeta.Name, first.Spec.KeyRotation.IgnoreUsageMetrics, gsk.ObjectMeta.Namespace, gsk.ObjectMeta.Name, gsk.Spec.KeyRotation.IgnoreUsageMetrics)
+			return false
+		}
+	}
+	return first.Spec.KeyRotation.IgnoreUsageMetrics
+}
+
+func computeIgnoreUsageMetricsAzureClientSecret(azureClientSecrets []apiv1b1.AzureClientSecret) bool {
+	if len(azureClientSecrets) == 0 {
+		return false
+	}
+	first := azureClientSecrets[0]
+	for _, azureClientSecret := range azureClientSecrets {
+		if azureClientSecret.Spec.KeyRotation.IgnoreUsageMetrics != first.Spec.KeyRotation.IgnoreUsageMetrics {
+			logs.Warn.Printf("`IgnoreUsageMetrics` field differs between AzureClientSecret resources for %s: %s/%s=%t and %s/%s=%t; usage metrics will not be ignored", azureClientSecret.Spec.AzureServicePrincipal.ApplicationID, first.Namespace(), first.Name(), first.Spec.KeyRotation.IgnoreUsageMetrics, azureClientSecret.Namespace(), azureClientSecret.Name(), azureClientSecret.Spec.KeyRotation.IgnoreUsageMetrics)
 			return false
 		}
 	}

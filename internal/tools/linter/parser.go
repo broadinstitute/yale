@@ -4,15 +4,16 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 var yamlExts = []string{".yaml", ".yml"}
@@ -78,7 +79,7 @@ func (p *parser) parseFile(resources *resources, file string) error {
 		}
 
 		if gsk, ok := obj.(*v1beta1.GcpSaKey); ok {
-			resources.gsks = append(resources.gsks, resource[v1beta1.GcpSaKey]{*gsk, doc, gsk.Kind, gsk.Name, gsk.Annotations})
+			resources.gsks = append(resources.gsks, resource[v1beta1.GcpSaKey]{*gsk, doc, gsk.Kind(), gsk.ObjectMeta.Name, gsk.Annotations})
 		} else if dep, ok := obj.(*appsv1.Deployment); ok {
 			resources.deployments = append(resources.deployments, resource[appsv1.Deployment]{*dep, doc, dep.Kind, dep.Name, dep.Annotations})
 		} else if sts, ok := obj.(*appsv1.StatefulSet); ok {

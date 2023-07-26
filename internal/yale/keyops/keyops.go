@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"strings"
+
 	"github.com/broadinstitute/yale/internal/yale/logs"
 	"google.golang.org/api/iam/v1"
-	"strings"
 )
 
 // keyAlgorithm what key algorithm to use when creating new Google SA keys
@@ -17,10 +18,10 @@ const keyFormat string = "TYPE_GOOGLE_CREDENTIALS_FILE"
 
 // Key represents a Google IAM service account key
 type Key struct {
-	// Project name of the project that owns the service account the key belongs to
-	Project string
-	// ServiceAccountEmail email for the service account that owns the key
-	ServiceAccountEmail string
+	// Scope name of the containing cloud resource where a key lives, this is either a google project id or a google service account email
+	Scope string
+	// Identifier for the the service account or application the key is for, this is either service account email or application id
+	Identifier string
 	// ID alphanumeric ID for the key
 	ID string
 }
@@ -60,7 +61,7 @@ func (k *keyops) Create(project string, serviceAccountEmail string) (Key, []byte
 	logs.Info.Printf("creating new service account for %s...", serviceAccountEmail)
 	newKey, err := k.iam.Projects.ServiceAccounts.Keys.Create(name, request).Context(ctx).Do()
 	if err != nil {
-		return Key{}, nil, fmt.Errorf("error creating new service acount key for %s: %v", name, err)
+		return Key{}, nil, fmt.Errorf("error creating new service account key for %s: %v", name, err)
 	}
 
 	keyID := extractServiceAccountKeyIdFromFullName(newKey.Name)
@@ -72,9 +73,9 @@ func (k *keyops) Create(project string, serviceAccountEmail string) (Key, []byte
 	}
 
 	return Key{
-		Project:             project,
-		ServiceAccountEmail: serviceAccountEmail,
-		ID:                  keyID,
+		Scope:      project,
+		Identifier: serviceAccountEmail,
+		ID:         keyID,
 	}, jsonData, nil
 }
 
@@ -124,7 +125,7 @@ func (k *keyops) DeleteIfDisabled(key Key) error {
 // return qualified key name for use in IAM api calls.
 // eg. "projects/my-project/serviceAccounts/my-service-account@my-project/keys/123"
 func (k Key) qualifiedKeyName() string {
-	return qualifiedKeyName(k.Project, k.ServiceAccountEmail, k.ID)
+	return qualifiedKeyName(k.Scope, k.Identifier, k.ID)
 }
 
 // return qualified key name for use in IAM api calls.
