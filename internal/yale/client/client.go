@@ -15,7 +15,10 @@ import (
 	vaultapprole "github.com/hashicorp/vault/api/auth/approle"
 	"github.com/manicminer/hamilton/msgraph"
 	"golang.org/x/net/context"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iam/v1"
+	"google.golang.org/api/idtoken"
+	"google.golang.org/api/option"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -203,9 +206,13 @@ func buildAzureGraphClient(local bool) (*msgraph.ApplicationsClient, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error getting Yale app registration tenant and client IDs: %v", err)
 		}
+		token, err := getGoogleIdentityTokenFromMetaDataServer(context.Background(), "api://AzureADTokenExchange")
+		if err != nil {
+			return nil, fmt.Errorf("error getting Google identity token from metadata server for federated azure auth: %v", err)
+		}
 		credentials.TenantID = tenantID
 		credentials.ClientID = clientID
-		credentials.OIDCAssertionToken = "placeholder"
+		credentials.OIDCAssertionToken = token
 		credentials.EnableAuthenticationUsingOIDC = true
 	}
 
@@ -236,4 +243,22 @@ func getYaleAppRegistrationTenantAndClientIDs() (tenantID, clientID string, err 
 	}
 
 	return
+}
+
+func getGoogleIdentityTokenFromMetaDataServer(ctx context.Context, targetAudience string) (string, error) {
+	credentials, err := google.FindDefaultCredentials(ctx)
+	if err != nil {
+		return "", fmt.Errorf("error getting default credentials: %v", err)
+	}
+	tokenSource, err := idtoken.NewTokenSource(ctx, targetAudience, option.WithCredentials(credentials))
+	if err != nil {
+		return "", fmt.Errorf("error creating token source: %v", err)
+	}
+
+	token, err := tokenSource.Token()
+	if err != nil {
+		return "", fmt.Errorf("error getting token: %v", err)
+	}
+
+	return token.AccessToken, nil
 }

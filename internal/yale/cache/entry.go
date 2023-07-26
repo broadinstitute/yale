@@ -170,6 +170,8 @@ func (e *Entry) UnmarshalJSON(data []byte) error {
 	}
 
 	_, exists := entryData["Type"]
+	// If the type field is unset then we are dealing with a legacy cache entry, so we need to handle it differently
+	// the type field was added in order to support the azure client secret crds. Before that, the only type of entry was GcpSaKey
 	if !exists {
 		logs.Info.Print("unmarshaling legacy cache entry")
 		if err := e.handleUnmarshalLegacyCacheEntry(entryData); err != nil {
