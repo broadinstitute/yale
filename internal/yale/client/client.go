@@ -192,6 +192,8 @@ func buildVaultClient() (*vaultapi.Client, error) {
 	return client, nil
 }
 
+const azureFederatedCredentialAudience = "api://AzureADTokenExchange"
+
 func buildAzureGraphClient(local bool) (*msgraph.ApplicationsClient, error) {
 	environment := environments.AzurePublic()
 
@@ -206,7 +208,7 @@ func buildAzureGraphClient(local bool) (*msgraph.ApplicationsClient, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error getting Yale app registration tenant and client IDs: %v", err)
 		}
-		token, err := getGoogleIdentityTokenFromMetaDataServer(context.Background(), "api://AzureADTokenExchange")
+		token, err := getGoogleIdentityTokenFromMetadataServer(context.Background(), azureFederatedCredentialAudience)
 		if err != nil {
 			return nil, fmt.Errorf("error getting Google identity token from metadata server for federated azure auth: %v", err)
 		}
@@ -245,7 +247,7 @@ func getYaleAppRegistrationTenantAndClientIDs() (tenantID, clientID string, err 
 	return
 }
 
-func getGoogleIdentityTokenFromMetaDataServer(ctx context.Context, targetAudience string) (string, error) {
+func getGoogleIdentityTokenFromMetadataServer(ctx context.Context, targetAudience string) (string, error) {
 	credentials, err := google.FindDefaultCredentials(ctx)
 	if err != nil {
 		return "", fmt.Errorf("error getting default credentials: %v", err)
