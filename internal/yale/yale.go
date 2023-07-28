@@ -250,18 +250,27 @@ func issueNewYaleResourceIfNeeded[Y apiv1b1.YaleCRD](
 		if len(yaleCRDs) == 0 {
 			logs.Info.Printf("%s %s: no %T resources in cluster; will not issue new key", entry.Type, identifier, yaleCRDs)
 			return false, nil
-		} else {
-			logs.Info.Printf("%s %s: no current secret; will issue new key", entry.Type, identifier)
 		}
+		logs.Info.Printf("%s %s: no current secret; will issue new key", entry.Type, identifier)
 	} else {
 		// there IS a current key already, so check if it needs rotation
 		logs.Info.Printf("%s %s: checking if current secret %s needs rotation (created at %s; rotation age is %d days)", entry.Type, identifier, entry.CurrentKey.ID, entry.CurrentKey.CreatedAt, cutoffs.RotateAfterDays())
 		if !cutoffs.ShouldRotate(entry.CurrentKey.CreatedAt) {
 			logs.Info.Printf("%s %s: current secret %s does not need rotation; will not issue new key", entry.Type, identifier, entry.CurrentKey.ID)
 			return false, nil
-		} else {
-			logs.Info.Printf("%s %s: current secret %s needs rotation; will issue new key", entry.Type, identifier, entry.CurrentKey.ID)
 		}
+		// key is expired, but no CRDs in the cluster, so mark it rotated *without* issuing a new key
+		if len(yaleCRDs) == 0 {
+			// mark the current key for rotation
+			logs.Info.Printf("%s %s: no %T resources in cluster; moving expired current key to rotated", entry.Type, identifier, yaleCRDs)
+			entry.RotatedKeys = map[string]time.Time{entry.CurrentKey.ID: currentTime()}
+			entry.CurrentKey = cache.CurrentKey{}
+			if err := yaleCache.Save(entry); err != nil {
+				return false, fmt.Errorf("error saving cache entry for %s: %v", identifier, err)
+			}
+			return false, nil
+		}
+		logs.Info.Printf("%s %s: current secret %s needs rotation; will issue new key", entry.Type, identifier, entry.CurrentKey.ID)
 	}
 
 	// issue new key
