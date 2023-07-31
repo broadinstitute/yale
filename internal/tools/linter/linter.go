@@ -136,7 +136,6 @@ func scan[T any](r resource[T], secrets []secret) []reference {
 				continue
 			}
 			logs.Info.Printf("%s: WILL NOT reload on changes", ref.summarize())
-			fmt.Println("why this is not working?")
 			if ignore.ignoresSecret(s.name) {
 				logs.Info.Printf("%s: ignoring missing reloader annotation", ref.summarize())
 				continue

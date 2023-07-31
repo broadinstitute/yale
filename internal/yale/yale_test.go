@@ -87,6 +87,12 @@ func (suite *YaleSuite) SetupTest() {
 		Options{
 			CacheNamespace:     cache.DefaultCacheNamespace,
 			IgnoreUsageMetrics: false,
+			RotateWindow: RotateWindow{
+				Enabled: true,
+				// Make sure the current time is inside the rotation window
+				StartTime: currentTime().Add(-1 * time.Hour),
+				EndTime:   currentTime().Add(time.Hour),
+			},
 		},
 		suite.cache,
 		suite.resourcemapper,
@@ -342,6 +348,63 @@ func (suite *YaleSuite) TestYaleIssuesNewKeyForNewGcpSaKey() {
 	require.NoError(suite.T(), suite.yale.Run())
 
 	// make sure the cache contains the new key
+	entry, err := suite.cache.GetOrCreate(sa1)
+	require.NoError(suite.T(), err)
+	assert.Equal(suite.T(), sa1key1.id, entry.CurrentKey.ID)
+	assert.Equal(suite.T(), sa1key1.json(), entry.CurrentKey.JSON)
+	suite.assertNow(entry.CurrentKey.CreatedAt)
+
+	// make sure the new key was replicated to the secret in the gsk spec
+	suite.assertSecretHasData("ns-1", "s1-secret", map[string]string{
+		"key.pem":  sa1key1.pem,
+		"key.json": sa1key1.json(),
+	})
+}
+
+func (suite *YaleSuite) TestYaleIssuesNewSecretButDoesNotRotateIfOutsideRotationWindow() {
+	_keyops := make(map[string]keyops.KeyOps)
+	// use mock implementations for both keyops instances
+	_keyops[gcpKeyops] = suite.keyops
+	_keyops[azureKeyops] = suite.keyops
+
+	suite.yale = newYaleFromComponents(
+		Options{
+			CacheNamespace:     cache.DefaultCacheNamespace,
+			IgnoreUsageMetrics: false,
+			RotateWindow: RotateWindow{
+				Enabled:   true,
+				StartTime: currentTime().Add(1 * time.Hour),
+				EndTime:   currentTime().Add(2 * time.Hour),
+			},
+		},
+		suite.cache,
+		suite.resourcemapper,
+		suite.authmetrics,
+		_keyops,
+		suite.keysync,
+		suite.slack,
+	)
+
+	suite.seedGsks(gsk1, gsk2)
+	suite.seedAzureClientSecrets()
+
+	suite.seedCacheEntries(&cache.Entry{
+		Identifier: sa2,
+		Type:       cache.GcpSaKey,
+		CurrentKey: cache.CurrentKey{
+			ID:        sa2key1.id,
+			JSON:      sa2key1.json(),
+			CreatedAt: eightDaysAgo,
+		},
+	})
+
+	suite.expectCreateKey(sa1key1)
+
+	// Note: we do NOT expect a create key operation for sa2 because it is outside the rotation window
+
+	require.NoError(suite.T(), suite.yale.Run())
+
+	// make sure the cache contains the new key for sa1
 	entry, err := suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
 	assert.Equal(suite.T(), sa1key1.id, entry.CurrentKey.ID)
@@ -1063,26 +1126,26 @@ func (suite *YaleSuite) TestYaleAggregatesAndReportsErrors() {
 	// make sure the cache entries for s1 and s3 have error information
 	entry, err = suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "error issuing new secret for s1@p.com: uh-oh", entry.LastError.Message)
+	assert.Equal(suite.T(), "GcpSaKey s1@p.com: error issuing new secret: error issuing new secret for s1@p.com: uh-oh", entry.LastError.Message)
 	suite.assertNow(entry.LastError.Timestamp)
 	suite.assertNow(entry.LastError.LastNotificationAt)
 
 	entryAcs, err = suite.cache.GetOrCreate(clientSecret1)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "error issuing new secret for test-app-id-1: uh-oh", entryAcs.LastError.Message)
+	assert.Equal(suite.T(), "AzureClientSecret test-app-id-1: error issuing new secret: error issuing new secret for test-app-id-1: uh-oh", entryAcs.LastError.Message)
 	suite.assertNow(entryAcs.LastError.Timestamp)
 	suite.assertNow(entryAcs.LastError.LastNotificationAt)
 
 	// s3 should NOT have sent an error, because it was already sent recently
 	entry, err = suite.cache.GetOrCreate(sa3)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "error issuing new secret for s3@p.com: oh noes", entry.LastError.Message)
+	assert.Equal(suite.T(), "GcpSaKey s3@p.com: error issuing new secret: error issuing new secret for s3@p.com: oh noes", entry.LastError.Message)
 	suite.assertNow(entry.LastError.Timestamp)
 	assert.Equal(suite.T(), lastNotification, entry.LastError.LastNotificationAt)
 
 	entryAcs, err = suite.cache.GetOrCreate(clientSecret3)
 	require.NoError(suite.T(), err)
-	assert.Equal(suite.T(), "error issuing new secret for test-app-id-3: oh noes", entryAcs.LastError.Message)
+	assert.Equal(suite.T(), "AzureClientSecret test-app-id-3: error issuing new secret: error issuing new secret for test-app-id-3: oh noes", entryAcs.LastError.Message)
 	suite.assertNow(entryAcs.LastError.Timestamp)
 	assert.Equal(suite.T(), lastNotification, entryAcs.LastError.LastNotificationAt)
 

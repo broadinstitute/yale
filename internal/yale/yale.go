@@ -39,13 +39,21 @@ type Yale struct { // Yale config
 	slack       slack.SlackNotifier
 }
 
+type RotateWindow struct {
+	Enabled   bool
+	StartTime time.Time
+	EndTime   time.Time
+}
+
 type Options struct {
 	// CacheNamespace namespace where Yale will store its cache entries
 	CacheNamespace string
 	// IgnoreUsageMetrics if true, Yale will NOT check if a service account is in use before disabling it
 	IgnoreUsageMetrics bool
-	// SlackWebhookUrl if set, Yale will send slack notifications to this webhook
+	// SlackWebhookUrl if set, Yale will send Slack notifications to this webhook
 	SlackWebhookUrl string
+	// RotateWindow if enabled, restrict key rotation operations to a specific time of day
+	RotateWindow RotateWindow
 }
 
 // NewYale /* Construct a new Yale Manager */
@@ -149,13 +157,26 @@ func processYaleResource[Y apiv1b1.YaleCRD](yale *Yale, entry *cache.Entry, yale
 	if err = syncYaleResourceIfReady(yale.keysync, entry, yaleCRDs); err != nil {
 		return err
 	}
+
+	if err = issueNewYaleResourceIfNoCurrent(yale.keyops[keyOpsType], yale.cache, yale.keysync, yale.slack, entry, yaleCRDs); err != nil {
+		return err
+	}
+
+	window := yale.options.RotateWindow
+	if window.Enabled {
+		if currentTime().Before(window.StartTime) || currentTime().After(window.EndTime) {
+			logs.Info.Printf("won't attempt key rotations for %s %s because we are outside the rotation window (%s - %s)", entry.Type, entry.Identifier, window.StartTime, window.EndTime)
+			return nil
+		}
+	}
+
 	if err = yale.deleteOldKeys(entry, cutoffs); err != nil {
 		return err
 	}
 	if err = yale.disableOldKeys(entry, cutoffs); err != nil {
 		return err
 	}
-	if err = rotateYaleResource(yale.keyops[keyOpsType], yale.cache, yale.slack, yale.keysync, entry, cutoffs, yaleCRDs); err != nil {
+	if err = rotateYaleResourceIfNeeded(yale.keyops[keyOpsType], yale.cache, yale.keysync, yale.slack, entry, cutoffs, yaleCRDs); err != nil {
 		return err
 	}
 	if err = retireCacheEntryIfNeeded(yale.cache, entry, yaleCRDs); err != nil {
@@ -191,81 +212,121 @@ func syncYaleResourceIfReady[Y apiv1b1.YaleCRD](_keysync keysync.KeySync, entry 
 	}
 }
 
-// rotateYaleResource will rotate the active secret for a cache entry if it is time to do so
-func rotateYaleResource[Y apiv1b1.YaleCRD](
+// rotateYaleResourceIfNeeded if a cache entry needs rotation, rotate it and kick off a keysync
+func rotateYaleResourceIfNeeded[Y apiv1b1.YaleCRD](
 	keyops keyops.KeyOps,
-	cache cache.Cache,
-	slack slack.SlackNotifier,
+	yaleCache cache.Cache,
 	keysync keysync.KeySync,
+	slack slack.SlackNotifier,
 	entry *cache.Entry,
 	cutoffs cutoff.Cutoffs,
 	yaleCRDs []Y,
 ) error {
-	rotated, err := issueNewYaleResourceIfNeeded(keyops, cache, slack, entry, cutoffs, yaleCRDs)
-	if err != nil {
-		return err
+	identifier := entry.Identify()
+
+	// check if we actually need to issue a new key
+	if entry.CurrentKey.ID == "" {
+		if len(yaleCRDs) == 0 {
+			logs.Info.Printf("%s %s: no %T resources in cluster; will not issue new key", entry.Type, identifier, yaleCRDs)
+			return nil
+		}
+		logs.Info.Printf("%s %s: no current secret; will issue new key", entry.Type, identifier)
+	} else {
+		// there IS a current key already, so check if it needs rotation
+		logs.Info.Printf("%s %s: checking if current secret %s needs rotation (created at %s; rotation age is %d days)", entry.Type, identifier, entry.CurrentKey.ID, entry.CurrentKey.CreatedAt, cutoffs.RotateAfterDays())
+		if !cutoffs.ShouldRotate(entry.CurrentKey.CreatedAt) {
+			logs.Info.Printf("%s %s: current secret %s does not need rotation; will not issue new key", entry.Type, identifier, entry.CurrentKey.ID)
+			return nil
+		}
+		// key is expired, but no CRDs in the cluster, so mark it rotated *without* issuing a new key
+		if len(yaleCRDs) == 0 {
+			// mark the current key for rotation
+			logs.Info.Printf("%s %s: no %T resources in cluster; moving expired current key to rotated", entry.Type, identifier, yaleCRDs)
+			entry.RotatedKeys = map[string]time.Time{entry.CurrentKey.ID: currentTime()}
+			entry.CurrentKey = cache.CurrentKey{}
+			if err := yaleCache.Save(entry); err != nil {
+				return fmt.Errorf("error saving cache entry for %s: %v", identifier, err)
+			}
+			return nil
+		}
+		logs.Info.Printf("%s %s: current secret %s needs rotation; will issue new key", entry.Type, identifier, entry.CurrentKey.ID)
 	}
-	if !rotated {
+
+	// issue new key
+	logs.Info.Printf("%s %s: issuing new key", entry.Type, identifier)
+	if err := issueNewYaleResource(keyops, yaleCache, slack, entry); err != nil {
+		return fmt.Errorf("error issuing new secret for %s: %v", identifier, err)
+	}
+
+	return syncYaleResourceIfReady(keysync, entry, yaleCRDs)
+}
+
+// issueNewYaleResourceIfNoCurrent if cache entry has no current value, issue a new secret and kick off a keysync
+func issueNewYaleResourceIfNoCurrent[Y apiv1b1.YaleCRD](
+	keyops keyops.KeyOps,
+	yaleCache cache.Cache,
+	keysync keysync.KeySync,
+	slack slack.SlackNotifier,
+	entry *cache.Entry,
+	yaleCRDs []Y,
+) error {
+	identifier := entry.Identify()
+
+	// check if we actually need to issue a new key
+	if entry.CurrentKey.ID != "" {
 		return nil
+	}
+	if len(yaleCRDs) == 0 {
+		logs.Info.Printf("%s %s: no current secret, but no %T resources in cluster; will not issue new key", entry.Type, identifier, yaleCRDs)
+		return nil
+	}
+
+	logs.Info.Printf("%s %s: no current secret; will issue new key", entry.Type, identifier)
+	if err := issueNewYaleResource(keyops, yaleCache, slack, entry); err != nil {
+		return fmt.Errorf("%s %s: error issuing new secret: %v", entry.Type, identifier, err)
 	}
 	return syncYaleResourceIfReady(keysync, entry, yaleCRDs)
 }
 
-// issueNewYaleResourceIfNeeded given cache entry and yale CRD, checks if the entry's current active secret needs to be rotated.
-// if a rotation is needed (or the cache entry is new/empty), it issues a new secret, adds it
-// to the cache entry, then saves the updated cache entry to k8s.
-// returns a boolean that will be true if a new key was issued, false otherwise
-func issueNewYaleResourceIfNeeded[Y apiv1b1.YaleCRD](
+// issueNewYaleResource issues a new secret, adds it to the cache entry,
+// saves the updated cache entry to k8s, and sends a Slack notification
+func issueNewYaleResource(
 	keyops keyops.KeyOps,
 	yaleCache cache.Cache,
 	slack slack.SlackNotifier,
 	entry *cache.Entry,
-	cutoffs cutoff.Cutoffs,
-	yaleCRDs []Y,
-) (bool, error) {
-	issued := false
+) error {
 	identifier := entry.Identify()
 	scope := entry.Scope()
 
+	// issue new key
+	logs.Info.Printf("%s %s: issuing new secret...", entry.Type, identifier)
+	newKey, secret, err := keyops.Create(scope, identifier)
+	if err != nil {
+		return fmt.Errorf("error issuing new secret for %s: %v", identifier, err)
+	}
+	logs.Info.Printf("%s %s: issued new secret %s", entry.Type, identifier, newKey.ID)
+
+	// update the cache entry with our new secret
 	if entry.CurrentKey.ID != "" {
-		logs.Info.Printf("%s %s: checking if current secret %s needs rotation (created at %s; rotation age is %d days)", entry.Type, identifier, entry.CurrentKey.ID, entry.CurrentKey.CreatedAt, cutoffs.RotateAfterDays())
-		if cutoffs.ShouldRotate(entry.CurrentKey.CreatedAt) {
-			logs.Info.Printf("%s %s: current secret %s needs rotation", entry.Type, identifier, entry.CurrentKey.ID)
-			entry.RotatedKeys[entry.CurrentKey.ID] = currentTime()
-			entry.CurrentKey = cache.CurrentKey{}
-		} else {
-			logs.Info.Printf("%s %s: current secret %s does not need rotation", entry.Type, identifier, entry.CurrentKey.ID)
-		}
+		// mark the current key for rotation if there is one
+		entry.RotatedKeys[entry.CurrentKey.ID] = currentTime()
+	}
+	entry.CurrentKey = cache.CurrentKey{
+		ID:        newKey.ID,
+		JSON:      string(secret),
+		CreatedAt: currentTime(),
+	}
+	if err = yaleCache.Save(entry); err != nil {
+		return fmt.Errorf("error saving cache entry for %s after key rotation: %v", identifier, err)
 	}
 
-	if entry.CurrentKey.ID == "" {
-		if len(yaleCRDs) == 0 {
-			logs.Info.Printf("%s %s: no %T resources in cluster; will not issue new key", entry.Type, identifier, yaleCRDs)
-		} else {
-			logs.Info.Printf("%s %s: issuing new key", entry.Type, identifier)
-			newKey, secret, err := keyops.Create(scope, identifier)
-			if err != nil {
-				return false, fmt.Errorf("error issuing new secret for %s: %v", identifier, err)
-			}
-			logs.Info.Printf("%s %s: issued new secret %s", entry.Type, identifier, newKey.ID)
-			entry.CurrentKey.ID = newKey.ID
-			entry.CurrentKey.JSON = string(secret)
-			entry.CurrentKey.CreatedAt = currentTime()
-			issued = true
-		}
+	// send Slack notification that we issued a new key
+	if err = slack.KeyIssued(entry, entry.CurrentKey.ID); err != nil {
+		return err
 	}
 
-	if err := yaleCache.Save(entry); err != nil {
-		return false, fmt.Errorf("error saving cache entry for %s after key rotation: %v", identifier, err)
-	}
-
-	if issued {
-		if err := slack.KeyIssued(entry, entry.CurrentKey.ID); err != nil {
-			return false, err
-		}
-	}
-
-	return issued, nil
+	return nil
 }
 
 func (m *Yale) disableOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error {

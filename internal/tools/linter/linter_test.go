@@ -104,6 +104,9 @@ func Test_Linter(t *testing.T) {
 		{
 			name: "simple-missing-with-ignore",
 		},
+		{
+			name: "sts-missing-with-ignore",
+		},
 	}
 
 	for _, tc := range testCases {
