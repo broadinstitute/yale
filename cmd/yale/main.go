@@ -101,11 +101,17 @@ func parseRotateWindow(args *args, now time.Time) (*yale.RotateWindow, error) {
 		return nil, fmt.Errorf("-window-end: %v", err)
 	}
 
-	return &yale.RotateWindow{
+	window := &yale.RotateWindow{
 		Enabled:   true,
 		StartTime: *start,
 		EndTime:   *end,
-	}, nil
+	}
+
+	if window.StartTime.After(window.EndTime) {
+		return nil, fmt.Errorf("-window-start must be before -window-end: %s, %s", args.windowStart, args.windowEnd)
+	}
+
+	return window, nil
 }
 
 var rotateWindowRegexp = regexp.MustCompile("^[0-9]{2}:[0-9]{2}$")
@@ -121,9 +127,16 @@ func parseWindowBoundary(hhmm string, now time.Time) (*time.Time, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse hour: %s", hh)
 	}
+	if hour < 0 || hour > 23 {
+		return nil, fmt.Errorf("hour must be between 0 and 23: %s", hh)
+	}
+
 	minute, err := strconv.Atoi(mm)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse minute: %s", mm)
+	}
+	if minute < 0 || minute > 59 {
+		return nil, fmt.Errorf("minute must be between 0 and 59: %s", mm)
 	}
 
 	t := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
