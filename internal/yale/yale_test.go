@@ -373,7 +373,7 @@ func (suite *YaleSuite) TestYaleIssuesNewSecretButDoesNotRotateIfOutsideRotation
 			IgnoreUsageMetrics: false,
 			RotateWindow: RotateWindow{
 				Enabled:   true,
-				StartTime: currentTime().Add(time.Hour),
+				StartTime: currentTime().Add(1 * time.Hour),
 				EndTime:   currentTime().Add(2 * time.Hour),
 			},
 		},
