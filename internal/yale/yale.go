@@ -380,6 +380,12 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 }
 
 func (m *Yale) lastAuthTime(keyId string, entry *cache.Entry) (*time.Time, error) {
+	// Azure does not support usage metrics so if we are dealing with an
+	// AzureClientSecret, skip this by just returning nil
+	if entry.Type == cache.AzureClientSecret {
+		return nil, nil
+	}
+
 	if m.options.IgnoreUsageMetrics {
 		return nil, nil
 	}
