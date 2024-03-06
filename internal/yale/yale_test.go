@@ -566,7 +566,7 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNotInUse() {
 	})
 
 	suite.expectLastAuthTime(sa1key1, fourDaysAgo)
-	suite.expectLastAuthTime(clientSecret1Key1, fourDaysAgo)
+	// suite.expectLastAuthTime(clientSecret1Key1, fourDaysAgo)
 	suite.expectDisableKey(sa1key1)
 	suite.expectDisableKey(clientSecret1Key1)
 
@@ -629,7 +629,7 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNoUsageDataAvailable() {
 	suite.expectNoLastAuthTime(sa1key1)
 	suite.expectDisableKey(sa1key1)
 
-	suite.expectNoLastAuthTime(clientSecret1Key1)
+	// suite.expectNoLastAuthTime(clientSecret1Key1)
 	suite.expectDisableKey(clientSecret1Key1)
 
 	require.NoError(suite.T(), suite.yale.Run())
@@ -660,7 +660,7 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNoUsageDataAvailable() {
 
 func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 	suite.seedGsks(gsk1)
-	suite.seedAzureClientSecrets(acs1)
+	suite.seedAzureClientSecrets()
 
 	suite.seedCacheEntries(&cache.Entry{
 		Identifier: sa1,
@@ -675,21 +675,8 @@ func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 		},
 	})
 
-	suite.seedCacheEntries(&cache.Entry{
-		Identifier: clientSecret1,
-		Type:       cache.AzureClientSecret,
-		CurrentKey: cache.CurrentKey{
-			ID:        clientSecret1Key2.id,
-			JSON:      clientSecret1Key2.json(),
-			CreatedAt: now,
-		},
-		RotatedKeys: map[string]time.Time{
-			clientSecret1Key1.id: eightDaysAgo,
-		},
-	})
-
 	suite.expectLastAuthTime(sa1key1, fourHoursAgo)
-	suite.expectLastAuthTime(clientSecret1Key1, fourHoursAgo)
+	// There is no support for usage data in azure so we don't have a test case for it here
 
 	err := suite.yale.Run()
 	require.Error(suite.T(), err)
@@ -699,23 +686,13 @@ func (suite *YaleSuite) TestYaleReturnsErrorIfOldRotatedKeyIsStillInUse() {
 	entry, err := suite.cache.GetOrCreate(sa1)
 	require.NoError(suite.T(), err)
 
-	entryAcs, err := suite.cache.GetOrCreate(clientSecret1)
-	require.NoError(suite.T(), err)
-
 	// make sure the cache entry's rotated section does not include the old key
 	t, exists := entry.RotatedKeys[sa1key1.id]
 	assert.True(suite.T(), exists)
 	assert.Equal(suite.T(), eightDaysAgo, t)
 
-	t, exists = entryAcs.RotatedKeys[clientSecret1Key1.id]
-	assert.True(suite.T(), exists)
-	assert.Equal(suite.T(), eightDaysAgo, t)
-
 	// make sure the cache entry's disabled section includes the old key
 	_, exists = entry.DisabledKeys[sa1key1.id]
-	assert.False(suite.T(), exists)
-
-	_, exists = entryAcs.DisabledKeys[clientSecret1Key1.id]
 	assert.False(suite.T(), exists)
 }
 
@@ -948,7 +925,7 @@ func (suite *YaleSuite) TestYaleCorrectlyProcessesCacheEntryWithNoMatchingYaleCR
 	suite.expectDisableKey(sa1key2)
 	suite.expectDeleteKey(sa1key3)
 
-	suite.expectLastAuthTime(clientSecret1Key2, eightDaysAgo)
+	// suite.expectLastAuthTime(clientSecret1Key2, eightDaysAgo)
 	suite.expectDisableKey(clientSecret1Key2)
 	suite.expectDeleteKey(clientSecret1Key3)
 
