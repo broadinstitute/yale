@@ -72,7 +72,7 @@ jobs:
           DOCKER_TAG=${{ steps.tag.outputs.tag }}
           echo ::set-output name=name::${GOOGLE_DOCKER_REPOSITORY}/${GOOGLE_PROJECT}/${REPOSITORY_NAME}/${IMAGE_NAME}:${DOCKER_TAG}
       - name: Build image
-        run: "docker build -t ${{ steps.image-name.outputs.name }} ."
+        run: "./scripts/build -t ${{ steps.image-name.outputs.name }} docker"
 
       - name: Run Trivy vulnerability scanner
         # From https://github.com/broadinstitute/dsp-appsec-trivy-action

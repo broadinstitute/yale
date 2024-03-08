@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+
+set -o pipefail
+
+# import common util functions
+# utils are logging output helpers and 
+# a function to check if required tools are installed
+source scripts/util.sh
+
+cmd=""
+declare -r -a required_tools=( gvm kind gcloud az )
+TARGET_GO_VERSION=""
+KIND_CLUSTER_EXISTS=false
+KIND_CLUSTER_NAME="yale"
+
+usage() {
+  echo "usage: $0 [-h|--help] COMMAND"
+  echo "[-h|--help]      print this help text"
+  echo "COMMAND         one of: tests, local"
+  echo "-t|--tag]       tag for the docker image, only used with the docker command"
+  echo "-s|--skip-tests] skip running tests"
+}
+
+check_required_tools() {
+  tools=( "$@" )
+  for tool in "${tools[@]}";
+  do
+    [[ $(type -P "$tool") ]] || { 
+      case $tool in
+        gvm) log_err "install gvm https://github.com/moovweb/gvm?tab=readme-ov-file#installing, gvm is a tool used to manage versions of the go programming language";;
+        kind) log_err "install kind https://kind.sigs.k8s.io/docs/user/quick-start#installing-with-a-package-manager, KubernetesInDocker is a tool to run a k8s cluster on your local machine.";;
+        gcloud) log_err "install gcloud https://cloud.google.com/sdk/docs/install, yale uses application default credentials to authenticate GCP calls when running in local mode";;
+        az) log_err "install az https://learn.microsoft.com/en-us/cli/azure/install-azure-cli, yale uses azure default credentials to authenticate azure calls when running in local mode";;
+      esac
+      return 1; 
+    }
+    log_debug "found $tool on PATH"
+  done
+  log_info 'all required tools found on PATH'
+}
+
+parse_opts() {
+  while getopts "h:-:" OPT; do
+    if [ "$OPT" = "-" ]; then   # long option: reformulate OPT and OPTARG
+      OPT="${OPTARG%%=*}"       # extract long option name
+      OPTARG="${OPTARG#$OPT}"   # extract long option argument (may be empty)
+      OPTARG="${OPTARG#=}"      # if long option argument, remove assigning `=`
+    fi
+    case "$OPT" in
+      h | help) usage; exit 0 ;;
+      *) { log_err "received invalid option"; usage; return 1; }
+    esac
+  done
+  shift $((OPTIND - 1));
+
+  # process positional args
+  cmd="$1"
+}
+
+# parse version from go.mod
+get_go_version() {
+  log_debug "parsing go version from go.mod"
+  TARGET_GO_VERSION=$(grep '^go ' go.mod | awk '{print $2}')
+  log_debug "parsed go version: $TARGET_GO_VERSION"
+}
+
+set_go_version() {
+  get_go_version
+  log_info "installing go version to $TARGET_GO_VERSION"
+  gvm install "go$TARGET_GO_VERSION" || return 1;
+  log_info "setting active go version to $TARGET_GO_VERSION"
+  # https://github.com/moovweb/gvm/issues/188
+  [[ -s "$GVM_ROOT/scripts/gvm" ]] && source "$GVM_ROOT/scripts/gvm"
+  use_cmd="gvm use go$TARGET_GO_VERSION --default"
+  eval "$use_cmd" || return 1;
+  log_info "successfully set up go"
+}
+
+check_for_existing_kind_cluster() {
+  log_debug "checking for existing kind cluster"
+  kind get clusters | grep -q "$KIND_CLUSTER_NAME" && { log_info "found existing kind cluster: $KIND_CLUSTER_NAME"; KIND_CLUSTER_EXISTS=true; return 0; }
+  log_info "no existing kind cluster found"
+}
+
+setup_kind_cluster() {
+  log_info "setting up kind cluster"
+  check_for_existing_kind_cluster
+  if [ "$KIND_CLUSTER_EXISTS" = true ]; then
+    log_info "kind cluster already exists, skipping setup"
+    return 0;
+  fi
+  kind create cluster --name "$KIND_CLUSTER_NAME" || { log_err "failed to create kind cluster"; return 1; }
+  log_info "kind cluster created successfully"
+}
+
+main() {
+  parse_opts "$@" || exit 1;
+  check_required_tools "${required_tools[@]}" || exit 1;
+  set_go_version || exit 1;
+  setup_kind_cluster || exit 1;
+}
+
+main "$@"
+

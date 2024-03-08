@@ -60,7 +60,7 @@ run_tests() {
   log_info "tests passed"
 }
 
-build () {
+build() {
   local -r build_cmd="$cmd"
   if [ "$RUN_TESTS" = true ]; then
     run_tests || return 1;
