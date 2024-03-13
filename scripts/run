@@ -10,16 +10,18 @@ source scripts/util.sh
 cmd=""
 declare -r -a required_tools=( go )
 COVERAGE=false
+DEBUG_ENABLED=false
 
 usage() {
   echo "usage: $0 [-h|--help] COMMAND"
   echo "[-h|--help]      print this help text"
   echo "COMMAND         one of: local, tests"
-  echo "[-c|--coverage] run tests with coverage reporting"
+  echo "[-c|--coverage] run tests with coverage reporting only used with the tests command"
+  echo "[-d|--debug]    enable yale debug logging when run locally"
 }
 
 parse_opts() {
-  while getopts "ch:-:" OPT; do
+  while getopts "cdh:-:" OPT; do
     if [ "$OPT" = "-" ]; then   # long option: reformulate OPT and OPTARG
       OPT="${OPTARG%%=*}"       # extract long option name
       OPTARG="${OPTARG#$OPT}"   # extract long option argument (may be empty)
@@ -28,6 +30,7 @@ parse_opts() {
     case "$OPT" in
       h | help) usage; exit 0 ;;
       c | coverage) COVERAGE=true ;;
+      d | debug) DEBUG_ENABLED=true ;;
       *) { log_err "received invalid option"; usage; return 1; }
     esac
   done
@@ -49,7 +52,7 @@ run_tests() {
 
 run_local() {
     log_info "running local..."
-    go run ./cmd/yale -local || { log_err "local run failed"; return 1; }
+    YALE_DEBUG_ENABLED="${DEBUG_ENABLED}" go run ./cmd/yale -local || { log_err "local run failed"; return 1; }
     log_info "local run passed!"
 }
 
