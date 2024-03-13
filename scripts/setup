@@ -7,7 +7,6 @@ set -o pipefail
 # a function to check if required tools are installed
 source scripts/util.sh
 
-cmd=""
 declare -r -a required_tools=( gvm kind gcloud az )
 TARGET_GO_VERSION=""
 KIND_CLUSTER_EXISTS=false
@@ -52,9 +51,6 @@ parse_opts() {
     esac
   done
   shift $((OPTIND - 1));
-
-  # process positional args
-  cmd="$1"
 }
 
 # parse version from go.mod

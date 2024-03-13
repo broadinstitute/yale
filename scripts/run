@@ -9,15 +9,17 @@ source scripts/util.sh
 
 cmd=""
 declare -r -a required_tools=( go )
+COVERAGE=false
 
 usage() {
   echo "usage: $0 [-h|--help] COMMAND"
   echo "[-h|--help]      print this help text"
   echo "COMMAND         one of: local, tests"
+  echo "[-c|--coverage] run tests with coverage reporting"
 }
 
 parse_opts() {
-  while getopts "h:-:" OPT; do
+  while getopts "ch:-:" OPT; do
     if [ "$OPT" = "-" ]; then   # long option: reformulate OPT and OPTARG
       OPT="${OPTARG%%=*}"       # extract long option name
       OPTARG="${OPTARG#$OPT}"   # extract long option argument (may be empty)
@@ -25,6 +27,7 @@ parse_opts() {
     fi
     case "$OPT" in
       h | help) usage; exit 0 ;;
+      c | coverage) COVERAGE=true ;;
       *) { log_err "received invalid option"; usage; return 1; }
     esac
   done
@@ -36,7 +39,11 @@ parse_opts() {
 
 run_tests() {
     log_info "running tests..."
-    go test -v ./... || { log_err "tests failed"; return 1; }
+    if [ "$COVERAGE" = true ]; then
+        go test -v -coverprofile=cover.out -covermode=count ./... || { log_err "tests failed"; return 1; }
+    else
+        go test -v ./... || { log_err "tests failed"; return 1; }
+    fi
     log_info "tests passed!"
 }
 
