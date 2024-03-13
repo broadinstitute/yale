@@ -1,0 +1,96 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: gcpsakeys.yale.broadinstitute.org
+spec:
+  group: yale.broadinstitute.org
+  versions:
+    - name: v1beta1
+      served: true
+      storage: true
+      schema:
+        # openAPIV3Schema is the schema for validating custom objects.
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              required: [ keyRotation, googleServiceAccount, secret ]
+              type: object
+              properties:
+                keyRotation:
+                  type: object
+                  properties:
+                    rotateAfter:
+                      description: Amount of days key is rotated after creation
+                      type: integer
+                      default: 69
+                    deleteAfter:
+                      description: Amount of days key is disabled before deleting
+                      type: integer
+                      default: 14
+                    disableAfter:
+                      description: Amount of days since last authentication before disabling
+                      type: integer
+                      default: 10
+                    ignoreUsageMetrics:
+                      description: If true, ignore usage metrics for keys when deciding if it is safe to disable (DDO-2864)
+                      type: boolean
+                      default: false
+                googleServiceAccount:
+                  type: object
+                  required: [ project, name ]
+                  properties:
+                    project:
+                      description: Google project ID SA is associated with
+                      type: string
+                    name:
+                      description: Email of the GCP SA
+                      type: string
+                secret:
+                  type: object
+                  required: [ name ]
+                  properties:
+                    name:
+                      description: Name of Secret that houses SA. Secret name must end in "sa-secret"
+                      type: string
+                    pemKeyName:
+                      description: Name of Secret data field that stores pem private key
+                      type: string
+                      default: service-account.pem
+                    jsonKeyName:
+                      description: Name of Secret data field that stores private key
+                      type: string
+                      default: service-account.json
+                vaultReplications:
+                  type: array
+                  items:
+                    type: object
+                    required: [ format, path ]
+                    properties:
+                      format:
+                        description: >
+                          Format of the key to store in Vault. One of:
+                            `map`: write all KV pairs in the service account key JSON to the Vault secret; key property is ignored
+                            `json`: write the service account key JSON as a string value at the specified key
+                            `base64`: write the service account key JSON as a base64-encoded string value at the specified key
+                            `pem`: write the service account key's PEM-encoded `private_key` field as a string value at the specified key
+                        type: string
+                        enum:
+                          - map
+                          - json
+                          - base64
+                          - pem
+                      path:
+                        description: Path in Vault where the key should be written. Note this will overwrite all data stored at the Vault path.
+                        type: string
+                      key:
+                        description: Key in the Vault secret that should include the SA key. (Ignored for `map` format).
+                        type: string
+
+  scope: Namespaced
+  names:
+    plural: gcpsakeys
+    singular: gcpsakey
+    kind: GcpSaKey
+    shortNames:
+      - gsk

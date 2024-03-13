@@ -12,13 +12,12 @@ declare -r -a required_tools=( gvm kind gcloud az )
 TARGET_GO_VERSION=""
 KIND_CLUSTER_EXISTS=false
 KIND_CLUSTER_NAME="yale"
+TEARDOWN=false
 
 usage() {
   echo "usage: $0 [-h|--help] COMMAND"
   echo "[-h|--help]      print this help text"
-  echo "COMMAND         one of: tests, local"
-  echo "-t|--tag]       tag for the docker image, only used with the docker command"
-  echo "-s|--skip-tests] skip running tests"
+  echo "[-t|--teardown]  teardown the local k8s cluster used for local execution"
 }
 
 check_required_tools() {
@@ -40,7 +39,7 @@ check_required_tools() {
 }
 
 parse_opts() {
-  while getopts "h:-:" OPT; do
+  while getopts "th:-:" OPT; do
     if [ "$OPT" = "-" ]; then   # long option: reformulate OPT and OPTARG
       OPT="${OPTARG%%=*}"       # extract long option name
       OPTARG="${OPTARG#$OPT}"   # extract long option argument (may be empty)
@@ -48,6 +47,7 @@ parse_opts() {
     fi
     case "$OPT" in
       h | help) usage; exit 0 ;;
+      t | teardown) TEARDOWN=true ;;
       *) { log_err "received invalid option"; usage; return 1; }
     esac
   done
@@ -82,6 +82,13 @@ check_for_existing_kind_cluster() {
   log_info "no existing kind cluster found"
 }
 
+apply_yale_crds() {
+  log_info "applying yale crds"
+  kubectl apply -f crd/azureClientSecret.yaml || { log_err "failed to apply yale crds"; return 1; }
+  kubectl apply -f crd/gcpSaKey.yaml || { log_err "failed to apply yale crds"; return 1; }
+  log_info "yale crds applied successfully"
+}
+
 setup_kind_cluster() {
   log_info "setting up kind cluster"
   check_for_existing_kind_cluster
@@ -90,14 +97,36 @@ setup_kind_cluster() {
     return 0;
   fi
   kind create cluster --name "$KIND_CLUSTER_NAME" || { log_err "failed to create kind cluster"; return 1; }
+  apply_yale_crds || return 1;
   log_info "kind cluster created successfully"
+}
+
+
+
+teardown_kind_cluster() {
+  log_info "tearing down kind cluster"
+  kind delete cluster --name "$KIND_CLUSTER_NAME" || { log_err "failed to delete kind cluster"; return 1; }
+  log_info "kind cluster deleted successfully"
 }
 
 main() {
   parse_opts "$@" || exit 1;
   check_required_tools "${required_tools[@]}" || exit 1;
   set_go_version || exit 1;
+  if [ "$TEARDOWN" = true ]; then
+    teardown_kind_cluster || exit 1;
+    return 0;
+  fi
   setup_kind_cluster || exit 1;
+
+  log_info "setup complete"
+  echo 
+  echo " Yale setup complete"
+  echo "Yale uses the default credentials for GCP and Azure when running in local mode"
+  echo "To use yale in local mode, ensure you have the necessary credentials set up"
+  echo "run gcloud auth application-default login to authenticate with GCP and setup local credentials"
+  echo "run az login to authenticate with Azure and setup local credentials"
+
 }
 
 main "$@"
