@@ -29,7 +29,7 @@ parse_opts() {
     fi
     case "$OPT" in
       h | help) usage; exit 0 ;;
-      t ) IMAGE_TAG="${OPTARG}" ;;
+      t | tag) IMAGE_TAG="${OPTARG}" ;;
       s | skip-tests) RUN_TESTS=false ;;
       *) { log_err "received invalid option"; usage; return 1; }
     esac
