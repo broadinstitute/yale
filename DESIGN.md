@@ -30,76 +30,76 @@ In other words it uses kubernetes native `Secret` resource type as the persisten
 
 ## Repo Layout
 
-cmd/
+**cmd/**
 
 Contains the `main` functions for each binary contained within this project
 This is a common pattern in the Go community, the main functions don't really do much
 outside of invoking the core application logic in `/internal`
 
-crd/
+**crd/**
 
 Contains the CustomResourceDefinitions for the CRDs that yale monitors in order to perform it's core business logic
 
-examples/
+**examples/**
 
 Contains example instances of the various CRDs that yale supports
 
-scripts/
+**scripts/**
 
 Utility Scripts to facilitate developer interactions with repository
 
-internal/
+**internal/**
 
 Contains all the code for the applications in this repo.
 
-internal/linter/
+**internal/linter/**
 
 Contains the code for the linter tool that is used in validate Yale CRDs in helm CI/CD pipelines
 
-internal/yale/
+**internal/yale/**
 All the application code files for yale live under this folder
 
-internal/yale/yale.go/
+**internal/yale/yale.go/**
 
 This file contains Yale's core runtime logic that it iterates through, all the other folders in this directory contain code that supports this main routine
 If you are a new contributor, start here.
 
-internal/yale/authmetrics/
+**internal/yale/authmetrics/**
 
 Library code for determining if a Yale managed secret is still being actively used to authenticate
 
-internal/yale/cache/
+**internal/yale/cache/**
 
 Libary code implementing the logic for Yale to use k8s builtin secret types as a caching mechanism
 
-internal/yale/client/
+**internal/yale/client/**
 
 Logic for initializing client objects for any third party dependencies such as GCP, Azure, slack, etc..
 
-internal/yale/crd/
+**internal/yale/crd/**
 
 Logic for parsing Yale's k8s CRD specs and translating them into domain types
 
-internal/yale/keyops/
+**internal/yale/keyops/**
 
 Logic for implementing the CRUD operations that Yale needs to perform on the secrets it manages.
 The code in this package abstracts directly working with the client objects in /clients by providing
 a `Keyops` interface that a client must implement.
 
-internal/yale/keysync/
+**internal/yale/keysync/**
 
 Logic for taking a yale managed secret and propagating it out to other destinations including the cache
 as well as Vault.
 
-internal/yale/logs/
+**internal/yale/logs/**
 
 A really hacky levelled logging implementation. A future nice to have would be to replace this with a real
 logging library.
 
-internal/yale/resourcemap/
+**internal/yale/resourcemap/**
 
 Defines a method for associating a particular instance of a yale CRD with all the raw k8s secrets, cache entries, and vault secrets that were generated from it.
 
-internal/yale/slack/
+**internal/yale/slack/**
 
 Utilities for sending messages to slack
