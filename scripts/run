@@ -3,7 +3,7 @@
 set -o pipefail
 
 # import common util functions
-# utils are logging output helpers and 
+# utils are logging output helpers and
 # a function to check if required tools are installed
 source scripts/util.sh
 
@@ -15,7 +15,7 @@ DEBUG_ENABLED=false
 usage() {
   echo "usage: $0 [-h|--help] COMMAND"
   echo "[-h|--help]      print this help text"
-  echo "COMMAND         one of: local, tests"
+  echo "COMMAND         one of: local, test"
   echo "[-c|--coverage] run tests with coverage reporting only used with the tests command"
   echo "[-d|--debug]    enable yale debug logging when run locally"
 }
@@ -59,7 +59,7 @@ run_local() {
 run() {
   local -r build_cmd="$cmd"
   case "$build_cmd" in
-    tests) run_tests || return 1;;
+    test) run_tests || return 1;;
     local) run_local || return 1;;
     *) log_err "unknown build command: $build_cmd"; return 1 ;;
   esac

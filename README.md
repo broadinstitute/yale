@@ -4,10 +4,10 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/broadinstitute/yale)](https://goreportcard.com/report/github.com/broadinstitute/yale)
 ![latest build](https://github.com/broadinstitute/yale/actions/workflows/build.yaml/badge.svg?branch=main)
 
-Yale is a Go service that manages Google Cloud Platform (GCP) service account (SA) keys used by Kubernetes resources. As stated in  GCP documents, <em>Service accounts are unique identities used to facilitate programmatic access to GCP APIs</em>. For compliance, keys must be rotated at least every 90 days.
+Yale is a Go service that manages Google Cloud Platform (GCP) service account (SA) keys and Azure Client Secrets used by Kubernetes resources. As stated in  GCP documents, <em>Service accounts are unique identities used to facilitate programmatic access to GCP APIs, And Azure App registrations use a similar pattern of having a client ID and client secret to achieve the same effect.</em>. For compliance, keys must be rotated at least every 90 days.
 
 Yale has five purposes:
-1. Create new secrets for new GSK resources and store referenced SA keys in a Secrets.
+1. Create new secrets for new GcpSaKEy or AzureClientSecret resources and store referenced SA keys in a Secrets.
 2. Detect keys that need to be rotated.
 3. Update GSK generated Secrets with new keys.
 4. Check for old keys and disable them.
@@ -15,9 +15,14 @@ Yale has five purposes:
 
 Yale monitors GcpSaKey resouces to manage the referenced GCP SA. GcpSaKey is custom resource definition, or [CRD](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/), that tells Yale how to create or modify secrets holding GCP SA keys. These secrets are referenced in Kubernetes resources, ie. Deployments, Cronjobs, etc, and when modified, trigger rolling updates to update those resources.
 
-## How to use Yale
+See [DESIGN.md](DESIGN.md) for more information about how this functionality is implemented.
 
-A GcpSaKey needs to be created via helm for every service account. For example,
+
+## Getting Started
+
+A GcpSaKey or AzureClientSecret CRD needs to be created via helm for every service account that Yale will manage rotation for. For example,
+
+See [examples/azureClientSecret.yaml](examples/azureClientSecret.yaml) for an example of a AzureClientSecret.
 
 ```
 apiVersion: yale.broadinstitute.org/v1beta1
@@ -88,31 +93,32 @@ That's all! Yale takes care of the rest!
 
 ## Installation
 
+Yale is deployed by the DSP-DevOps team in every cluster we manage, if you are a Terra application developer looking 
+
+
 Yale is intended to be deployed as a kubernetes cronjob. Since keys rotate at the project level, not service, the cronJob performs all functions and checks against SA keys defined in GcpSaKey resource. Therefore, the cronJob does not need to be added to each service. The cronjob will run Yale every 2 minutes.
+
+Yale is intended to be installed via helm, the chart can be found in the [terra-helmfile](https://github.com/broadinstitute/terra-helmfile/tree/master/charts/yale) repo.
 
 When deployed as a cronjob [via helm](https://github.com/broadinstitute/terra-helmfile/blob/master/charts/yale/templates/cronJob.yam), Yale uses in cluster authentication provided by kubernetes/client-go. There are no additional steps required to configure this.
 
 Yale also requires a GCP service account with roles/iam.serviceAccountKeyAdmin role. The cronjob expects service account credentials to be mounted to the pod or workload identity can be used instead.
 
-### Running Locally
+## Developer Quick Start
 
-While the intended use for yale is to run as a kubernetes cronjob it is also possible to run the tool locally against a remote cluster.
-A public docker image is available at `us-central1-docker.pkg.dev/dsp-artifact-registry/yale/yale:v0.0.14`
+This repo features a set of utility scripts in /scripts to help new contributors get set up with the project.
 
-When running the docker image locally the `-local` runtime flag must be used. This tells yale to connect to a remote cluster using your local `.kube/config` otherwise in cluster authentication will be used. Your local `.kubconfig` and a GCP credential must be mounted to the container when running locally.
+Here is a quick workflow to get a basic local environment up and running
+ 1. Run `./scripts/setup` It will instruct you to install any necessary tools that need to be on your path
+ 2. Run `./scripts/run tests` will execute the test suite on your local machine
+ 3. Run `./scripts/run local` To trigger a run of the yale daemon aganist a local k8s cluster created in the setup step. It is expected for the process to run to completion and then exit.
 
-Unit tests can be run with `go test`:
-
-```
-    # Run tests w/ coverage stats
-    go test -coverprofile=coverage.out
-
-    # View line-by-line coverage report in browser
-    go tool cover -html=coverage.out
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more information on Developing Yale.
+See [DESIGN.md](DESIGN.md) for more information on the layout or the repo and design of the application
 
 ### Runtime flags
 
+These flags are only useful when running
 ```
 Usage of yale:
   -kubeconfig string
