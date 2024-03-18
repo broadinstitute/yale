@@ -566,7 +566,6 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNotInUse() {
 	})
 
 	suite.expectLastAuthTime(sa1key1, fourDaysAgo)
-	// suite.expectLastAuthTime(clientSecret1Key1, fourDaysAgo)
 	suite.expectDisableKey(sa1key1)
 	suite.expectDisableKey(clientSecret1Key1)
 
@@ -628,8 +627,6 @@ func (suite *YaleSuite) TestYaleDisablesOldKeyIfNoUsageDataAvailable() {
 
 	suite.expectNoLastAuthTime(sa1key1)
 	suite.expectDisableKey(sa1key1)
-
-	// suite.expectNoLastAuthTime(clientSecret1Key1)
 	suite.expectDisableKey(clientSecret1Key1)
 
 	require.NoError(suite.T(), suite.yale.Run())
@@ -925,7 +922,6 @@ func (suite *YaleSuite) TestYaleCorrectlyProcessesCacheEntryWithNoMatchingYaleCR
 	suite.expectDisableKey(sa1key2)
 	suite.expectDeleteKey(sa1key3)
 
-	// suite.expectLastAuthTime(clientSecret1Key2, eightDaysAgo)
 	suite.expectDisableKey(clientSecret1Key2)
 	suite.expectDeleteKey(clientSecret1Key3)
 
