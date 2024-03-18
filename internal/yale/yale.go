@@ -170,10 +170,10 @@ func processYaleResource[Y apiv1b1.YaleCRD](yale *Yale, entry *cache.Entry, yale
 		}
 	}
 
-	if err = yale.deleteOldKeys(entry, cutoffs); err != nil {
+	if err = yale.deleteOldKeys(yale.keyops[keyOpsType], entry, cutoffs); err != nil {
 		return err
 	}
-	if err = yale.disableOldKeys(entry, cutoffs); err != nil {
+	if err = yale.disableOldKeys(yale.keyops[keyOpsType], entry, cutoffs); err != nil {
 		return err
 	}
 	if err = rotateYaleResourceIfNeeded(yale.keyops[keyOpsType], yale.cache, yale.keysync, yale.slack, entry, cutoffs, yaleCRDs); err != nil {
@@ -329,18 +329,17 @@ func issueNewYaleResource(
 	return nil
 }
 
-func (m *Yale) disableOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
+func (m *Yale) disableOldKeys(keyops keyops.KeyOps, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 	for keyId, rotatedAt := range entry.RotatedKeys {
-		if err := m.disableOneKey(keyId, rotatedAt, entry, cutoffs); err != nil {
+		if err := m.disableOneKey(keyops, keyId, rotatedAt, entry, cutoffs); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
+func (m *Yale) disableOneKey(_keyops keyops.KeyOps, keyId string, rotatedAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 	// has enough time passed since rotation? if not, do nothing
-	_keyops := m.keyops[gcpKeyops]
 
 	logs.Info.Printf("key %s (%s %s) was rotated at %s, disable cutoff is %d days", keyId, entry.Type, entry.Identify(), rotatedAt, cutoffs.DisableAfterDays())
 	if !cutoffs.ShouldDisable(rotatedAt) {
@@ -380,6 +379,12 @@ func (m *Yale) disableOneKey(keyId string, rotatedAt time.Time, entry *cache.Ent
 }
 
 func (m *Yale) lastAuthTime(keyId string, entry *cache.Entry) (*time.Time, error) {
+	// Azure does not support usage metrics so if we are dealing with an
+	// AzureClientSecret, skip this by just returning nil
+	if entry.Type == cache.AzureClientSecret {
+		return nil, nil
+	}
+
 	if m.options.IgnoreUsageMetrics {
 		return nil, nil
 	}
@@ -398,18 +403,17 @@ func (m *Yale) lastAuthTime(keyId string, entry *cache.Entry) (*time.Time, error
 }
 
 // deleteOldKeys will delete old service account keys
-func (m *Yale) deleteOldKeys(entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
+func (m *Yale) deleteOldKeys(keyops keyops.KeyOps, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 	for keyId, disabledAt := range entry.DisabledKeys {
-		if err := m.deleteOneKey(keyId, disabledAt, entry, cutoffs); err != nil {
+		if err := m.deleteOneKey(keyops, keyId, disabledAt, entry, cutoffs); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *Yale) deleteOneKey(keyId string, disabledAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
+func (m *Yale) deleteOneKey(_keyops keyops.KeyOps, keyId string, disabledAt time.Time, entry *cache.Entry, cutoffs cutoff.Cutoffs) error {
 	// has enough time passed since this key was disabled? if not, do nothing
-	_keyops := m.keyops[gcpKeyops]
 	logs.Info.Printf("key %s (%s %s) was disabled at %s, delete cutoff is %d days", keyId, entry.Type, entry.Identify(), disabledAt, cutoffs.DisableAfterDays())
 	if !cutoffs.ShouldDelete(disabledAt) {
 		logs.Info.Printf("key %s (%s %s): too early to delete", keyId, entry.Type, entry.Identify())

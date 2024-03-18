@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+set -o pipefail
+
+# import common util functions
+# utils are logging output helpers and
+# a function to check if required tools are installed
+source scripts/util.sh
+
+cmd=""
+declare -r -a required_tools=( go docker )
+IMAGE_TAG="yale"
+
+usage() {
+  echo "usage: $0 [-h|--help] COMMAND"
+  echo "[-h|--help]      print this help text"
+  echo "COMMAND         one of: project, docker"
+  echo "-t|--tag]       tag for the docker image, only used with the docker command"
+  echo "-s|--skip-tests] skip running tests"
+}
+
+parse_opts() {
+  while getopts "ht:-:" OPT; do
+    if [ "$OPT" = "-" ]; then   # long option: reformulate OPT and OPTARG
+      OPT="${OPTARG%%=*}"       # extract long option name
+      OPTARG="${OPTARG#$OPT}"   # extract long option argument (may be empty)
+      OPTARG="${OPTARG#=}"      # if long option argument, remove assigning `=`
+    fi
+    case "$OPT" in
+      h | help) usage; exit 0 ;;
+      t | tag) IMAGE_TAG="${OPTARG}" ;;
+      *) { log_err "received invalid option"; usage; return 1; }
+    esac
+  done
+  shift $((OPTIND - 1));
+
+  # process positional args
+  cmd="$1"
+}
+
+build_project() {
+  log_info "building project..."
+  go build -o bin/ ./cmd/... || { log_err "failed to build project"; return 1; }
+  log_info "project built successfully, compiled binaries in bin/"
+  log_info "to run the project, execute: ./bin/yale -h"
+}
+
+build_docker() {
+  local -r image_tag="$1"
+  log_info "building docker image..."
+  docker build -t "$image_tag" . || { log_err "failed to build docker image"; return 1; }
+  log_info "docker image built successfully"
+}
+
+build() {
+  local -r build_cmd="$cmd"
+  case "$build_cmd" in
+    project) build_project || return 1;;
+    docker) build_docker "$IMAGE_TAG" || return 1;;
+    *) log_err "unknown build command: $build_cmd"; return 1 ;;
+  esac
+}
+
+main() {
+  parse_opts "$@" || exit 1;
+  check_required_tools "${required_tools[@]}" || exit 1;
+  build || exit 1;
+}
+
+main "$@"

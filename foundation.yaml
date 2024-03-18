@@ -1,0 +1,18 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: yale
+  description: |
+    Yale is a kubernetes cronjob that manages secret credentials requiring regular rotation
+  tags:
+    - go
+    - kubernetes
+    - dsp-devops
+    - dsp-tools
+  annotations:
+    github.com/project-slug: broadinstitute/yale
+spec:
+  type: service
+  lifecycle: production
+  owner: dsp-devops
+  system: platform
