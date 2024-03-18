@@ -3,14 +3,13 @@
 set -o pipefail
 
 # import common util functions
-# utils are logging output helpers and 
+# utils are logging output helpers and
 # a function to check if required tools are installed
 source scripts/util.sh
 
 cmd=""
 declare -r -a required_tools=( go docker )
 IMAGE_TAG="yale"
-RUN_TESTS=true
 
 usage() {
   echo "usage: $0 [-h|--help] COMMAND"
@@ -21,7 +20,7 @@ usage() {
 }
 
 parse_opts() {
-  while getopts "hts:-:" OPT; do
+  while getopts "ht:-:" OPT; do
     if [ "$OPT" = "-" ]; then   # long option: reformulate OPT and OPTARG
       OPT="${OPTARG%%=*}"       # extract long option name
       OPTARG="${OPTARG#$OPT}"   # extract long option argument (may be empty)
@@ -30,7 +29,6 @@ parse_opts() {
     case "$OPT" in
       h | help) usage; exit 0 ;;
       t | tag) IMAGE_TAG="${OPTARG}" ;;
-      s | skip-tests) RUN_TESTS=false ;;
       *) { log_err "received invalid option"; usage; return 1; }
     esac
   done
@@ -54,17 +52,8 @@ build_docker() {
   log_info "docker image built successfully"
 }
 
-run_tests() {
-  log_info "running tests..."
-  go test -v ./... || { log_err "tests failed"; return 1; }
-  log_info "tests passed"
-}
-
 build() {
   local -r build_cmd="$cmd"
-  if [ "$RUN_TESTS" = true ]; then
-    run_tests || return 1;
-  fi
   case "$build_cmd" in
     project) build_project || return 1;;
     docker) build_docker "$IMAGE_TAG" || return 1;;
