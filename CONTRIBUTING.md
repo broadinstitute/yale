@@ -90,4 +90,7 @@ If you update one of the packages containing a mocked interface run `mockery` wi
 
 ## Frequently Asked Questions (FAQ)
 
+If you have feature suggestions or are interested in contributing to Yale and are not a member of the DSP DevOps team.
+Then reach out to us about it on slack in #dsp-devops-discussions.
+
 (build out this section based on questions asked of the team)
