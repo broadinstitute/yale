@@ -15,10 +15,11 @@ type YaleCRD interface {
 }
 
 type GCPSaKeySpec struct {
-	GoogleServiceAccount GoogleServiceAccount `json:"googleServiceAccount"`
-	Secret               Secret               `json:"secret"`
-	VaultReplications    []VaultReplication   `json:"vaultReplications"`
-	KeyRotation          KeyRotation          `json:"keyRotation"`
+	GoogleServiceAccount             GoogleServiceAccount             `json:"googleServiceAccount"`
+	Secret                           Secret                           `json:"secret"`
+	VaultReplications                []VaultReplication               `json:"vaultReplications"`
+	GoogleSecretsManagerReplications []GoogleSecretManagerReplication `json:"googleSecretsManagerReplications"`
+	KeyRotation                      KeyRotation                      `json:"keyRotation"`
 }
 
 type GoogleServiceAccount struct {
@@ -42,15 +43,22 @@ type KeyRotation struct {
 }
 
 type VaultReplication struct {
-	Path   string                 `json:"path"`
-	Format VaultReplicationFormat `json:"format"`
-	Key    string                 `json:"key"`
+	Path   string            `json:"path"`
+	Format ReplicationFormat `json:"format"`
+	Key    string            `json:"key"`
 }
 
-type VaultReplicationFormat int64
+type GoogleSecretManagerReplication struct {
+	SecretName  string            `json:"secretName"`
+	ProjectName string            `json:"projectName"`
+	Format      ReplicationFormat `json:"format"`
+	Key         string            `json:"key"` // if supplied, nest key data in a JSON object { "<key-name>": "<formatted-key>" }
+}
+
+type ReplicationFormat int64
 
 const (
-	Map VaultReplicationFormat = iota
+	Map ReplicationFormat = iota
 	JSON
 	Base64
 	PEM
@@ -58,11 +66,11 @@ const (
 )
 
 // verify format implements expected interfaces
-var _ encoding.TextUnmarshaler = (*VaultReplicationFormat)(nil)
-var _ encoding.TextMarshaler = (VaultReplicationFormat)(0)
+var _ encoding.TextUnmarshaler = (*ReplicationFormat)(nil)
+var _ encoding.TextMarshaler = (ReplicationFormat)(0)
 
-func (v VaultReplicationFormat) String() string {
-	switch v {
+func (f ReplicationFormat) String() string {
+	switch f {
 	case Map:
 		return "map"
 	case JSON:
@@ -78,32 +86,32 @@ func (v VaultReplicationFormat) String() string {
 	}
 }
 
-func (v VaultReplicationFormat) MarshalText() ([]byte, error) {
-	switch v {
+func (f ReplicationFormat) MarshalText() ([]byte, error) {
+	switch f {
 	case Map, JSON, Base64, PEM, PlainText:
-		return []byte(v.String()), nil
+		return []byte(f.String()), nil
 	default:
-		return nil, fmt.Errorf("unknown replication format: %#v", v)
+		return nil, fmt.Errorf("unknown replication format: %#v", f)
 	}
 }
 
-func (v *VaultReplicationFormat) UnmarshalText(data []byte) error {
+func (f *ReplicationFormat) UnmarshalText(data []byte) error {
 	s := string(data)
 	switch s {
 	case "map":
-		*v = Map
+		*f = Map
 		return nil
 	case "json":
-		*v = JSON
+		*f = JSON
 		return nil
 	case "base64":
-		*v = Base64
+		*f = Base64
 		return nil
 	case "pem":
-		*v = PEM
+		*f = PEM
 		return nil
 	case "plainText":
-		*v = PlainText
+		*f = PlainText
 		return nil
 	default:
 		return fmt.Errorf("unknown replication format: %q", s)
@@ -176,6 +184,10 @@ func (g GcpSaKey) SpecBytes() ([]byte, error) {
 
 func (g GcpSaKey) VaultReplications() []VaultReplication {
 	return g.Spec.VaultReplications
+}
+
+func (g GcpSaKey) GoogleSecretManagerReplications() []GoogleSecretManagerReplication {
+	return g.Spec.GoogleSecretsManagerReplications
 }
 
 func (g GcpSaKey) APIVersion() string {

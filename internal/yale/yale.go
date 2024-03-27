@@ -1,6 +1,7 @@
 package yale
 
 import (
+	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"fmt"
 	"strings"
 	"time"
@@ -58,10 +59,10 @@ type Options struct {
 
 // NewYale /* Construct a new Yale Manager */
 func NewYale(clients *client.Clients, opts ...func(*Options)) *Yale {
-	return newYaleFromClients(clients.GetK8s(), clients.GetCRDs(), clients.GetIAM(), clients.GetMetrics(), clients.GetVault(), clients.GetAzure(), opts...)
+	return newYaleFromClients(clients.GetK8s(), clients.GetCRDs(), clients.GetIAM(), clients.GetMetrics(), clients.GetVault(), clients.GetGoogleSecretManager(), clients.GetAzure(), opts...)
 }
 
-func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, azure *msgraph.ApplicationsClient, opts ...func(*Options)) *Yale {
+func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, secretManager *secretmanager.Client, azure *msgraph.ApplicationsClient, opts ...func(*Options)) *Yale {
 	options := Options{
 		CacheNamespace:     cache.DefaultCacheNamespace,
 		IgnoreUsageMetrics: false,
@@ -75,7 +76,7 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 
 	_authmetrics := authmetrics.New(metrics, iam)
 	_cache := cache.New(k8s, options.CacheNamespace)
-	_keysync := keysync.New(k8s, vault, _cache)
+	_keysync := keysync.New(k8s, vault, secretManager, _cache)
 	_resourcemap := resourcemap.New(crd, _cache)
 	_slack := slack.New(options.SlackWebhookUrl)
 
