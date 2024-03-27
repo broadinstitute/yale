@@ -3,6 +3,7 @@ package yale
 import (
 	"context"
 	"fmt"
+	"github.com/broadinstitute/yale/internal/yale/keysync/testutils/gsm"
 	"strings"
 	"testing"
 	"time"
@@ -38,6 +39,7 @@ type YaleSuite struct {
 	gskEndpoint            *crdmocks.GcpSaKeyInterface
 	azClientSecretEndpoint *crdmocks.AzureClientSecretInterface
 	vaultServer            *vaultutils.FakeVaultServer
+	gsmServer              *gsm.FakeGsmServer
 	cache                  cache.Cache
 	resourcemapper         resourcemap.Mapper
 	authmetrics            *authmetricsmocks.AuthMetrics
@@ -57,6 +59,7 @@ func (suite *YaleSuite) SetupTest() {
 	crd.EXPECT().AzureClientSecrets().Return(suite.azClientSecretEndpoint)
 
 	suite.vaultServer = vaultutils.NewFakeVaultServer(suite.T())
+	suite.gsmServer = gsm.NewFakeGsm(suite.T())
 
 	// use real suite.cache and suite.resourcemapper instead of mocks.
 	// Lots of things write to the cache and instead of mocking all
@@ -71,7 +74,7 @@ func (suite *YaleSuite) SetupTest() {
 
 	// use real keysync so we can verify the state of Vault server/K8s secrets
 	// after the yale run finishes, without mocking every individual call
-	suite.keysync = keysync.New(suite.k8s, suite.vaultServer.NewClient(), suite.cache)
+	suite.keysync = keysync.New(suite.k8s, suite.vaultServer.NewClient(), suite.gsmServer.NewClient(), suite.cache)
 
 	// use noop slack notifier
 	suite.slack = slack.New("")
