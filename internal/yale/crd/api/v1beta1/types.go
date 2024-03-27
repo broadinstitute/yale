@@ -49,10 +49,10 @@ type VaultReplication struct {
 }
 
 type GoogleSecretManagerReplication struct {
-	SecretName  string            `json:"secretName"`
-	ProjectName string            `json:"projectName"`
-	Format      ReplicationFormat `json:"format"`
-	Key         string            `json:"key"` // if supplied, nest key data in a JSON object { "<key-name>": "<formatted-key>" }
+	Secret  string            `json:"secret"`
+	Project string            `json:"project"`
+	Format  ReplicationFormat `json:"format"`
+	Key     string            `json:"key"` // if supplied, nest key data in a JSON object { "<key-name>": "<formatted-key>" }
 }
 
 type ReplicationFormat int64

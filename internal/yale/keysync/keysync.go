@@ -309,7 +309,7 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 
 	for _, spec := range syncable.GoogleSecretManagerReplications() {
 		msg := fmt.Sprintf("replicating key %s for %s (format %s) to GSM (project %s, secret %s)",
-			entry.CurrentKey.ID, entry.Identify(), spec.Format, spec.ProjectName, spec.SecretName)
+			entry.CurrentKey.ID, entry.Identify(), spec.Format, spec.Project, spec.Secret)
 		logs.Info.Print(msg)
 
 		secretData, err := prepareGoogleSecretManagerSecret(entry, spec)
@@ -318,48 +318,48 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 		}
 
 		itr := k.secretManager.ListSecrets(context.Background(), &secretmanagerpb.ListSecretsRequest{
-			Parent: fmt.Sprintf("projects/%s", spec.ProjectName),
-			Filter: fmt.Sprintf("name:%s", spec.SecretName),
+			Parent: fmt.Sprintf("projects/%s", spec.Project),
+			Filter: fmt.Sprintf("name:%s", spec.Secret),
 		})
 
 		var secret *secretmanagerpb.Secret
 		for secret, err = itr.Next(); secret != nil; {
 			if err != nil {
-				return fmt.Errorf("error searching GSM API for secret %s in project %s: %v", spec.SecretName, spec.ProjectName, err)
+				return fmt.Errorf("error searching GSM API for secret %s in project %s: %v", spec.Secret, spec.Project, err)
 			}
 		}
 
 		if secret == nil {
 			logs.Info.Printf("found no secret %s in project %s, creating...",
-				spec.ProjectName, spec.SecretName)
+				spec.Project, spec.Secret)
 
 			_, err = k.secretManager.CreateSecret(context.Background(), &secretmanagerpb.CreateSecretRequest{
-				Parent:   fmt.Sprintf("projects/%s", spec.ProjectName),
-				SecretId: spec.SecretName,
+				Parent:   fmt.Sprintf("projects/%s", spec.Project),
+				SecretId: spec.Secret,
 				Secret: &secretmanagerpb.Secret{
-					Name: spec.SecretName,
+					Name: spec.Secret,
 					Annotations: map[string]string{
 						"yale.terra.bio/created-by-yale": "true",
 					},
 				},
 			})
 			if err != nil {
-				return fmt.Errorf("error creating new GSM secret %s in project %s: %v", spec.SecretName, spec.ProjectName, err)
+				return fmt.Errorf("error creating new GSM secret %s in project %s: %v", spec.Secret, spec.Project, err)
 			}
 		}
 
-		logs.Info.Printf("creating new GSM secret version for %s in project %s", spec.SecretName, spec.ProjectName)
+		logs.Info.Printf("creating new GSM secret version for %s in project %s", spec.Secret, spec.Project)
 		newVersion, err := k.secretManager.AddSecretVersion(context.Background(), &secretmanagerpb.AddSecretVersionRequest{
-			Parent: fmt.Sprintf("projects/%s/secrets/%s", spec.ProjectName, spec.SecretName),
+			Parent: fmt.Sprintf("projects/%s/secrets/%s", spec.Project, spec.Secret),
 			Payload: &secretmanagerpb.SecretPayload{
 				Data: secretData,
 			},
 		})
 		if err != nil {
-			return fmt.Errorf("error creating new GSM secret version for %s in project %s: %v", spec.SecretName, spec.ProjectName, err)
+			return fmt.Errorf("error creating new GSM secret version for %s in project %s: %v", spec.Secret, spec.Project, err)
 		}
 
-		logs.Info.Printf("created new GSM secret version for %s in project %s: %s", spec.SecretName, spec.ProjectName, newVersion.Name)
+		logs.Info.Printf("created new GSM secret version for %s in project %s: %s", spec.Secret, spec.Project, newVersion.Name)
 	}
 
 	logs.Info.Printf("replicated key %s for %s to %d GSM secrets", entry.CurrentKey.ID, entry.Identify(), len(syncable.GoogleSecretManagerReplications()))
@@ -383,11 +383,7 @@ func prepareGoogleSecretManagerSecret(entry *cache.Entry, spec apiv1b1.GoogleSec
 
 	switch spec.Format {
 	case apiv1b1.Map:
-		if entry.Type == cache.AzureClientSecret {
-			return nil, fmt.Errorf("error decoding client secret to secret map: Azure client secret is not a JSON object. Map type vault replication is only supported for GCP service account keys")
-		}
-		// for GSM, treat Map identically to JSON
-		encodedValue = asJsonString
+		return nil, fmt.Errorf("map format is not supported for Google Secret Manager replications")
 	case apiv1b1.JSON:
 		encodedValue = asJsonString
 	case apiv1b1.Base64:
@@ -411,7 +407,7 @@ func prepareGoogleSecretManagerSecret(entry *cache.Entry, spec apiv1b1.GoogleSec
 	// }
 	var keyedMap map[string]interface{}
 
-	if spec.Format == apiv1b1.JSON || spec.Format == apiv1b1.Map {
+	if spec.Format == apiv1b1.JSON {
 		var unmarshalled map[string]interface{}
 		if err := json.Unmarshal(asJsonBytes, &unmarshalled); err != nil {
 			return nil, fmt.Errorf("error unmarshalling GCP key to JSON: %v", err)

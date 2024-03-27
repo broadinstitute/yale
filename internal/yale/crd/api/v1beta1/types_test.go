@@ -98,10 +98,10 @@ func Test_VaultReplicationSerialization(t *testing.T) {
 
 func Test_GoogleSecretsManagerReplicationSerialization(t *testing.T) {
 	v := GoogleSecretManagerReplication{
-		SecretName:  "foo",
-		ProjectName: "my-project",
-		Format:      PEM,
-		Key:         "bar",
+		Secret:  "foo",
+		Project: "my-project",
+		Format:  PEM,
+		Key:     "bar",
 	}
 
 	var err error
