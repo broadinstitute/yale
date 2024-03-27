@@ -101,6 +101,9 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, syncables []Syncable) error {
 		if err = k.replicateKeyToVault(entry, syncable); err != nil {
 			return fmt.Errorf("%s %s in %s: error syncing to Vault: %v", entry.Type, syncable.Name(), syncable.Namespace(), err)
 		}
+		if err = k.replicateKeyToGSM(entry, syncable); err != nil {
+			return fmt.Errorf("%s %s in %s: error syncing to GSM: %v", entry.Type, syncable.Name(), syncable.Namespace(), err)
+		}
 		entry.SyncStatus[statusKey(syncable)] = statusHash
 	}
 
@@ -327,10 +330,10 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 		}
 
 		if secret == nil {
-			logs.Info.Print(fmt.Sprintf("found no secret %s in project %s, creating...",
-				spec.ProjectName, spec.SecretName))
+			logs.Info.Printf("found no secret %s in project %s, creating...",
+				spec.ProjectName, spec.SecretName)
 
-			secret, err = k.secretManager.CreateSecret(context.Background(), &secretmanagerpb.CreateSecretRequest{
+			_, err = k.secretManager.CreateSecret(context.Background(), &secretmanagerpb.CreateSecretRequest{
 				Parent:   fmt.Sprintf("projects/%s", spec.ProjectName),
 				SecretId: spec.SecretName,
 				Secret: &secretmanagerpb.Secret{
