@@ -324,20 +324,21 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 		})
 
 		// there can only be between 0 and 1 secrets that match the filter
-		var secret *secretmanagerpb.Secret
+		var secrets []*secretmanagerpb.Secret
 		for {
-			secret, err = itr.Next()
+			secret, err := itr.Next()
 			if err == iterator.Done {
 				break
 			}
 			if err != nil {
 				return fmt.Errorf("error searching GSM API for secret %s in project %s: %v", spec.Secret, spec.Project, err)
 			}
+			secrets = append(secrets, secret)
 		}
 
-		if secret == nil {
+		if len(secrets) == 0 {
 			logs.Info.Printf("found no secret %s in project %s, creating...",
-				spec.Project, spec.Secret)
+				spec.Secret, spec.Project)
 
 			_, err = k.secretManager.CreateSecret(context.Background(), &secretmanagerpb.CreateSecretRequest{
 				Parent:   fmt.Sprintf("projects/%s", spec.Project),
