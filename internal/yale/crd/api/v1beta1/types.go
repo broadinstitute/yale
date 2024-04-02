@@ -15,11 +15,11 @@ type YaleCRD interface {
 }
 
 type GCPSaKeySpec struct {
-	GoogleServiceAccount             GoogleServiceAccount             `json:"googleServiceAccount"`
-	Secret                           Secret                           `json:"secret"`
-	VaultReplications                []VaultReplication               `json:"vaultReplications"`
-	GoogleSecretsManagerReplications []GoogleSecretManagerReplication `json:"googleSecretsManagerReplications"`
-	KeyRotation                      KeyRotation                      `json:"keyRotation"`
+	GoogleServiceAccount            GoogleServiceAccount             `json:"googleServiceAccount"`
+	Secret                          Secret                           `json:"secret"`
+	VaultReplications               []VaultReplication               `json:"vaultReplications"`
+	GoogleSecretManagerReplications []GoogleSecretManagerReplication `json:"googleSecretManagerReplications"`
+	KeyRotation                     KeyRotation                      `json:"keyRotation"`
 }
 
 type GoogleServiceAccount struct {
@@ -187,7 +187,7 @@ func (g GcpSaKey) VaultReplications() []VaultReplication {
 }
 
 func (g GcpSaKey) GoogleSecretManagerReplications() []GoogleSecretManagerReplication {
-	return g.Spec.GoogleSecretsManagerReplications
+	return g.Spec.GoogleSecretManagerReplications
 }
 
 func (g GcpSaKey) APIVersion() string {
