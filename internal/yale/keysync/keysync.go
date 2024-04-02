@@ -339,7 +339,9 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 				Secret: &secretmanagerpb.Secret{
 					Name: spec.Secret,
 					Annotations: map[string]string{
-						"yale.terra.bio/created-by-yale": "true",
+						// forward slashes "/" are not permitted in GSM annotations for some reason,
+						// so here we substitute an underscore :shrug:
+						"yale.terra.bio_created-by-yale": "true",
 					},
 					Replication: &secretmanagerpb.Replication{
 						Replication: &secretmanagerpb.Replication_Automatic_{
