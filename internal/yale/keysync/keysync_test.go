@@ -408,6 +408,126 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications()
 	assert.Equal(suite.T(), "d40ae033a395df47f090f528e86bcae2aab991d7efe0724fb488ae5af9951a11:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
+func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
+	entry := &cache.Entry{}
+	entry.Identifier = cache.GcpSaKeyEntryIdentifier{Email: "my-sa@gserviceaccount.com", Project: "my-project"}
+	entry.Type = cache.GcpSaKey
+	entry.CurrentKey.JSON = key1.json
+	entry.CurrentKey.ID = key1.id
+	entry.SyncStatus = map[string]string{} // no prior syncs recorded in the map
+
+	gsk := apiv1b1.GcpSaKey{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-gsk",
+			Namespace: "my-namespace",
+			Labels: map[string]string{
+				"label1": "value1",
+				"label2": "value2",
+			},
+		},
+		Spec: apiv1b1.GCPSaKeySpec{
+			Secret: apiv1b1.Secret{
+				Name:        "my-secret",
+				PemKeyName:  "my-key.pem",
+				JsonKeyName: "my-key.json",
+			},
+			GoogleSecretManagerReplications: []apiv1b1.GoogleSecretManagerReplication{
+				{
+					Format:  apiv1b1.JSON,
+					Key:     "",
+					Project: "my-project",
+					Secret:  "foo-secret-json",
+				},
+			},
+		},
+	}
+
+	entryAcs := &cache.Entry{}
+	entryAcs.Identifier = cache.AzureClientSecretEntryIdentifier{ApplicationID: "4321-4321-4321", TenantID: "2345-2345-2345"}
+	entryAcs.CurrentKey.JSON = "my-acs-secret"
+	entryAcs.CurrentKey.ID = "1234-1234-1234"
+	entryAcs.Type = cache.AzureClientSecret
+	entryAcs.SyncStatus = map[string]string{} // no prior syncs recorded in the map
+
+	acs := apiv1b1.AzureClientSecret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-acs",
+			Namespace: "my-namespace",
+			Labels: map[string]string{
+				"label1": "value1",
+				"label2": "value2",
+			},
+		},
+		Spec: apiv1b1.AzureClientSecretSpec{
+			Secret: apiv1b1.Secret{
+				Name:                "my-acs-secret",
+				ClientSecretKeyName: "my-client-secret",
+			},
+			GoogleSecretsManagerReplications: []apiv1b1.GoogleSecretManagerReplication{
+				{
+					Format:  apiv1b1.JSON,
+					Key:     "",
+					Project: "my-project",
+					Secret:  "foo-secret-json",
+				},
+				{
+					Format:  apiv1b1.JSON,
+					Key:     "",
+					Project: "my-project",
+					Secret:  "foo-secret-base64",
+				},
+				{
+					Format:  apiv1b1.PlainText,
+					Key:     "",
+					Project: "my-project",
+					Secret:  "foo-secret-plain",
+				},
+			},
+		},
+	}
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
+	suite.cache.EXPECT().Save(entryAcs).Return(nil)
+
+	// run a key sync to create the K8s secret and perform the vault replications
+	gsks := []apiv1b1.GcpSaKey{gsk}
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, GcpSaKeysToSyncable(gsks)))
+	acsSecrets := []apiv1b1.AzureClientSecret{acs}
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entryAcs, AzureClientSecretsToSyncable(acsSecrets)))
+
+	// verify K8s secrets were created
+	_, err := suite.getSecret("my-namespace", "my-secret")
+	require.NoError(suite.T(), err)
+
+	_, err = suite.getSecret("my-namespace", "my-acs-secret")
+	require.NoError(suite.T(), err)
+
+	// verify all the Vault replications were performed
+	suite.assertVaultServerHasSecret("secret/foo/test/map", map[string]interface{}{
+		"email":       key1.email,
+		"private_key": key1.pem,
+	})
+	suite.assertVaultServerHasSecret("secret/foo/test/json", map[string]interface{}{
+		"key.json": key1.json,
+	})
+	suite.assertVaultServerHasSecret("secret/foo/test/base64", map[string]interface{}{
+		"key.b64": key1.base64,
+	})
+	suite.assertVaultServerHasSecret("secret/foo/test/pem", map[string]interface{}{
+		"key.pem": key1.pem,
+	})
+	suite.assertVaultServerHasSecret("secret/az/test/json", map[string]interface{}{
+		"key.json": "my-acs-secret",
+	})
+	suite.assertVaultServerHasSecret("secret/az/test/base64", map[string]interface{}{
+		"key.b64": "bXktYWNzLXNlY3JldA==",
+	})
+	assert.Len(suite.T(), entry.SyncStatus, 1)
+	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
+	assert.Equal(suite.T(), "ea3801dc25624b4bb75f959d936f52fcc7b248b2c4362c029348384b4802b68e:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "d40ae033a395df47f090f528e86bcae2aab991d7efe0724fb488ae5af9951a11:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
+}
+
 func (suite *KeySyncSuite) Test_KeySync_PerformsASyncIfSyncStatusIsUpToDateButSecretIsMissing() {
 	entry := &cache.Entry{}
 	entry.CurrentKey.JSON = key1.json
