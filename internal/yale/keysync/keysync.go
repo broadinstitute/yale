@@ -325,11 +325,15 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 
 		// there can only be between 0 and 1 secrets that match the filter
 		var secret *secretmanagerpb.Secret
-		for secret, err = itr.Next(); err == nil; {
+		for {
+			secret, err = itr.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return fmt.Errorf("error searching GSM API for secret %s in project %s: %v", spec.Secret, spec.Project, err)
+			}
 			logs.Info.Printf("secret: %#v, err: %#v", secret, err)
-		}
-		if err != iterator.Done {
-			return fmt.Errorf("error searching GSM API for secret %s in project %s: %v", spec.Secret, spec.Project, err)
 		}
 
 		if secret == nil {
