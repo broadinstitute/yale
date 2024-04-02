@@ -152,7 +152,7 @@ func (suite *KeySyncSuite) Test_KeySync_CreatesK8sSecret() {
 	// make sure the cache entry was updated with correct key-sync record
 	assert.Len(suite.T(), entry.SyncStatus, 1)
 	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
-	assert.Equal(suite.T(), "effecbf33cbee455f543e9907695cb9296d68da6fa756aa556eb99bd307cbdab:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
 	assert.Equal(suite.T(), "e8350b1fbbd1f4f1171ecafabf084b52246144402001e2eaa7de1f81e6c52f72:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
@@ -279,7 +279,7 @@ func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
 	// make sure the cache entry was updated with correct key-sync record
 	assert.Len(suite.T(), entry.SyncStatus, 1)
 	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
-	assert.Equal(suite.T(), "effecbf33cbee455f543e9907695cb9296d68da6fa756aa556eb99bd307cbdab:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
 	assert.Equal(suite.T(), "e8350b1fbbd1f4f1171ecafabf084b52246144402001e2eaa7de1f81e6c52f72:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
@@ -404,7 +404,7 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications()
 	})
 	assert.Len(suite.T(), entry.SyncStatus, 1)
 	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
-	assert.Equal(suite.T(), "f0aa04e1863e0b892f5a20b009f8a7e119d3689260caa064eee612692e16c7ea:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "ea3801dc25624b4bb75f959d936f52fcc7b248b2c4362c029348384b4802b68e:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
 	assert.Equal(suite.T(), "d40ae033a395df47f090f528e86bcae2aab991d7efe0724fb488ae5af9951a11:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
@@ -490,7 +490,7 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 	entry.Type = cache.GcpSaKey
 	// pretend cache entry has already been synced for this gsk
 	entry.SyncStatus = map[string]string{
-		"my-namespace/my-gsk": "effecbf33cbee455f543e9907695cb9296d68da6fa756aa556eb99bd307cbdab:" + key1.id,
+		"my-namespace/my-gsk": "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:" + key1.id,
 	}
 
 	gsk := apiv1b1.GcpSaKey{
@@ -580,9 +580,9 @@ func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
 	entry.CurrentKey.ID = key1.id
 	entry.Type = cache.GcpSaKey
 	entry.SyncStatus = map[string]string{
-		"my-namespace/my-gsk":         "effecbf33cbee455f543e9907695cb9296d68da6fa756aa556eb99bd307cbdab:" + key1.id, // should not be deleted
-		"my-namespace/deleted-gsk":    "effecbf33cbee455f543e9907695cb9296d68da6fa756aa556eb99bd307cbdab:" + key1.id, // should be deleted
-		"other-namespace/deleted-gsk": "effecbf33cbee455f543e9907695cb9296d68da6fa756aa556eb99bd307cbdab:" + key1.id, // should be deleted
+		"my-namespace/my-gsk":         "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:" + key1.id, // should not be deleted
+		"my-namespace/deleted-gsk":    "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:" + key1.id, // should be deleted
+		"other-namespace/deleted-gsk": "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:" + key1.id, // should be deleted
 	}
 
 	gsk := apiv1b1.GcpSaKey{
@@ -640,7 +640,7 @@ func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
 	// make sure the cache entry's sync status map has exactly one record was updated with correct key-sync records
 	assert.Len(suite.T(), entry.SyncStatus, 1) // length should b
 	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
-	assert.Equal(suite.T(), "effecbf33cbee455f543e9907695cb9296d68da6fa756aa556eb99bd307cbdab:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
 	assert.Equal(suite.T(), "e8350b1fbbd1f4f1171ecafabf084b52246144402001e2eaa7de1f81e6c52f72:1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 

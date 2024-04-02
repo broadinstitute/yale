@@ -342,7 +342,9 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 						"yale.terra.bio/created-by-yale": "true",
 					},
 					Replication: &secretmanagerpb.Replication{
-						Replication: &secretmanagerpb.Replication_Automatic_{},
+						Replication: &secretmanagerpb.Replication_Automatic_{
+							Automatic: &secretmanagerpb.Replication_Automatic{},
+						},
 					},
 				},
 			})
