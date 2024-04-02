@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"google.golang.org/api/iterator"
 	"sync"
 
 	"github.com/broadinstitute/yale/internal/yale/cache"
@@ -322,15 +323,13 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 			Filter: fmt.Sprintf("name:%s", spec.Secret),
 		})
 
+		// there can only be between 0 and 1 secrets that match the filter
 		var secret *secretmanagerpb.Secret
-		for secret, err = itr.Next(); secret != nil; {
-			logs.Info.Printf("ITERATION CONTINUES? %v\n", secret)
-			logs.Info.Printf("ITR: %d", itr.PageInfo().Remaining())
-			if err != nil {
-				return fmt.Errorf("error searching GSM API for secret %s in project %s: %v", spec.Secret, spec.Project, err)
-			}
+		for secret, err = itr.Next(); err == nil; {
 		}
-		logs.Info.Printf("Broke out of loop %v\n", secret)
+		if err != iterator.Done {
+			return fmt.Errorf("error searching GSM API for secret %s in project %s: %v", spec.Secret, spec.Project, err)
+		}
 
 		if secret == nil {
 			logs.Info.Printf("found no secret %s in project %s, creating...",
@@ -354,8 +353,6 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 			if err != nil {
 				return fmt.Errorf("error creating new GSM secret %s in project %s: %v", spec.Secret, spec.Project, err)
 			}
-		} else {
-			logs.Info.Println("Not creating new secret, already exists")
 		}
 
 		logs.Info.Printf("creating new GSM secret version for %s in project %s", spec.Secret, spec.Project)
