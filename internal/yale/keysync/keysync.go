@@ -333,7 +333,6 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 			if err != nil {
 				return fmt.Errorf("error searching GSM API for secret %s in project %s: %v", spec.Secret, spec.Project, err)
 			}
-			logs.Info.Printf("secret: %#v, err: %#v", secret, err)
 		}
 
 		if secret == nil {
