@@ -341,6 +341,9 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 					Annotations: map[string]string{
 						"yale.terra.bio/created-by-yale": "true",
 					},
+					Replication: &secretmanagerpb.Replication{
+						Replication: &secretmanagerpb.Replication_Automatic_{},
+					},
 				},
 			})
 			if err != nil {
