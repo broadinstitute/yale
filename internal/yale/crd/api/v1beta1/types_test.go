@@ -32,7 +32,7 @@ func Test_ReplicationFormatSerialization(t *testing.T) {
 			fmt: PEM,
 		},
 		{
-			str: "plainText",
+			str: "plaintext",
 			fmt: PlainText,
 		},
 	}
