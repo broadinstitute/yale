@@ -58,7 +58,7 @@ func (suite *KeySyncSuite) SetupTest() {
 	suite.keysync = New(suite.k8s, suite.vaultServer.NewClient(), suite.gsmServer.NewClient(), suite.cache)
 }
 
-func (suite *KeySyncSuite) TeardownTest() {
+func (suite *KeySyncSuite) TearDownTest() {
 	suite.gsmServer.Close()
 	suite.gsmServer.AssertExpectations()
 }
