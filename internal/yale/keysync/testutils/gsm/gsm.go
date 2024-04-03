@@ -48,7 +48,7 @@ func (f *FakeGsmServer) ExpectListSecretWithNameFilter(project string, secret st
 		response.Secrets = append(response.Secrets, result)
 	}
 
-	responseBody, err := json.Marshal(response)
+	responseBody, err := json.Marshal(&response)
 	require.NoError(f.t, err)
 
 	request.responseBody = responseBody
