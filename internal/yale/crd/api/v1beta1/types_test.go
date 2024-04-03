@@ -96,7 +96,7 @@ func Test_VaultReplicationSerialization(t *testing.T) {
 	assert.Equal(t, v, actual)
 }
 
-func Test_GoogleSecretsManagerReplicationSerialization(t *testing.T) {
+func Test_GoogleSecretManagerReplicationSerialization(t *testing.T) {
 	v := GoogleSecretManagerReplication{
 		Secret:  "foo",
 		Project: "my-project",

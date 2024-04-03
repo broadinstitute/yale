@@ -9,11 +9,11 @@ import (
 )
 
 type AzureClientSecretSpec struct {
-	AzureServicePrincipal            AzureServicePrincipal            `json:"azureServicePrincipal"`
-	Secret                           Secret                           `json:"secret"`
-	VaultReplications                []VaultReplication               `json:"vaultReplications"`
-	GoogleSecretsManagerReplications []GoogleSecretManagerReplication `json:"googleSecretsManagerReplications"`
-	KeyRotation                      KeyRotation                      `json:"keyRotation"`
+	AzureServicePrincipal           AzureServicePrincipal            `json:"azureServicePrincipal"`
+	Secret                          Secret                           `json:"secret"`
+	VaultReplications               []VaultReplication               `json:"vaultReplications"`
+	GoogleSecretManagerReplications []GoogleSecretManagerReplication `json:"googleSecretManagerReplications"`
+	KeyRotation                     KeyRotation                      `json:"keyRotation"`
 }
 
 type AzureServicePrincipal struct {
@@ -90,7 +90,7 @@ func (g AzureClientSecret) VaultReplications() []VaultReplication {
 }
 
 func (g AzureClientSecret) GoogleSecretManagerReplications() []GoogleSecretManagerReplication {
-	return g.Spec.GoogleSecretsManagerReplications
+	return g.Spec.GoogleSecretManagerReplications
 }
 
 func (g AzureClientSecret) APIVersion() string {
