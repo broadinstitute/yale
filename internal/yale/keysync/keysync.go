@@ -261,8 +261,8 @@ func (k *keysync) replicateKeyToVault(entry *cache.Entry, syncable Syncable) err
 }
 
 func prepareVaultSecret(entry *cache.Entry, spec apiv1b1.VaultReplication) (map[string]interface{}, error) {
-	asJson := []byte(entry.CurrentKey.JSON)
-	base64Encoded := base64.StdEncoding.EncodeToString(asJson)
+	currentKey := []byte(entry.CurrentKey.JSON)
+	base64Encoded := base64.StdEncoding.EncodeToString(currentKey)
 	var asPem string
 	if entry.Type == cache.GcpSaKey {
 		var err error
@@ -283,11 +283,15 @@ func prepareVaultSecret(entry *cache.Entry, spec apiv1b1.VaultReplication) (map[
 		if entry.Type == cache.AzureClientSecret {
 			return nil, fmt.Errorf("error decoding client secret to secret map: Azure client secret is not a JSON object. Map type vault replication is only supported for GCP service account keys")
 		}
-		if err := json.Unmarshal(asJson, &secret); err != nil {
+		if err := json.Unmarshal(currentKey, &secret); err != nil {
 			return nil, fmt.Errorf("error decoding private key to secret map: %v", err)
 		}
 	case apiv1b1.JSON:
-		secret[secretKey] = string(asJson)
+		// technically should raise an error here for ACS secrets (they aren't JSON) but I don't want
+		// to break CRDs that have already been deployed
+		secret[secretKey] = string(currentKey)
+	case apiv1b1.PlainText:
+		secret[secretKey] = string(currentKey)
 	case apiv1b1.Base64:
 		secret[secretKey] = base64Encoded
 	case apiv1b1.PEM:

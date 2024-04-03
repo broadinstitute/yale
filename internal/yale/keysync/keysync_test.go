@@ -568,7 +568,7 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
 	assert.Len(suite.T(), entry.SyncStatus, 1)
 	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
 	assert.Equal(suite.T(), "e67d0c10b708ec08721a423798e2d0888579ed8ee70424f6b4169b31f7298b96:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
-	assert.Equal(suite.T(), "0930645faf317647252738d819307712919f866ae8f6c70c1f71fd15c7a010e8:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
+	assert.Equal(suite.T(), "7b927ab1374167aa8ee0f12990a569e1342b854767c35e74833c39b986091330:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
 func (suite *KeySyncSuite) Test_KeySync_PerformsASyncIfSyncStatusIsUpToDateButSecretIsMissing() {
