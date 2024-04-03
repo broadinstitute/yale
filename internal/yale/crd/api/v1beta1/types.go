@@ -80,7 +80,7 @@ func (f ReplicationFormat) String() string {
 	case PEM:
 		return "pem"
 	case PlainText:
-		return "plainText"
+		return "plaintext"
 	default:
 		return "unknown"
 	}
@@ -110,7 +110,7 @@ func (f *ReplicationFormat) UnmarshalText(data []byte) error {
 	case "pem":
 		*f = PEM
 		return nil
-	case "plainText":
+	case "plaintext":
 		*f = PlainText
 		return nil
 	default:

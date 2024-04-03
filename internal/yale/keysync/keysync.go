@@ -380,8 +380,8 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 }
 
 func prepareGoogleSecretManagerSecret(entry *cache.Entry, spec apiv1b1.GoogleSecretManagerReplication) ([]byte, error) {
-	asJsonString := entry.CurrentKey.JSON
-	asJsonBytes := []byte(asJsonString)
+	currentKeyString := entry.CurrentKey.JSON
+	currentKeyBytes := []byte(currentKeyString)
 	var asPem string
 	if entry.Type == cache.GcpSaKey {
 		var err error
@@ -397,9 +397,14 @@ func prepareGoogleSecretManagerSecret(entry *cache.Entry, spec apiv1b1.GoogleSec
 	case apiv1b1.Map:
 		return nil, fmt.Errorf("map format is not supported for Google Secret Manager replications")
 	case apiv1b1.JSON:
-		encodedValue = asJsonString
+		if entry.Type == cache.AzureClientSecret {
+			return nil, fmt.Errorf("error decoding client secret to secret map: Azure client secret is not a JSON object. JSON type replication is only supported for GCP service account keys")
+		}
+		encodedValue = currentKeyString
+	case apiv1b1.PlainText:
+		encodedValue = currentKeyString
 	case apiv1b1.Base64:
-		encodedValue = base64.StdEncoding.EncodeToString(asJsonBytes)
+		encodedValue = base64.StdEncoding.EncodeToString(currentKeyBytes)
 	case apiv1b1.PEM:
 		if entry.Type == cache.AzureClientSecret {
 			return nil, fmt.Errorf("error decoding client secret to PEM: Azure client secret is not a JSON object. PEM type vault replication is only supported for GCP service account keys")
@@ -421,7 +426,7 @@ func prepareGoogleSecretManagerSecret(entry *cache.Entry, spec apiv1b1.GoogleSec
 
 	if spec.Format == apiv1b1.JSON {
 		var unmarshalled map[string]interface{}
-		if err := json.Unmarshal(asJsonBytes, &unmarshalled); err != nil {
+		if err := json.Unmarshal(currentKeyBytes, &unmarshalled); err != nil {
 			return nil, fmt.Errorf("error unmarshalling GCP key to JSON: %v", err)
 		}
 		keyedMap = map[string]interface{}{

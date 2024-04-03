@@ -508,16 +508,28 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
 			},
 			GoogleSecretManagerReplications: []apiv1b1.GoogleSecretManagerReplication{
 				{
-					Format:  apiv1b1.JSON,
+					Format:  apiv1b1.PlainText,
 					Key:     "",
 					Project: "my-project",
-					Secret:  "acs-secret-json",
+					Secret:  "acs-secret-plain",
 				},
 				{
 					Format:  apiv1b1.Base64,
 					Key:     "",
 					Project: "my-project",
 					Secret:  "acs-secret-base64",
+				},
+				{
+					Format:  apiv1b1.PlainText,
+					Key:     "my-key",
+					Project: "my-project",
+					Secret:  "acs-secret-plain-key",
+				},
+				{
+					Format:  apiv1b1.Base64,
+					Key:     "my-key",
+					Project: "my-project",
+					Secret:  "acs-secret-base64-key",
 				},
 			},
 		},
@@ -535,8 +547,10 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
 
 	suite.expectGSMReplicationSecretExists("my-project", "foo-secret-json-already-exists", []byte(key1.json))
 
-	suite.expectGSMReplication("my-project", "acs-secret-json", []byte("my-acs-secret"))
+	suite.expectGSMReplication("my-project", "acs-secret-plain", []byte("my-acs-secret"))
 	suite.expectGSMReplication("my-project", "acs-secret-base64", []byte("bXktYWNzLXNlY3JldA=="))
+	suite.expectGSMReplication("my-project", "acs-secret-plain-key", suite.wrapJsonKey("my-key", "my-acs-secret", false))
+	suite.expectGSMReplication("my-project", "acs-secret-base64-key", suite.wrapJsonKey("my-key", "bXktYWNzLXNlY3JldA==", false))
 
 	// run a key sync to create the K8s secret and perform the vault replications
 	gsks := []apiv1b1.GcpSaKey{gsk}
@@ -554,7 +568,7 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
 	assert.Len(suite.T(), entry.SyncStatus, 1)
 	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
 	assert.Equal(suite.T(), "e67d0c10b708ec08721a423798e2d0888579ed8ee70424f6b4169b31f7298b96:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
-	assert.Equal(suite.T(), "424a807cb706c980b0248631d0c6caa52e91e2b9c362db8bbc049a959842c8d6:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
+	assert.Equal(suite.T(), "0930645faf317647252738d819307712919f866ae8f6c70c1f71fd15c7a010e8:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
 func (suite *KeySyncSuite) Test_KeySync_PerformsASyncIfSyncStatusIsUpToDateButSecretIsMissing() {
