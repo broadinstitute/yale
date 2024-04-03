@@ -1,6 +1,7 @@
 package keysync
 
 import (
+	"bytes"
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"context"
@@ -361,6 +362,19 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 			})
 			if err != nil {
 				return fmt.Errorf("error creating new GSM secret %s in project %s: %v", spec.Secret, spec.Project, err)
+			}
+		}
+
+		logs.Info.Printf("pulling latest GSM secret version for %s in project %s", spec.Secret, spec.Project)
+		secretVersion, err := k.secretManager.AccessSecretVersion(context.Background(), &secretmanagerpb.AccessSecretVersionRequest{
+			Name: fmt.Sprintf("projects/%s/secrets/%s/versions/latest", spec.Project, spec.Secret),
+		})
+		if err != nil {
+			logs.Info.Printf("received error pulling latest GSM secret version for %s in %s; assuming secret has no versions: %v", spec.Secret, spec.Project, err)
+		} else {
+			if bytes.Equal(secretVersion.GetPayload().GetData(), secretData) {
+				logs.Info.Printf("GSM secret %s in %s already contains the desired data, won't create a new secret version", spec.Secret, spec.Project)
+				continue
 			}
 		}
 

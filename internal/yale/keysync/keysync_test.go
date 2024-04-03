@@ -545,7 +545,7 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
 	suite.expectGSMReplication("my-project", "foo-secret-base64-key", suite.wrapJsonKey("my-key", key1.base64, false))
 	suite.expectGSMReplication("my-project", "foo-secret-pem-key", suite.wrapJsonKey("my-key", key1.pem, false))
 
-	suite.expectGSMReplicationSecretExists("my-project", "foo-secret-json-already-exists", []byte(key1.json))
+	suite.expectGSMReplicationSecretExistsWithCorrectData("my-project", "foo-secret-json-already-exists", []byte(key1.json))
 
 	suite.expectGSMReplication("my-project", "acs-secret-plain", []byte("my-acs-secret"))
 	suite.expectGSMReplication("my-project", "acs-secret-base64", []byte("bXktYWNzLXNlY3JldA=="))
@@ -815,18 +815,17 @@ func (suite *KeySyncSuite) expectGSMReplication(project string, secret string, p
 	}, &secretmanagerpb.Secret{
 		Name: "ignored",
 	})
+	suite.gsmServer.ExpectAccessSecretVersion(project, secret, "latest", nil)
 	suite.gsmServer.ExpectCreateNewSecretVersion(project, secret, payload, &secretmanagerpb.SecretVersion{
 		Name: "ignored",
 	})
 }
 
-func (suite *KeySyncSuite) expectGSMReplicationSecretExists(project string, secret string, payload []byte) {
+func (suite *KeySyncSuite) expectGSMReplicationSecretExistsWithCorrectData(project string, secret string, payload []byte) {
 	suite.gsmServer.ExpectListSecretWithNameFilter(project, secret, &secretmanagerpb.Secret{
 		Name: secret,
 	})
-	suite.gsmServer.ExpectCreateNewSecretVersion(project, secret, payload, &secretmanagerpb.SecretVersion{
-		Name: "ignored",
-	})
+	suite.gsmServer.ExpectAccessSecretVersion(project, secret, "latest", payload)
 }
 
 func (suite *KeySyncSuite) assertVaultServerHasSecret(path string, content map[string]interface{}) {

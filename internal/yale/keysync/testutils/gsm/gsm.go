@@ -82,6 +82,29 @@ func (f *FakeGsmServer) ExpectCreateNewSecret(project string, secret string, req
 	f.expectedRequests = append(f.expectedRequests, request)
 }
 
+func (f *FakeGsmServer) ExpectAccessSecretVersion(project string, secret string, version string, payload []byte) {
+	request := expectedRequest{
+		requestMethod: "GET",
+		requestPath:   fmt.Sprintf("/v1/projects/%s/secrets/%s/versions/%s:access", project, secret, version),
+	}
+
+	if payload == nil {
+		request.responseCode = 404
+	} else {
+		request.responseCode = 200
+		responseBody, err := json.Marshal(&secretmanagerpb.AccessSecretVersionResponse{
+			Name: fmt.Sprintf("projects/%s/secrets/%s/versions/%s", project, secret, version),
+			Payload: &secretmanagerpb.SecretPayload{
+				Data: payload,
+			},
+		})
+		require.NoError(f.t, err)
+		request.responseBody = responseBody
+	}
+
+	f.expectedRequests = append(f.expectedRequests, request)
+}
+
 func (f *FakeGsmServer) ExpectCreateNewSecretVersion(project string, secret string, payload []byte, result *secretmanagerpb.SecretVersion) {
 	request := expectedRequest{
 		requestMethod: "POST",
