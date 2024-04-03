@@ -1,7 +1,9 @@
 package keysync
 
 import (
+	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"context"
+	"encoding/json"
 	"github.com/broadinstitute/yale/internal/yale/keysync/testutils/gsm"
 	"testing"
 
@@ -54,6 +56,11 @@ func (suite *KeySyncSuite) SetupTest() {
 	suite.gsmServer = gsm.NewFakeGsm(suite.T())
 	suite.cache = cachemocks.NewCache(suite.T())
 	suite.keysync = New(suite.k8s, suite.vaultServer.NewClient(), suite.gsmServer.NewClient(), suite.cache)
+}
+
+func (suite *KeySyncSuite) TeardownTest() {
+	suite.gsmServer.Close()
+	suite.gsmServer.AssertExpectations()
 }
 
 func (suite *KeySyncSuite) Test_KeySync_CreatesK8sSecret() {
@@ -438,6 +445,42 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
 					Project: "my-project",
 					Secret:  "foo-secret-json",
 				},
+				{
+					Format:  apiv1b1.Base64,
+					Key:     "",
+					Project: "my-project",
+					Secret:  "foo-secret-base64",
+				},
+				{
+					Format:  apiv1b1.PEM,
+					Key:     "",
+					Project: "my-project",
+					Secret:  "foo-secret-pem",
+				},
+				{
+					Format:  apiv1b1.JSON,
+					Key:     "my-key",
+					Project: "my-project",
+					Secret:  "foo-secret-json-key",
+				},
+				{
+					Format:  apiv1b1.Base64,
+					Key:     "my-key",
+					Project: "my-project",
+					Secret:  "foo-secret-base64-key",
+				},
+				{
+					Format:  apiv1b1.PEM,
+					Key:     "my-key",
+					Project: "my-project",
+					Secret:  "foo-secret-pem-key",
+				},
+				{
+					Format:  apiv1b1.JSON,
+					Key:     "",
+					Project: "my-project",
+					Secret:  "foo-secret-json-already-exists",
+				},
 			},
 		},
 	}
@@ -468,19 +511,13 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
 					Format:  apiv1b1.JSON,
 					Key:     "",
 					Project: "my-project",
-					Secret:  "foo-secret-json",
+					Secret:  "acs-secret-json",
 				},
 				{
-					Format:  apiv1b1.JSON,
+					Format:  apiv1b1.Base64,
 					Key:     "",
 					Project: "my-project",
-					Secret:  "foo-secret-base64",
-				},
-				{
-					Format:  apiv1b1.PlainText,
-					Key:     "",
-					Project: "my-project",
-					Secret:  "foo-secret-plain",
+					Secret:  "acs-secret-base64",
 				},
 			},
 		},
@@ -488,6 +525,18 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
 
 	suite.cache.EXPECT().Save(entry).Return(nil)
 	suite.cache.EXPECT().Save(entryAcs).Return(nil)
+
+	suite.expectGSMReplication("my-project", "foo-secret-json", []byte(key1.json))
+	suite.expectGSMReplication("my-project", "foo-secret-base64", []byte(key1.base64))
+	suite.expectGSMReplication("my-project", "foo-secret-pem", []byte(key1.pem))
+	suite.expectGSMReplication("my-project", "foo-secret-json-key", suite.wrapJsonKey("my-key", key1.json, true))
+	suite.expectGSMReplication("my-project", "foo-secret-base64-key", suite.wrapJsonKey("my-key", key1.base64, false))
+	suite.expectGSMReplication("my-project", "foo-secret-pem-key", suite.wrapJsonKey("my-key", key1.pem, false))
+
+	suite.expectGSMReplicationSecretExists("my-project", "foo-secret-json-already-exists", []byte(key1.json))
+
+	suite.expectGSMReplication("my-project", "acs-secret-json", []byte("my-acs-secret"))
+	suite.expectGSMReplication("my-project", "acs-secret-base64", []byte("bXktYWNzLXNlY3JldA=="))
 
 	// run a key sync to create the K8s secret and perform the vault replications
 	gsks := []apiv1b1.GcpSaKey{gsk}
@@ -502,30 +551,10 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
 	_, err = suite.getSecret("my-namespace", "my-acs-secret")
 	require.NoError(suite.T(), err)
 
-	// verify all the Vault replications were performed
-	suite.assertVaultServerHasSecret("secret/foo/test/map", map[string]interface{}{
-		"email":       key1.email,
-		"private_key": key1.pem,
-	})
-	suite.assertVaultServerHasSecret("secret/foo/test/json", map[string]interface{}{
-		"key.json": key1.json,
-	})
-	suite.assertVaultServerHasSecret("secret/foo/test/base64", map[string]interface{}{
-		"key.b64": key1.base64,
-	})
-	suite.assertVaultServerHasSecret("secret/foo/test/pem", map[string]interface{}{
-		"key.pem": key1.pem,
-	})
-	suite.assertVaultServerHasSecret("secret/az/test/json", map[string]interface{}{
-		"key.json": "my-acs-secret",
-	})
-	suite.assertVaultServerHasSecret("secret/az/test/base64", map[string]interface{}{
-		"key.b64": "bXktYWNzLXNlY3JldA==",
-	})
 	assert.Len(suite.T(), entry.SyncStatus, 1)
 	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
-	assert.Equal(suite.T(), "ea3801dc25624b4bb75f959d936f52fcc7b248b2c4362c029348384b4802b68e:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
-	assert.Equal(suite.T(), "d40ae033a395df47f090f528e86bcae2aab991d7efe0724fb488ae5af9951a11:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
+	assert.Equal(suite.T(), "e67d0c10b708ec08721a423798e2d0888579ed8ee70424f6b4169b31f7298b96:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "b16fbff7d110179eb8062ea7a49ba37d3411c0166ff60f82d59d341d7a9621f4:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
 func (suite *KeySyncSuite) Test_KeySync_PerformsASyncIfSyncStatusIsUpToDateButSecretIsMissing() {
@@ -764,6 +793,28 @@ func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
 	assert.Equal(suite.T(), "e8350b1fbbd1f4f1171ecafabf084b52246144402001e2eaa7de1f81e6c52f72:1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
+func (suite *KeySyncSuite) expectGSMReplication(project string, secret string, payload []byte) {
+	suite.gsmServer.ExpectListSecretWithNameFilter(project, secret, nil)
+	suite.gsmServer.ExpectCreateNewSecret(project, secret, func(s *secretmanagerpb.Secret) bool {
+		require.Equal(suite.T(), map[string]string{"created-by-yale": "true"}, s.Annotations)
+		return true
+	}, &secretmanagerpb.Secret{
+		Name: "ignored",
+	})
+	suite.gsmServer.ExpectCreateNewSecretVersion(project, secret, payload, &secretmanagerpb.SecretVersion{
+		Name: "ignored",
+	})
+}
+
+func (suite *KeySyncSuite) expectGSMReplicationSecretExists(project string, secret string, payload []byte) {
+	suite.gsmServer.ExpectListSecretWithNameFilter(project, secret, &secretmanagerpb.Secret{
+		Name: secret,
+	})
+	suite.gsmServer.ExpectCreateNewSecretVersion(project, secret, payload, &secretmanagerpb.SecretVersion{
+		Name: "ignored",
+	})
+}
+
 func (suite *KeySyncSuite) assertVaultServerHasSecret(path string, content map[string]interface{}) {
 	data := suite.vaultServer.GetSecret(path)
 	assert.Equal(suite.T(), content, data)
@@ -782,4 +833,23 @@ func (suite *KeySyncSuite) assertK8sSecreDoesNotExist(namespace string, name str
 	_, err := suite.k8s.CoreV1().Secrets(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	assert.Error(suite.T(), err)
 	assert.True(suite.T(), errors.IsNotFound(err))
+}
+
+func (suite *KeySyncSuite) wrapJsonKey(key string, data string, unmarshalToObject bool) []byte {
+	var value interface{}
+
+	if unmarshalToObject {
+		var parsed map[string]interface{}
+		err := json.Unmarshal([]byte(data), &parsed)
+		require.NoError(suite.T(), err)
+		value = parsed
+	} else {
+		value = data
+	}
+
+	result, err := json.Marshal(map[string]interface{}{
+		key: value,
+	})
+	require.NoError(suite.T(), err)
+	return result
 }

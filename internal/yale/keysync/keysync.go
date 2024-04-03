@@ -406,7 +406,7 @@ func prepareGoogleSecretManagerSecret(entry *cache.Entry, spec apiv1b1.GoogleSec
 		}
 		encodedValue = asPem
 	default:
-		panic(fmt.Errorf("unsupported GSM replication format: %#v", spec.Format))
+		panic(fmt.Errorf("unsupported GSM replication format: %#v", spec.Format.String()))
 	}
 
 	if spec.Key == "" {
