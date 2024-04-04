@@ -1,11 +1,15 @@
 package keysync
 
 import (
+	"bytes"
+	secretmanager "cloud.google.com/go/secretmanager/apiv1"
+	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"google.golang.org/api/iterator"
 	"sync"
 
 	"github.com/broadinstitute/yale/internal/yale/cache"
@@ -42,6 +46,7 @@ type Syncable interface {
 	Secret() apiv1b1.Secret
 	SpecBytes() ([]byte, error)
 	VaultReplications() []apiv1b1.VaultReplication
+	GoogleSecretManagerReplications() []apiv1b1.GoogleSecretManagerReplication
 	APIVersion() string
 	Kind() string
 	UID() types.UID
@@ -64,16 +69,18 @@ func AzureClientSecretsToSyncable(acs []apiv1b1.AzureClientSecret) []Syncable {
 	return result
 }
 
-func New(k8s kubernetes.Interface, vault *vaultapi.Client, cache cache.Cache) KeySync {
+func New(k8s kubernetes.Interface, vault *vaultapi.Client, secretManager *secretmanager.Client, cache cache.Cache) KeySync {
 	return &keysync{
-		k8s:   k8s,
-		vault: vault,
-		cache: cache,
+		k8s:           k8s,
+		vault:         vault,
+		secretManager: secretManager,
+		cache:         cache,
 	}
 }
 
 type keysync struct {
 	vault          *vaultapi.Client
+	secretManager  *secretmanager.Client
 	k8s            kubernetes.Interface
 	cache          cache.Cache
 	mutex          sync.Mutex
@@ -95,6 +102,9 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, syncables []Syncable) error {
 		}
 		if err = k.replicateKeyToVault(entry, syncable); err != nil {
 			return fmt.Errorf("%s %s in %s: error syncing to Vault: %v", entry.Type, syncable.Name(), syncable.Namespace(), err)
+		}
+		if err = k.replicateKeyToGSM(entry, syncable); err != nil {
+			return fmt.Errorf("%s %s in %s: error syncing to GSM: %v", entry.Type, syncable.Name(), syncable.Namespace(), err)
 		}
 		entry.SyncStatus[statusKey(syncable)] = statusHash
 	}
@@ -252,8 +262,8 @@ func (k *keysync) replicateKeyToVault(entry *cache.Entry, syncable Syncable) err
 }
 
 func prepareVaultSecret(entry *cache.Entry, spec apiv1b1.VaultReplication) (map[string]interface{}, error) {
-	asJson := []byte(entry.CurrentKey.JSON)
-	base64Encoded := base64.StdEncoding.EncodeToString(asJson)
+	currentKey := []byte(entry.CurrentKey.JSON)
+	base64Encoded := base64.StdEncoding.EncodeToString(currentKey)
 	var asPem string
 	if entry.Type == cache.GcpSaKey {
 		var err error
@@ -274,11 +284,15 @@ func prepareVaultSecret(entry *cache.Entry, spec apiv1b1.VaultReplication) (map[
 		if entry.Type == cache.AzureClientSecret {
 			return nil, fmt.Errorf("error decoding client secret to secret map: Azure client secret is not a JSON object. Map type vault replication is only supported for GCP service account keys")
 		}
-		if err := json.Unmarshal(asJson, &secret); err != nil {
+		if err := json.Unmarshal(currentKey, &secret); err != nil {
 			return nil, fmt.Errorf("error decoding private key to secret map: %v", err)
 		}
 	case apiv1b1.JSON:
-		secret[secretKey] = string(asJson)
+		// technically should raise an error here for ACS secrets (they aren't JSON) but I don't want
+		// to break CRDs that have already been deployed
+		secret[secretKey] = string(currentKey)
+	case apiv1b1.PlainText:
+		secret[secretKey] = string(currentKey)
 	case apiv1b1.Base64:
 		secret[secretKey] = base64Encoded
 	case apiv1b1.PEM:
@@ -291,6 +305,162 @@ func prepareVaultSecret(entry *cache.Entry, spec apiv1b1.VaultReplication) (map[
 	}
 
 	return secret, nil
+}
+
+func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error {
+	if len(syncable.GoogleSecretManagerReplications()) == 0 {
+		// no replications to perform
+		return nil
+	}
+
+	for _, spec := range syncable.GoogleSecretManagerReplications() {
+		msg := fmt.Sprintf("replicating key %s for %s (format %s) to GSM (project %s, secret %s)",
+			entry.CurrentKey.ID, entry.Identify(), spec.Format, spec.Project, spec.Secret)
+		logs.Info.Print(msg)
+
+		secretData, err := prepareGoogleSecretManagerSecret(entry, spec)
+		if err != nil {
+			return fmt.Errorf("error %s: decoding failed: %v", msg, err)
+		}
+
+		itr := k.secretManager.ListSecrets(context.Background(), &secretmanagerpb.ListSecretsRequest{
+			Parent: fmt.Sprintf("projects/%s", spec.Project),
+			Filter: fmt.Sprintf("name:%s", spec.Secret),
+		})
+
+		// there can only be between 0 and 1 secrets that match the filter
+		var secrets []*secretmanagerpb.Secret
+		for {
+			secret, err := itr.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return fmt.Errorf("error searching GSM API for secret %s in project %s: %v", spec.Secret, spec.Project, err)
+			}
+			secrets = append(secrets, secret)
+		}
+
+		if len(secrets) == 0 {
+			logs.Info.Printf("found no secret %s in project %s, creating...",
+				spec.Secret, spec.Project)
+
+			_, err = k.secretManager.CreateSecret(context.Background(), &secretmanagerpb.CreateSecretRequest{
+				Parent:   fmt.Sprintf("projects/%s", spec.Project),
+				SecretId: spec.Secret,
+				Secret: &secretmanagerpb.Secret{
+					Name: spec.Secret,
+					Annotations: map[string]string{
+						"created-by-yale": "true",
+					},
+					Replication: &secretmanagerpb.Replication{
+						Replication: &secretmanagerpb.Replication_Automatic_{
+							Automatic: &secretmanagerpb.Replication_Automatic{},
+						},
+					},
+				},
+			})
+			if err != nil {
+				return fmt.Errorf("error creating new GSM secret %s in project %s: %v", spec.Secret, spec.Project, err)
+			}
+		}
+
+		logs.Info.Printf("pulling latest GSM secret version for %s in project %s", spec.Secret, spec.Project)
+		secretVersion, err := k.secretManager.AccessSecretVersion(context.Background(), &secretmanagerpb.AccessSecretVersionRequest{
+			Name: fmt.Sprintf("projects/%s/secrets/%s/versions/latest", spec.Project, spec.Secret),
+		})
+		if err != nil {
+			logs.Info.Printf("received error pulling latest GSM secret version for %s in %s; assuming secret has no versions: %v", spec.Secret, spec.Project, err)
+		} else {
+			if bytes.Equal(secretVersion.GetPayload().GetData(), secretData) {
+				logs.Info.Printf("GSM secret %s in %s already contains the desired data, won't create a new secret version", spec.Secret, spec.Project)
+				continue
+			}
+		}
+
+		logs.Info.Printf("creating new GSM secret version for %s in project %s", spec.Secret, spec.Project)
+		newVersion, err := k.secretManager.AddSecretVersion(context.Background(), &secretmanagerpb.AddSecretVersionRequest{
+			Parent: fmt.Sprintf("projects/%s/secrets/%s", spec.Project, spec.Secret),
+			Payload: &secretmanagerpb.SecretPayload{
+				Data: secretData,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("error creating new GSM secret version for %s in project %s: %v", spec.Secret, spec.Project, err)
+		}
+
+		logs.Info.Printf("created new GSM secret version for %s in project %s: %s", spec.Secret, spec.Project, newVersion.Name)
+	}
+
+	logs.Info.Printf("replicated key %s for %s to %d GSM secrets", entry.CurrentKey.ID, entry.Identify(), len(syncable.GoogleSecretManagerReplications()))
+
+	return nil
+}
+
+func prepareGoogleSecretManagerSecret(entry *cache.Entry, spec apiv1b1.GoogleSecretManagerReplication) ([]byte, error) {
+	currentKeyString := entry.CurrentKey.JSON
+	currentKeyBytes := []byte(currentKeyString)
+	var asPem string
+	if entry.Type == cache.GcpSaKey {
+		var err error
+		asPem, err = extractPemKey(entry)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var encodedValue string
+
+	switch spec.Format {
+	case apiv1b1.Map:
+		return nil, fmt.Errorf("map format is not supported for Google Secret Manager replications")
+	case apiv1b1.JSON:
+		if entry.Type == cache.AzureClientSecret {
+			return nil, fmt.Errorf("error decoding client secret to secret map: Azure client secret is not a JSON object. JSON type replication is only supported for GCP service account keys")
+		}
+		encodedValue = currentKeyString
+	case apiv1b1.PlainText:
+		encodedValue = currentKeyString
+	case apiv1b1.Base64:
+		encodedValue = base64.StdEncoding.EncodeToString(currentKeyBytes)
+	case apiv1b1.PEM:
+		if entry.Type == cache.AzureClientSecret {
+			return nil, fmt.Errorf("error decoding client secret to PEM: Azure client secret is not a JSON object. PEM type vault replication is only supported for GCP service account keys")
+		}
+		encodedValue = asPem
+	default:
+		panic(fmt.Errorf("unsupported GSM replication format: %#v", spec.Format.String()))
+	}
+
+	if spec.Key == "" {
+		return []byte(encodedValue), nil
+	}
+
+	// if a key was specified with a Map or JSON format, return nested JSON, such as:
+	// {
+	//   "key-name": { ... }
+	// }
+	var keyedMap map[string]interface{}
+
+	if spec.Format == apiv1b1.JSON {
+		var unmarshalled map[string]interface{}
+		if err := json.Unmarshal(currentKeyBytes, &unmarshalled); err != nil {
+			return nil, fmt.Errorf("error unmarshalling GCP key to JSON: %v", err)
+		}
+		keyedMap = map[string]interface{}{
+			spec.Key: unmarshalled,
+		}
+	} else {
+		keyedMap = map[string]interface{}{
+			spec.Key: encodedValue,
+		}
+	}
+
+	keyedMapJSON, err := json.Marshal(keyedMap)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling GSM secret to JSON: %v", err)
+	}
+	return keyedMapJSON, nil
 }
 
 // return the PEM-formatted private_key field from a cache entry's JSON-formatted SA key

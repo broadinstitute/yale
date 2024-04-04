@@ -203,8 +203,8 @@ func toHttpHandler(handler vaultApiHandler) http.Handler {
 			return
 		}
 
-		logs.Info.Printf("200")
-		logs.Info.Printf("%#v", secret)
+		logs.Info.Printf("writing 200 response")
+		logs.Info.Printf("response body: %#v", secret)
 
 		w.WriteHeader(http.StatusOK)
 		writeSecretToResponseBody(secret, w)

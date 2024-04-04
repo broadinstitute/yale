@@ -9,10 +9,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func Test_VaultReplicationFormatSerialization(t *testing.T) {
+func Test_ReplicationFormatSerialization(t *testing.T) {
 	testCases := []struct {
 		str string
-		fmt VaultReplicationFormat
+		fmt ReplicationFormat
 		err bool
 	}{
 		{
@@ -32,7 +32,7 @@ func Test_VaultReplicationFormatSerialization(t *testing.T) {
 			fmt: PEM,
 		},
 		{
-			str: "plainText",
+			str: "plaintext",
 			fmt: PlainText,
 		},
 	}
@@ -58,7 +58,7 @@ func Test_VaultReplicationFormatSerialization(t *testing.T) {
 			assert.Equal(t, jsonFormatted, string(serialized))
 
 			// test deserialization from yaml and json
-			var f VaultReplicationFormat
+			var f ReplicationFormat
 
 			err = yaml.Unmarshal([]byte(yamlFormatted), &f)
 			require.NoError(t, err)
@@ -80,6 +80,32 @@ func Test_VaultReplicationSerialization(t *testing.T) {
 
 	var err error
 	var actual VaultReplication
+
+	// test round-trip yaml serialization and deserialization
+	asYaml, err := yaml.Marshal(v)
+	require.NoError(t, err)
+	err = yaml.Unmarshal(asYaml, &actual)
+	require.NoError(t, err)
+	assert.Equal(t, v, actual)
+
+	// test round-trip json serialization and deserialization
+	asJson, err := json.Marshal(v)
+	require.NoError(t, err)
+	err = json.Unmarshal(asJson, &actual)
+	require.NoError(t, err)
+	assert.Equal(t, v, actual)
+}
+
+func Test_GoogleSecretManagerReplicationSerialization(t *testing.T) {
+	v := GoogleSecretManagerReplication{
+		Secret:  "foo",
+		Project: "my-project",
+		Format:  PEM,
+		Key:     "bar",
+	}
+
+	var err error
+	var actual GoogleSecretManagerReplication
 
 	// test round-trip yaml serialization and deserialization
 	asYaml, err := yaml.Marshal(v)
