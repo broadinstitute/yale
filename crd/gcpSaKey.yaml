@@ -86,7 +86,35 @@ spec:
                       key:
                         description: Key in the Vault secret that should include the SA key. (Ignored for `map` format).
                         type: string
-
+                googleSecretManagerReplications:
+                  type: array
+                  items:
+                    type: object
+                    required: [ format, project, secret ]
+                    properties:
+                      format:
+                        description: >
+                          Format of the key to store in Vault. One of:
+                            `json`: write the JSON-formatted service account key to the given secret
+                            `base64`: write the service account key JSON as a base64-encoded string value at the given secret
+                            `pem`: write the service account key's PEM-encoded `private_key` field as a string value at the given secret
+                        type: string
+                        enum:
+                          - json
+                          - base64
+                          - pem
+                      project:
+                        description: Name of the google project where the service account key data should be written.
+                        type: string
+                      secret:
+                        description: >
+                          Name of the Google Secret Manager secret where the service account key data should be written. 
+                        type: string
+                      key:
+                        description: >
+                          If given, data will be nested wrapped in a JSON object keyed by the given value (eg. `{ "my-key": "base64-encoded-data" })`.
+                          If the JSON format is specified it will be included as an object, not as an escaped string. Eg. `{ "my-key": { "project": "blah", ... } }`
+                        type: string
   scope: Namespaced
   names:
     plural: gcpsakeys
