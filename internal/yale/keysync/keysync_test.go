@@ -811,7 +811,7 @@ func (suite *KeySyncSuite) expectGSMReplication(project string, secret string, p
 	suite.gsmServer.ExpectListSecretWithNameFilter(project, secret, nil)
 	suite.gsmServer.ExpectCreateNewSecret(project, secret, func(s *secretmanagerpb.Secret) bool {
 		require.Equal(suite.T(), map[string]string{"created-by-yale": "true"}, s.Annotations)
-		require.Equal(suite.T(), map[string]string{"managed_by": "yale"}, s.Labels)
+		require.Equal(suite.T(), map[string]string{"owned_by": "yale"}, s.Labels)
 		return true
 	}, &secretmanagerpb.Secret{
 		Name: "ignored",
