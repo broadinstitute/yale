@@ -353,6 +353,9 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 					Annotations: map[string]string{
 						"created-by-yale": "true",
 					},
+					Labels: map[string]string{
+						"owned_by": "yale",
+					},
 					Replication: &secretmanagerpb.Replication{
 						Replication: &secretmanagerpb.Replication_Automatic_{
 							Automatic: &secretmanagerpb.Replication_Automatic{},
