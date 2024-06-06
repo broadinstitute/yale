@@ -55,6 +55,8 @@ type Options struct {
 	SlackWebhookUrl string
 	// RotateWindow if enabled, restrict key rotation operations to a specific time of day
 	RotateWindow RotateWindow
+	// DisableVaultReplication if true, Yale will not perform any Vault replications
+	DisableVaultReplication bool
 }
 
 // NewYale /* Construct a new Yale Manager */
@@ -64,8 +66,9 @@ func NewYale(clients *client.Clients, opts ...func(*Options)) *Yale {
 
 func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, secretManager *secretmanager.Client, azure *msgraph.ApplicationsClient, opts ...func(*Options)) *Yale {
 	options := Options{
-		CacheNamespace:     cache.DefaultCacheNamespace,
-		IgnoreUsageMetrics: false,
+		CacheNamespace:          cache.DefaultCacheNamespace,
+		IgnoreUsageMetrics:      false,
+		DisableVaultReplication: false,
 	}
 	for _, opt := range opts {
 		opt(&options)
@@ -76,7 +79,9 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 
 	_authmetrics := authmetrics.New(metrics, iam)
 	_cache := cache.New(k8s, options.CacheNamespace)
-	_keysync := keysync.New(k8s, vault, secretManager, _cache)
+	_keysync := keysync.New(k8s, vault, secretManager, _cache, func(opts *keysync.Options) {
+		opts.DisableVaultReplication = options.DisableVaultReplication
+	})
 	_resourcemap := resourcemap.New(crd, _cache)
 	_slack := slack.New(options.SlackWebhookUrl)
 

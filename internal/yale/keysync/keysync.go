@@ -25,6 +25,12 @@ import (
 
 const defaultVaultReplicationSecretKey = "sa-key"
 
+type Option func(*Options)
+
+type Options struct {
+	DisableVaultReplication bool
+}
+
 // KeySync is responsible for propagating the current service account key from the Yale cache to destinations
 // specified in the GcpSaKey spec - Vault paths, Kubernetes secrets, etc.
 type KeySync interface {
@@ -69,8 +75,15 @@ func AzureClientSecretsToSyncable(acs []apiv1b1.AzureClientSecret) []Syncable {
 	return result
 }
 
-func New(k8s kubernetes.Interface, vault *vaultapi.Client, secretManager *secretmanager.Client, cache cache.Cache) KeySync {
+func New(k8s kubernetes.Interface, vault *vaultapi.Client, secretManager *secretmanager.Client, cache cache.Cache, options ...Option) KeySync {
+	opts := Options{
+		DisableVaultReplication: false,
+	}
+	for _, option := range options {
+		option(&opts)
+	}
 	return &keysync{
+		options:       opts,
 		k8s:           k8s,
 		vault:         vault,
 		secretManager: secretManager,
@@ -79,6 +92,7 @@ func New(k8s kubernetes.Interface, vault *vaultapi.Client, secretManager *secret
 }
 
 type keysync struct {
+	options        Options
 	vault          *vaultapi.Client
 	secretManager  *secretmanager.Client
 	k8s            kubernetes.Interface
@@ -237,6 +251,10 @@ func (k *keysync) syncToK8sSecret(entry *cache.Entry, syncable Syncable) error {
 }
 
 func (k *keysync) replicateKeyToVault(entry *cache.Entry, syncable Syncable) error {
+	if k.options.DisableVaultReplication {
+		return nil
+	}
+
 	if len(syncable.VaultReplications()) == 0 {
 		// no replications to perform
 		return nil

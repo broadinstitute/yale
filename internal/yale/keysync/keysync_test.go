@@ -415,6 +415,60 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications()
 	assert.Equal(suite.T(), "a236fa801cfb75fc0ba26b48d4c3c1985e61b30ff1a99fa02dc494b7c638965c:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
+func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformVaultReplicationsIfVaultReplicationIsDisabled() {
+	suite.keysync = New(suite.k8s, suite.vaultServer.NewClient(), suite.gsmServer.NewClient(), suite.cache, func(options *Options) {
+		options.DisableVaultReplication = true
+	})
+
+	entry := &cache.Entry{}
+	entry.Identifier = cache.GcpSaKeyEntryIdentifier{Email: "my-sa@gserviceaccount.com", Project: "my-project"}
+	entry.Type = cache.GcpSaKey
+	entry.CurrentKey.JSON = key1.json
+	entry.CurrentKey.ID = key1.id
+	entry.SyncStatus = map[string]string{} // no prior syncs recorded in the map
+
+	gsk := apiv1b1.GcpSaKey{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-gsk",
+			Namespace: "my-namespace",
+			Labels: map[string]string{
+				"label1": "value1",
+				"label2": "value2",
+			},
+		},
+		Spec: apiv1b1.GCPSaKeySpec{
+			Secret: apiv1b1.Secret{
+				Name:        "my-secret",
+				PemKeyName:  "my-key.pem",
+				JsonKeyName: "my-key.json",
+			},
+			VaultReplications: []apiv1b1.VaultReplication{
+				{
+					Path:   "secret/foo/test/json",
+					Format: apiv1b1.JSON,
+					Key:    "key.json",
+				},
+			},
+		},
+	}
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
+
+	// run a key sync to create the K8s secret and perform the vault replications
+	gsks := []apiv1b1.GcpSaKey{gsk}
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, GcpSaKeysToSyncable(gsks)))
+
+	// verify K8s secret was created
+	_, err := suite.getSecret("my-namespace", "my-secret")
+	require.NoError(suite.T(), err)
+
+	// verify Vault replications was not performed
+	suite.assertVaultServerHasNoSecretAtPath("secret/foo/test/json")
+
+	assert.Len(suite.T(), entry.SyncStatus, 1)
+	assert.Equal(suite.T(), "106a57c52a0bc830af38ad619a4935e161ee411b04da5862d70e4ef92adc34e1:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+}
+
 func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
 	entry := &cache.Entry{}
 	entry.Identifier = cache.GcpSaKeyEntryIdentifier{Email: "my-sa@gserviceaccount.com", Project: "my-project"}
@@ -832,6 +886,11 @@ func (suite *KeySyncSuite) expectGSMReplicationSecretExistsWithCorrectData(proje
 func (suite *KeySyncSuite) assertVaultServerHasSecret(path string, content map[string]interface{}) {
 	data := suite.vaultServer.GetSecret(path)
 	assert.Equal(suite.T(), content, data)
+}
+
+func (suite *KeySyncSuite) assertVaultServerHasNoSecretAtPath(path string) {
+	data := suite.vaultServer.GetSecret(path)
+	assert.Nil(suite.T(), data)
 }
 
 func (suite *KeySyncSuite) getSecret(namespace string, name string) (*corev1.Secret, error) {
