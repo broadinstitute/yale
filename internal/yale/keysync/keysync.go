@@ -9,12 +9,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/broadinstitute/yale/internal/yale/keysync/githubsecret"
 	"google.golang.org/api/iterator"
+	"strings"
 	"sync"
 
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/logs"
+	"github.com/google/go-github/v62/github"
 	vaultapi "github.com/hashicorp/vault/api"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -28,7 +31,8 @@ const defaultVaultReplicationSecretKey = "sa-key"
 type Option func(*Options)
 
 type Options struct {
-	DisableVaultReplication bool
+	DisableVaultReplication  bool
+	DisableGitHubReplication bool
 }
 
 // KeySync is responsible for propagating the current service account key from the Yale cache to destinations
@@ -53,6 +57,7 @@ type Syncable interface {
 	SpecBytes() ([]byte, error)
 	VaultReplications() []apiv1b1.VaultReplication
 	GoogleSecretManagerReplications() []apiv1b1.GoogleSecretManagerReplication
+	GitHubReplications() []apiv1b1.GitHubReplication
 	APIVersion() string
 	Kind() string
 	UID() types.UID
@@ -75,7 +80,7 @@ func AzureClientSecretsToSyncable(acs []apiv1b1.AzureClientSecret) []Syncable {
 	return result
 }
 
-func New(k8s kubernetes.Interface, vault *vaultapi.Client, secretManager *secretmanager.Client, cache cache.Cache, options ...Option) KeySync {
+func New(k8s kubernetes.Interface, vault *vaultapi.Client, secretManager *secretmanager.Client, github *github.Client, cache cache.Cache, options ...Option) KeySync {
 	opts := Options{
 		DisableVaultReplication: false,
 	}
@@ -87,6 +92,7 @@ func New(k8s kubernetes.Interface, vault *vaultapi.Client, secretManager *secret
 		k8s:           k8s,
 		vault:         vault,
 		secretManager: secretManager,
+		github:        github,
 		cache:         cache,
 	}
 }
@@ -95,6 +101,7 @@ type keysync struct {
 	options        Options
 	vault          *vaultapi.Client
 	secretManager  *secretmanager.Client
+	github         *github.Client
 	k8s            kubernetes.Interface
 	cache          cache.Cache
 	mutex          sync.Mutex
@@ -119,6 +126,9 @@ func (k *keysync) SyncIfNeeded(entry *cache.Entry, syncables []Syncable) error {
 		}
 		if err = k.replicateKeyToGSM(entry, syncable); err != nil {
 			return fmt.Errorf("%s %s in %s: error syncing to GSM: %v", entry.Type, syncable.Name(), syncable.Namespace(), err)
+		}
+		if err = k.replicateKeyToGitHub(entry, syncable); err != nil {
+			return fmt.Errorf("%s %s in %s: error syncing to GitHub: %v", entry.Type, syncable.Name(), syncable.Namespace(), err)
 		}
 		entry.SyncStatus[statusKey(syncable)] = statusHash
 	}
@@ -419,8 +429,85 @@ func (k *keysync) replicateKeyToGSM(entry *cache.Entry, syncable Syncable) error
 }
 
 func prepareGoogleSecretManagerSecret(entry *cache.Entry, spec apiv1b1.GoogleSecretManagerReplication) ([]byte, error) {
-	currentKeyString := entry.CurrentKey.JSON
-	currentKeyBytes := []byte(currentKeyString)
+	formattedBytes, err := formatSecretForGitHubOrGSM(entry, spec.Format)
+	if err != nil {
+		return nil, err
+	}
+	if spec.Key == "" {
+		return formattedBytes, nil
+	}
+
+	// if a key was specified with a Map or JSON format, return nested JSON, such as:
+	// {
+	//   "key-name": { ... }
+	// }
+	var keyedMap map[string]interface{}
+
+	if spec.Format == apiv1b1.JSON {
+		var unmarshalled map[string]interface{}
+		if err := json.Unmarshal(formattedBytes, &unmarshalled); err != nil {
+			return nil, fmt.Errorf("error unmarshalling GCP key to JSON: %v", err)
+		}
+		keyedMap = map[string]interface{}{
+			spec.Key: unmarshalled,
+		}
+	} else {
+		keyedMap = map[string]interface{}{
+			spec.Key: string(formattedBytes),
+		}
+	}
+
+	keyedMapJSON, err := json.Marshal(keyedMap)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling GSM secret to JSON: %v", err)
+	}
+	return keyedMapJSON, nil
+}
+
+func (k *keysync) replicateKeyToGitHub(entry *cache.Entry, syncable Syncable) error {
+	if k.options.DisableGitHubReplication {
+		return nil
+	}
+
+	for _, r := range syncable.GitHubReplications() {
+		tokens := strings.SplitN(r.Repo, "/", 2)
+		if tokens[0] == "" || tokens[1] == "" {
+			return fmt.Errorf("invalid repository specified in %s/%s, expected format \"<org>/<repo>\", got: %q", syncable.Namespace(), syncable.Name(), r.Repo)
+		}
+
+		org := tokens[0]
+		repo := tokens[1]
+
+		pubkey, _, err := k.github.Actions.GetRepoPublicKey(context.Background(), "broadinstitute", "yale")
+		if err != nil {
+			return fmt.Errorf("%s/%s: error retrieving public key for %s/%s: %v", syncable.Namespace(), syncable.Name(), org, repo, err)
+		}
+
+		formatted, err := formatSecretForGitHubOrGSM(entry, r.Format)
+		if err != nil {
+			return fmt.Errorf("%s/%s: error formatting secret for %s/%s: %v", syncable.Namespace(), syncable.Name(), org, repo, err)
+		}
+		encryptedSecret, err := githubsecret.Encrypt(*pubkey.Key, string(formatted))
+		if err != nil {
+			return fmt.Errorf("%s/%s: error encrypting secret for %s/%s: %v", syncable.Namespace(), syncable.Name(), org, repo, err)
+		}
+
+		_, err = k.github.Actions.CreateOrUpdateRepoSecret(context.Background(), org, repo, &github.EncryptedSecret{
+			Name:           r.Secret,
+			KeyID:          *pubkey.KeyID,
+			EncryptedValue: encryptedSecret,
+		})
+		if err != nil {
+			return fmt.Errorf("%s/%s: error pushing encrypted GitHub secret %s to %s/%s: %v", syncable.Namespace(), syncable.Name(), r.Secret, org, repo, err)
+		}
+	}
+
+	return nil
+}
+
+func formatSecretForGitHubOrGSM(entry *cache.Entry, format apiv1b1.ReplicationFormat) ([]byte, error) {
+	asJSONString := entry.CurrentKey.JSON
+	asJSONBytes := []byte(asJSONString)
 	var asPem string
 	if entry.Type == cache.GcpSaKey {
 		var err error
@@ -432,56 +519,28 @@ func prepareGoogleSecretManagerSecret(entry *cache.Entry, spec apiv1b1.GoogleSec
 
 	var encodedValue string
 
-	switch spec.Format {
+	switch format {
 	case apiv1b1.Map:
-		return nil, fmt.Errorf("map format is not supported for Google Secret Manager replications")
+		return nil, fmt.Errorf("map format is not supported for GSM or GitHub replications")
 	case apiv1b1.JSON:
 		if entry.Type == cache.AzureClientSecret {
 			return nil, fmt.Errorf("error decoding client secret to secret map: Azure client secret is not a JSON object. JSON type replication is only supported for GCP service account keys")
 		}
-		encodedValue = currentKeyString
+		encodedValue = asJSONString
 	case apiv1b1.PlainText:
-		encodedValue = currentKeyString
+		encodedValue = asJSONString
 	case apiv1b1.Base64:
-		encodedValue = base64.StdEncoding.EncodeToString(currentKeyBytes)
+		encodedValue = base64.StdEncoding.EncodeToString(asJSONBytes)
 	case apiv1b1.PEM:
 		if entry.Type == cache.AzureClientSecret {
 			return nil, fmt.Errorf("error decoding client secret to PEM: Azure client secret is not a JSON object. PEM type vault replication is only supported for GCP service account keys")
 		}
 		encodedValue = asPem
 	default:
-		panic(fmt.Errorf("unsupported GSM replication format: %#v", spec.Format.String()))
+		panic(fmt.Errorf("unsupported replication format for GSM and GitHub: %#v", format.String()))
 	}
 
-	if spec.Key == "" {
-		return []byte(encodedValue), nil
-	}
-
-	// if a key was specified with a Map or JSON format, return nested JSON, such as:
-	// {
-	//   "key-name": { ... }
-	// }
-	var keyedMap map[string]interface{}
-
-	if spec.Format == apiv1b1.JSON {
-		var unmarshalled map[string]interface{}
-		if err := json.Unmarshal(currentKeyBytes, &unmarshalled); err != nil {
-			return nil, fmt.Errorf("error unmarshalling GCP key to JSON: %v", err)
-		}
-		keyedMap = map[string]interface{}{
-			spec.Key: unmarshalled,
-		}
-	} else {
-		keyedMap = map[string]interface{}{
-			spec.Key: encodedValue,
-		}
-	}
-
-	keyedMapJSON, err := json.Marshal(keyedMap)
-	if err != nil {
-		return nil, fmt.Errorf("error marshalling GSM secret to JSON: %v", err)
-	}
-	return keyedMapJSON, nil
+	return []byte(encodedValue), nil
 }
 
 // return the PEM-formatted private_key field from a cache entry's JSON-formatted SA key

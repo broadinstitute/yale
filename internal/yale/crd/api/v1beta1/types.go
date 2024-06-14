@@ -19,6 +19,7 @@ type GCPSaKeySpec struct {
 	Secret                          Secret                           `json:"secret"`
 	VaultReplications               []VaultReplication               `json:"vaultReplications"`
 	GoogleSecretManagerReplications []GoogleSecretManagerReplication `json:"googleSecretManagerReplications"`
+	GitHubReplications              []GitHubReplication              `json:"githubReplications"`
 	KeyRotation                     KeyRotation                      `json:"keyRotation"`
 }
 
@@ -53,6 +54,12 @@ type GoogleSecretManagerReplication struct {
 	Project string            `json:"project"`
 	Format  ReplicationFormat `json:"format"`
 	Key     string            `json:"key"` // if supplied, nest key data in a JSON object { "<key-name>": "<formatted-key>" }
+}
+
+type GitHubReplication struct {
+	Secret string            `json:"secret"`
+	Repo   string            `json:"repo"`
+	Format ReplicationFormat `json:"format"`
 }
 
 type ReplicationFormat int64
@@ -188,6 +195,10 @@ func (g GcpSaKey) VaultReplications() []VaultReplication {
 
 func (g GcpSaKey) GoogleSecretManagerReplications() []GoogleSecretManagerReplication {
 	return g.Spec.GoogleSecretManagerReplications
+}
+
+func (g GcpSaKey) GitHubReplications() []GitHubReplication {
+	return g.Spec.GitHubReplications
 }
 
 func (g GcpSaKey) APIVersion() string {

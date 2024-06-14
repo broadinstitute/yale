@@ -121,3 +121,28 @@ func Test_GoogleSecretManagerReplicationSerialization(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, v, actual)
 }
+
+func Test_GitHubReplicationSerialization(t *testing.T) {
+	v := GitHubReplication{
+		Secret: "MY_SECRET",
+		Repo:   "my-org/my-repo",
+		Format: JSON,
+	}
+
+	var err error
+	var actual GitHubReplication
+
+	// test round-trip yaml serialization and deserialization
+	asYaml, err := yaml.Marshal(v)
+	require.NoError(t, err)
+	err = yaml.Unmarshal(asYaml, &actual)
+	require.NoError(t, err)
+	assert.Equal(t, v, actual)
+
+	// test round-trip json serialization and deserialization
+	asJson, err := json.Marshal(v)
+	require.NoError(t, err)
+	err = json.Unmarshal(asJson, &actual)
+	require.NoError(t, err)
+	assert.Equal(t, v, actual)
+}
