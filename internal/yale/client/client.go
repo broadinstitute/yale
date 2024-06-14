@@ -5,6 +5,7 @@ package client
 import (
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"fmt"
+	"github.com/google/go-github/v62/github"
 	"os"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
@@ -30,6 +31,8 @@ import (
 const vaultRoleIdEnvVar = "VAULT_ROLE_ID"
 const vaultSecretIdEnvVar = "VAULT_SECRET_ID"
 
+const githubAuthTokenEnvVar = "GITHUB_AUTH_TOKEN"
+
 // Clients struct containing the GCP and k8s clients used in this tool
 type Clients struct {
 	iam           *iam.Service
@@ -39,6 +42,7 @@ type Clients struct {
 	vault         *vaultapi.Client
 	secretmanager *secretmanager.Client
 	azure         *msgraph.ApplicationsClient
+	github        *github.Client
 }
 
 func NewClients(
@@ -49,6 +53,7 @@ func NewClients(
 	vault *vaultapi.Client,
 	secretManager *secretmanager.Client,
 	azure *msgraph.ApplicationsClient,
+	github *github.Client,
 ) *Clients {
 	return &Clients{
 		iam:           iam,
@@ -58,6 +63,7 @@ func NewClients(
 		vault:         vault,
 		secretmanager: secretManager,
 		azure:         azure,
+		github:        github,
 	}
 }
 
@@ -93,6 +99,10 @@ func (c *Clients) GetGoogleSecretManager() *secretmanager.Client {
 
 func (c *Clients) GetAzure() *msgraph.ApplicationsClient {
 	return c.azure
+}
+
+func (c *Clients) GetGitHub() *github.Client {
+	return c.github
 }
 
 // Build creates the GCP and k8s clients used by this tool
@@ -135,7 +145,9 @@ func Build(local bool, kubeconfig string) (*Clients, error) {
 		return nil, fmt.Errorf("error building Azure Graph client: %v", err)
 	}
 
-	return NewClients(_iam, metrics, k8s, crd, vault, secretManager, azure), nil
+	github := buildGitHubClient()
+
+	return NewClients(_iam, metrics, k8s, crd, vault, secretManager, azure, github), nil
 }
 
 func buildKubeConfig(local bool, kubeconfig string) (*restclient.Config, error) {
@@ -221,6 +233,10 @@ func buildSecretManagerClient() (*secretmanager.Client, error) {
 		return nil, fmt.Errorf("error creating secret manager client: %v", err)
 	}
 	return client, nil
+}
+
+func buildGitHubClient() *github.Client {
+	return github.NewClient(nil).WithAuthToken(os.Getenv(githubAuthTokenEnvVar))
 }
 
 const azureFederatedCredentialAudience = "api://AzureADTokenExchange"

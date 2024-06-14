@@ -74,7 +74,7 @@ func (suite *YaleSuite) SetupTest() {
 
 	// use real keysync so we can verify the state of Vault server/K8s secrets
 	// after the yale run finishes, without mocking every individual call
-	suite.keysync = keysync.New(suite.k8s, suite.vaultServer.NewClient(), suite.gsmServer.NewClient(), suite.cache)
+	suite.keysync = keysync.New(suite.k8s, suite.vaultServer.NewClient(), suite.gsmServer.NewClient(), nil, suite.cache)
 
 	// use noop slack notifier
 	suite.slack = slack.New("")
