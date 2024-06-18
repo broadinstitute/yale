@@ -116,8 +116,8 @@ func TestEncrypt(t *testing.T) {
 // Returns a predefined keypair for mocking out randomness in nonce generation.
 func mockGenerateKey(r io.Reader) (*[32]byte, *[32]byte, error) {
 	pub := new([keySize]byte)
-	base64.StdEncoding.Decode(pub[:], []byte(mockGeneratedPublicKey))
+	_, _ = base64.StdEncoding.Decode(pub[:], []byte(mockGeneratedPublicKey))
 	priv := new([keySize]byte)
-	base64.StdEncoding.Decode(priv[:], []byte(mockGeneratedPrivateKey))
+	_, _ = base64.StdEncoding.Decode(priv[:], []byte(mockGeneratedPrivateKey))
 	return pub, priv, nil
 }
