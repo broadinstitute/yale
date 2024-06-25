@@ -19,13 +19,14 @@ import (
 
 type args struct {
 	// use local kube config
-	local                   bool
-	kubeconfig              string
-	cacheNamespace          string
-	ignoreUsageMetrics      bool
-	windowStart             string
-	windowEnd               string
-	disableVaultReplication bool
+	local                    bool
+	kubeconfig               string
+	cacheNamespace           string
+	ignoreUsageMetrics       bool
+	windowStart              string
+	windowEnd                string
+	disableVaultReplication  bool
+	disableGitHubReplication bool
 }
 
 func main() {
@@ -49,6 +50,7 @@ func main() {
 		options.SlackWebhookUrl = os.Getenv(slack.WebhookEnvVar)
 		options.RotateWindow = *window
 		options.DisableVaultReplication = args.disableVaultReplication
+		options.DisableGitHubReplication = args.disableGitHubReplication
 	})
 	if err = m.Run(); err != nil {
 		logs.Error.Fatal(err)
@@ -68,6 +70,7 @@ func parseArgs() *args {
 	windowStart := flag.String("window-start", "", "use to restrict rotation to a particular time of day (HH:MM). eg. 05:00")
 	windowEnd := flag.String("window-end", "", "use to restrict rotation to a particular time of day (HH:MM). eg. 06:00")
 	disableVaultReplication := flag.Bool("disable-vault-replication", false, "use to globally disable Vault replication")
+	disableGitHubReplication := flag.Bool("disable-github-replication", false, "use to globally disable GitHub replication")
 
 	flag.Parse()
 	return &args{
@@ -78,6 +81,7 @@ func parseArgs() *args {
 		*windowStart,
 		*windowEnd,
 		*disableVaultReplication,
+		*disableGitHubReplication,
 	}
 }
 
