@@ -492,7 +492,9 @@ func (k *keysync) replicateKeyToGitHub(entry *cache.Entry, syncable Syncable) er
 			return fmt.Errorf("%s/%s: error encrypting secret for %s/%s: %v", syncable.Namespace(), syncable.Name(), org, repo, err)
 		}
 
-		_, err = k.github.Actions.CreateOrUpdateRepoSecret(context.Background(), org, repo, &github.EncryptedSecret{
+		logs.Info.Printf("Writing secret for %s/%s to GitHub secret %s in repo %s (format: %s)", syncable.Namespace(), syncable.Name(), r.Secret, r.Repo, r.Format)
+
+		resp, err := k.github.Actions.CreateOrUpdateRepoSecret(context.Background(), org, repo, &github.EncryptedSecret{
 			Name:           r.Secret,
 			KeyID:          *pubkey.KeyID,
 			EncryptedValue: encryptedSecret,
@@ -500,6 +502,7 @@ func (k *keysync) replicateKeyToGitHub(entry *cache.Entry, syncable Syncable) er
 		if err != nil {
 			return fmt.Errorf("%s/%s: error pushing encrypted GitHub secret %s to %s/%s: %v", syncable.Namespace(), syncable.Name(), r.Secret, org, repo, err)
 		}
+		logs.Info.Printf("request to write GitHub secret GitHub secret %s in repo %s returned %d", r.Secret, r.Repo, resp.StatusCode)
 	}
 
 	return nil
