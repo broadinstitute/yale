@@ -1,4 +1,4 @@
-package githubsecret
+package github
 
 import (
 	"encoding/base64"

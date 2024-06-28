@@ -5,7 +5,8 @@ package client
 import (
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"fmt"
-	"github.com/google/go-github/v62/github"
+	"github.com/broadinstitute/yale/internal/yale/keysync/github"
+	githubapi "github.com/google/go-github/v62/github"
 	"os"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
@@ -42,7 +43,7 @@ type Clients struct {
 	vault         *vaultapi.Client
 	secretmanager *secretmanager.Client
 	azure         *msgraph.ApplicationsClient
-	github        *github.Client
+	github        github.Client
 }
 
 func NewClients(
@@ -53,7 +54,7 @@ func NewClients(
 	vault *vaultapi.Client,
 	secretManager *secretmanager.Client,
 	azure *msgraph.ApplicationsClient,
-	github *github.Client,
+	github github.Client,
 ) *Clients {
 	return &Clients{
 		iam:           iam,
@@ -101,7 +102,7 @@ func (c *Clients) GetAzure() *msgraph.ApplicationsClient {
 	return c.azure
 }
 
-func (c *Clients) GetGitHub() *github.Client {
+func (c *Clients) GetGitHub() github.Client {
 	return c.github
 }
 
@@ -145,9 +146,9 @@ func Build(local bool, kubeconfig string) (*Clients, error) {
 		return nil, fmt.Errorf("error building Azure Graph client: %v", err)
 	}
 
-	github := buildGitHubClient()
+	_github := buildGitHubClient()
 
-	return NewClients(_iam, metrics, k8s, crd, vault, secretManager, azure, github), nil
+	return NewClients(_iam, metrics, k8s, crd, vault, secretManager, azure, _github), nil
 }
 
 func buildKubeConfig(local bool, kubeconfig string) (*restclient.Config, error) {
@@ -210,13 +211,13 @@ func buildVaultClient() (*vaultapi.Client, error) {
 			return nil, fmt.Errorf("%s specified but no %s", vaultRoleIdEnvVar, vaultSecretIdEnvVar)
 		}
 
-		var auth *vaultapprole.AppRoleAuth
-		auth, err = vaultapprole.NewAppRoleAuth(roleID, &vaultapprole.SecretID{FromString: secretID})
+		var _auth *vaultapprole.AppRoleAuth
+		_auth, err = vaultapprole.NewAppRoleAuth(roleID, &vaultapprole.SecretID{FromString: secretID})
 		if err != nil {
 			return nil, fmt.Errorf("error authenticating Vault client: %v", err)
 		}
 
-		_, err = client.Auth().Login(context.Background(), auth)
+		_, err = client.Auth().Login(context.Background(), _auth)
 		if err != nil {
 			return nil, fmt.Errorf("error authenticating Vault client: %v", err)
 		}
@@ -235,8 +236,9 @@ func buildSecretManagerClient() (*secretmanager.Client, error) {
 	return client, nil
 }
 
-func buildGitHubClient() *github.Client {
-	return github.NewClient(nil).WithAuthToken(os.Getenv(githubAuthTokenEnvVar))
+func buildGitHubClient() github.Client {
+	gitubapiClient := githubapi.NewClient(nil).WithAuthToken(os.Getenv(githubAuthTokenEnvVar))
+	return github.NewClient(gitubapiClient)
 }
 
 const azureFederatedCredentialAudience = "api://AzureADTokenExchange"

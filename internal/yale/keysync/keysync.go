@@ -9,7 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/broadinstitute/yale/internal/yale/keysync/githubsecret"
+	"github.com/broadinstitute/yale/internal/yale/keysync/github"
 	"google.golang.org/api/iterator"
 	"strings"
 	"sync"
@@ -17,7 +17,6 @@ import (
 	"github.com/broadinstitute/yale/internal/yale/cache"
 	apiv1b1 "github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/logs"
-	"github.com/google/go-github/v62/github"
 	vaultapi "github.com/hashicorp/vault/api"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -80,7 +79,7 @@ func AzureClientSecretsToSyncable(acs []apiv1b1.AzureClientSecret) []Syncable {
 	return result
 }
 
-func New(k8s kubernetes.Interface, vault *vaultapi.Client, secretManager *secretmanager.Client, github *github.Client, cache cache.Cache, options ...Option) KeySync {
+func New(k8s kubernetes.Interface, vault *vaultapi.Client, secretManager *secretmanager.Client, github github.Client, cache cache.Cache, options ...Option) KeySync {
 	opts := Options{
 		DisableVaultReplication: false,
 	}
@@ -101,7 +100,7 @@ type keysync struct {
 	options        Options
 	vault          *vaultapi.Client
 	secretManager  *secretmanager.Client
-	github         *github.Client
+	github         github.Client
 	k8s            kubernetes.Interface
 	cache          cache.Cache
 	mutex          sync.Mutex
@@ -478,31 +477,17 @@ func (k *keysync) replicateKeyToGitHub(entry *cache.Entry, syncable Syncable) er
 		org := tokens[0]
 		repo := tokens[1]
 
-		pubkey, _, err := k.github.Actions.GetRepoPublicKey(context.Background(), "broadinstitute", "yale")
-		if err != nil {
-			return fmt.Errorf("%s/%s: error retrieving public key for %s/%s: %v", syncable.Namespace(), syncable.Name(), org, repo, err)
-		}
-
 		formatted, err := formatSecretForGitHubOrGSM(entry, r.Format)
 		if err != nil {
 			return fmt.Errorf("%s/%s: error formatting secret for %s/%s: %v", syncable.Namespace(), syncable.Name(), org, repo, err)
 		}
-		encryptedSecret, err := githubsecret.Encrypt(*pubkey.Key, string(formatted))
-		if err != nil {
-			return fmt.Errorf("%s/%s: error encrypting secret for %s/%s: %v", syncable.Namespace(), syncable.Name(), org, repo, err)
-		}
 
 		logs.Info.Printf("Writing secret for %s/%s to GitHub secret %s in repo %s (format: %s)", syncable.Namespace(), syncable.Name(), r.Secret, r.Repo, r.Format)
 
-		resp, err := k.github.Actions.CreateOrUpdateRepoSecret(context.Background(), org, repo, &github.EncryptedSecret{
-			Name:           r.Secret,
-			KeyID:          *pubkey.KeyID,
-			EncryptedValue: encryptedSecret,
-		})
+		err = k.github.WriteSecret(org, repo, r.Secret, formatted)
 		if err != nil {
-			return fmt.Errorf("%s/%s: error pushing encrypted GitHub secret %s to %s/%s: %v", syncable.Namespace(), syncable.Name(), r.Secret, org, repo, err)
+			return fmt.Errorf("%s/%s: error writing GitHub secret %s in repo %s/%s: %v", syncable.Namespace(), syncable.Name(), r.Secret, org, repo, err)
 		}
-		logs.Info.Printf("request to write GitHub secret GitHub secret %s in repo %s returned %d", r.Secret, r.Repo, resp.StatusCode)
 	}
 
 	return nil

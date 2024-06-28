@@ -1,4 +1,4 @@
-package githubsecret
+package github
 
 import (
 	"crypto/rand"

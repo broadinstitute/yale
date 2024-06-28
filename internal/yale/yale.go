@@ -3,7 +3,7 @@ package yale
 import (
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"fmt"
-	"github.com/google/go-github/v62/github"
+	"github.com/broadinstitute/yale/internal/yale/keysync/github"
 	"strings"
 	"time"
 
@@ -67,7 +67,7 @@ func NewYale(clients *client.Clients, opts ...func(*Options)) *Yale {
 	return newYaleFromClients(clients.GetK8s(), clients.GetCRDs(), clients.GetIAM(), clients.GetMetrics(), clients.GetVault(), clients.GetGoogleSecretManager(), clients.GetAzure(), clients.GetGitHub(), opts...)
 }
 
-func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, secretManager *secretmanager.Client, azure *msgraph.ApplicationsClient, github *github.Client, opts ...func(*Options)) *Yale {
+func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, secretManager *secretmanager.Client, azure *msgraph.ApplicationsClient, _github github.Client, opts ...func(*Options)) *Yale {
 	options := Options{
 		CacheNamespace:           cache.DefaultCacheNamespace,
 		IgnoreUsageMetrics:       false,
@@ -83,7 +83,7 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 
 	_authmetrics := authmetrics.New(metrics, iam)
 	_cache := cache.New(k8s, options.CacheNamespace)
-	_keysync := keysync.New(k8s, vault, secretManager, github, _cache, func(opts *keysync.Options) {
+	_keysync := keysync.New(k8s, vault, secretManager, _github, _cache, func(opts *keysync.Options) {
 		opts.DisableVaultReplication = options.DisableVaultReplication
 		opts.DisableGitHubReplication = options.DisableGitHubReplication
 	})
