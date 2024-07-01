@@ -4,6 +4,7 @@ import (
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"context"
 	"encoding/json"
+	githubmocks "github.com/broadinstitute/yale/internal/yale/keysync/github/mocks"
 	"github.com/broadinstitute/yale/internal/yale/keysync/testutils/gsm"
 	"testing"
 
@@ -39,11 +40,12 @@ var key1 = fakeKey{
 
 type KeySyncSuite struct {
 	suite.Suite
-	k8s         kubernetes.Interface
-	vaultServer *vaultutils.FakeVaultServer
-	gsmServer   *gsm.FakeGsmServer
-	cache       *cachemocks.Cache
-	keysync     KeySync
+	k8s          kubernetes.Interface
+	vaultServer  *vaultutils.FakeVaultServer
+	gsmServer    *gsm.FakeGsmServer
+	githubClient *githubmocks.Client
+	cache        *cachemocks.Cache
+	keysync      KeySync
 }
 
 func TestKeySyncSuite(t *testing.T) {
@@ -54,8 +56,9 @@ func (suite *KeySyncSuite) SetupTest() {
 	suite.k8s = testutils.NewFakeK8sClient(suite.T())
 	suite.vaultServer = vaultutils.NewFakeVaultServer(suite.T())
 	suite.gsmServer = gsm.NewFakeGsm(suite.T())
+	suite.githubClient = githubmocks.NewClient(suite.T())
 	suite.cache = cachemocks.NewCache(suite.T())
-	suite.keysync = New(suite.k8s, suite.vaultServer.NewClient(), suite.gsmServer.NewClient(), suite.cache)
+	suite.keysync = New(suite.k8s, suite.vaultServer.NewClient(), suite.gsmServer.NewClient(), suite.githubClient, suite.cache)
 }
 
 func (suite *KeySyncSuite) TearDownTest() {
@@ -159,8 +162,8 @@ func (suite *KeySyncSuite) Test_KeySync_CreatesK8sSecret() {
 	// make sure the cache entry was updated with correct key-sync record
 	assert.Len(suite.T(), entry.SyncStatus, 1)
 	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
-	assert.Equal(suite.T(), "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
-	assert.Equal(suite.T(), "c6c269e0644ed0b2b32960f42e6089d70740ff4e82331928c11873a4d1516453:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
+	assert.Equal(suite.T(), "54dbebdeb257509c0c14a1deb9c089f748a1014d1bd95cdb63934990d9d58d70:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "ac43f2b3c2a67ffdfb7bcdc645a8b77cfec1514f15565a41241bd0dddd91fd6d:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
 func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
@@ -286,8 +289,8 @@ func (suite *KeySyncSuite) Test_KeySync_UpdatesK8sSecretIfAlreadyExists() {
 	// make sure the cache entry was updated with correct key-sync record
 	assert.Len(suite.T(), entry.SyncStatus, 1)
 	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
-	assert.Equal(suite.T(), "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
-	assert.Equal(suite.T(), "c6c269e0644ed0b2b32960f42e6089d70740ff4e82331928c11873a4d1516453:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
+	assert.Equal(suite.T(), "54dbebdeb257509c0c14a1deb9c089f748a1014d1bd95cdb63934990d9d58d70:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "ac43f2b3c2a67ffdfb7bcdc645a8b77cfec1514f15565a41241bd0dddd91fd6d:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
 func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications() {
@@ -411,12 +414,12 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredVaultReplications()
 	})
 	assert.Len(suite.T(), entry.SyncStatus, 1)
 	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
-	assert.Equal(suite.T(), "ea3801dc25624b4bb75f959d936f52fcc7b248b2c4362c029348384b4802b68e:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
-	assert.Equal(suite.T(), "a236fa801cfb75fc0ba26b48d4c3c1985e61b30ff1a99fa02dc494b7c638965c:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
+	assert.Equal(suite.T(), "2e3c041c321b114ef73418778f45ff32a2ee69a3778ea8c7941ddb7f476caae4:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "e3195092300f9d64d790d1117e8880b85a2a55f6973fbb9f709a9e9e65b693df:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
 func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformVaultReplicationsIfVaultReplicationIsDisabled() {
-	suite.keysync = New(suite.k8s, suite.vaultServer.NewClient(), suite.gsmServer.NewClient(), suite.cache, func(options *Options) {
+	suite.keysync = New(suite.k8s, suite.vaultServer.NewClient(), suite.gsmServer.NewClient(), nil, suite.cache, func(options *Options) {
 		options.DisableVaultReplication = true
 	})
 
@@ -466,7 +469,7 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformVaultReplicationsIfVaultRe
 	suite.assertVaultServerHasNoSecretAtPath("secret/foo/test/json")
 
 	assert.Len(suite.T(), entry.SyncStatus, 1)
-	assert.Equal(suite.T(), "106a57c52a0bc830af38ad619a4935e161ee411b04da5862d70e4ef92adc34e1:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "273df880c058c9a339342a4dcf1cf5f06dedce6f84d0735898ee30e223573260:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
 }
 
 func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
@@ -621,8 +624,183 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsAllConfiguredGSMReplications() {
 
 	assert.Len(suite.T(), entry.SyncStatus, 1)
 	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
-	assert.Equal(suite.T(), "e67d0c10b708ec08721a423798e2d0888579ed8ee70424f6b4169b31f7298b96:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
-	assert.Equal(suite.T(), "7b927ab1374167aa8ee0f12990a569e1342b854767c35e74833c39b986091330:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
+	assert.Equal(suite.T(), "4b95e4de60c35435a64bde1fba8a07a3a30de0a8f5d4c75a2580dd10d13083f4:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "538f508d5fc4f0f64bf2e5a01c0c497f9a133cca6afca2e26ecdc06b49204004:"+"1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
+}
+
+func (suite *KeySyncSuite) Test_KeySync_PerformsExpectedGoogleSAKeyGitHubReplications() {
+	entry := &cache.Entry{}
+	entry.Identifier = cache.GcpSaKeyEntryIdentifier{Email: "my-sa@gserviceaccount.com", Project: "my-project"}
+	entry.Type = cache.GcpSaKey
+	entry.CurrentKey.JSON = key1.json
+	entry.CurrentKey.ID = key1.id
+	entry.SyncStatus = map[string]string{} // no prior syncs recorded in the map
+
+	gsk := apiv1b1.GcpSaKey{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-gsk",
+			Namespace: "my-namespace",
+			Labels: map[string]string{
+				"label1": "value1",
+				"label2": "value2",
+			},
+		},
+		Spec: apiv1b1.GCPSaKeySpec{
+			Secret: apiv1b1.Secret{
+				Name:        "my-secret",
+				PemKeyName:  "my-key.pem",
+				JsonKeyName: "my-key.json",
+			},
+			GitHubReplications: []apiv1b1.GitHubReplication{
+				{
+					Repo:   "my-org/my-repo",
+					Secret: "MY_SECRET_JSON",
+					Format: apiv1b1.JSON,
+				},
+				{
+					Repo:   "my-org/my-repo",
+					Secret: "MY_SECRET_PEM",
+					Format: apiv1b1.PEM,
+				},
+				{
+					Repo:   "my-org/my-repo",
+					Secret: "MY_SECRET_B64",
+					Format: apiv1b1.Base64,
+				},
+				{
+					Repo:   "my-org/my-repo",
+					Secret: "MY_SECRET_PLAIN",
+					Format: apiv1b1.PlainText,
+				},
+			},
+		},
+	}
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
+
+	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_JSON", []byte(key1.json)).Return(nil)
+	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_PEM", []byte(key1.pem)).Return(nil)
+	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_B64", []byte(key1.base64)).Return(nil)
+	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_PLAIN", []byte(key1.json)).Return(nil)
+
+	// run a key sync to create the K8s secret and perform the vault replications
+	gsks := []apiv1b1.GcpSaKey{gsk}
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, GcpSaKeysToSyncable(gsks)))
+
+	// verify K8s secret was created
+	_, err := suite.getSecret("my-namespace", "my-secret")
+	require.NoError(suite.T(), err)
+
+	// make sure sync status was generated correctly
+	assert.Len(suite.T(), entry.SyncStatus, 1)
+	assert.Equal(suite.T(), "83b54b79f537b1fe4210bff6ffe127093ade36f9e7bc8a0f7ce66d0b6dd788fa:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+}
+
+func (suite *KeySyncSuite) Test_KeySync_PerformsExpectedAzureClientSecretGitHubReplications() {
+	entry := &cache.Entry{}
+	entry.Identifier = cache.AzureClientSecretEntryIdentifier{ApplicationID: "4321-4321-4321", TenantID: "2345-2345-2345"}
+	entry.CurrentKey.JSON = "my-acs-secret"
+	entry.CurrentKey.ID = "1234-1234-1234"
+	entry.Type = cache.AzureClientSecret
+	entry.SyncStatus = map[string]string{} // no prior syncs recorded in the map
+
+	acs := apiv1b1.AzureClientSecret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-acs",
+			Namespace: "my-namespace",
+			Labels: map[string]string{
+				"label1": "value1",
+				"label2": "value2",
+			},
+		},
+		Spec: apiv1b1.AzureClientSecretSpec{
+			Secret: apiv1b1.Secret{
+				Name:                "my-secret",
+				ClientSecretKeyName: "my-client-secret",
+			},
+			GitHubReplications: []apiv1b1.GitHubReplication{
+				{
+					Format: apiv1b1.PlainText,
+					Repo:   "my-org/my-repo",
+					Secret: "MY_SECRET_PLAIN",
+				},
+				{
+					Format: apiv1b1.Base64,
+					Repo:   "my-org/my-repo",
+					Secret: "MY_SECRET_B64",
+				},
+			},
+		},
+	}
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
+
+	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_PLAIN", []byte("my-acs-secret")).Return(nil)
+	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_B64", []byte("bXktYWNzLXNlY3JldA==")).Return(nil)
+
+	acsSecrets := []apiv1b1.AzureClientSecret{acs}
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, AzureClientSecretsToSyncable(acsSecrets)))
+
+	_, err := suite.getSecret("my-namespace", "my-secret")
+	require.NoError(suite.T(), err)
+
+	assert.Len(suite.T(), entry.SyncStatus, 1)
+	assert.Equal(suite.T(), "fad90f6c6d9204b9b9a796b65cfb7f64b6843c2294430bbba355aa635fa9afc4:"+"1234-1234-1234", entry.SyncStatus["my-namespace/my-acs"])
+}
+
+func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformGitHubReplicationsIfGitHubReplicationIsDisabled() {
+	suite.keysync = New(suite.k8s, suite.vaultServer.NewClient(), suite.gsmServer.NewClient(), nil, suite.cache, func(options *Options) {
+		options.DisableGitHubReplication = true
+	})
+
+	entry := &cache.Entry{}
+	entry.Identifier = cache.GcpSaKeyEntryIdentifier{Email: "my-sa@gserviceaccount.com", Project: "my-project"}
+	entry.Type = cache.GcpSaKey
+	entry.CurrentKey.JSON = key1.json
+	entry.CurrentKey.ID = key1.id
+	entry.SyncStatus = map[string]string{} // no prior syncs recorded in the map
+
+	gsk := apiv1b1.GcpSaKey{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-gsk",
+			Namespace: "my-namespace",
+			Labels: map[string]string{
+				"label1": "value1",
+				"label2": "value2",
+			},
+		},
+		Spec: apiv1b1.GCPSaKeySpec{
+			Secret: apiv1b1.Secret{
+				Name:        "my-secret",
+				PemKeyName:  "my-key.pem",
+				JsonKeyName: "my-key.json",
+			},
+			GitHubReplications: []apiv1b1.GitHubReplication{
+				{
+					Repo:   "my-org/my-repo",
+					Secret: "MY_SECRET",
+					Format: apiv1b1.JSON,
+				},
+			},
+		},
+	}
+
+	suite.cache.EXPECT().Save(entry).Return(nil)
+
+	// run a key sync to create the K8s secret and perform the vault replications
+	gsks := []apiv1b1.GcpSaKey{gsk}
+	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, GcpSaKeysToSyncable(gsks)))
+
+	// verify K8s secret was created
+	_, err := suite.getSecret("my-namespace", "my-secret")
+	require.NoError(suite.T(), err)
+
+	// make sure sync status was generated correctly
+	assert.Len(suite.T(), entry.SyncStatus, 1)
+	assert.Equal(suite.T(), "6b8ed4019d4e9b65e956f3deaf4bf1e1f30744f02b086950801d22fdb6949c15:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+
+	// assert WriteSecret was not called
+	suite.githubClient.AssertNotCalled(suite.T(), "WriteSecret")
 }
 
 func (suite *KeySyncSuite) Test_KeySync_PerformsASyncIfSyncStatusIsUpToDateButSecretIsMissing() {
@@ -707,7 +885,7 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 	entry.Type = cache.GcpSaKey
 	// pretend cache entry has already been synced for this gsk
 	entry.SyncStatus = map[string]string{
-		"my-namespace/my-gsk": "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:" + key1.id,
+		"my-namespace/my-gsk": "54dbebdeb257509c0c14a1deb9c089f748a1014d1bd95cdb63934990d9d58d70:" + key1.id,
 	}
 
 	gsk := apiv1b1.GcpSaKey{
@@ -734,7 +912,7 @@ func (suite *KeySyncSuite) Test_KeySync_DoesNotPerformASyncIfSyncStatusIsUpToDat
 	entryAcs.CurrentKey.ID = "1234-1234-1234"
 	entryAcs.Type = cache.AzureClientSecret
 	entryAcs.SyncStatus = map[string]string{
-		"my-namespace/my-acs": "c6c269e0644ed0b2b32960f42e6089d70740ff4e82331928c11873a4d1516453:1234-1234-1234",
+		"my-namespace/my-acs": "ac43f2b3c2a67ffdfb7bcdc645a8b77cfec1514f15565a41241bd0dddd91fd6d:1234-1234-1234",
 	}
 
 	acs := apiv1b1.AzureClientSecret{
@@ -797,9 +975,9 @@ func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
 	entry.CurrentKey.ID = key1.id
 	entry.Type = cache.GcpSaKey
 	entry.SyncStatus = map[string]string{
-		"my-namespace/my-gsk":         "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:" + key1.id, // should not be deleted
-		"my-namespace/deleted-gsk":    "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:" + key1.id, // should be deleted
-		"other-namespace/deleted-gsk": "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:" + key1.id, // should be deleted
+		"my-namespace/my-gsk":         "54dbebdeb257509c0c14a1deb9c089f748a1014d1bd95cdb63934990d9d58d70:" + key1.id, // should not be deleted
+		"my-namespace/deleted-gsk":    "54dbebdeb257509c0c14a1deb9c089f748a1014d1bd95cdb63934990d9d58d70:" + key1.id, // should be deleted
+		"other-namespace/deleted-gsk": "54dbebdeb257509c0c14a1deb9c089f748a1014d1bd95cdb63934990d9d58d70:" + key1.id, // should be deleted
 	}
 
 	gsk := apiv1b1.GcpSaKey{
@@ -857,8 +1035,8 @@ func (suite *KeySyncSuite) Test_KeySync_PrunesOldStatusEntries() {
 	// make sure the cache entry's sync status map has exactly one record was updated with correct key-sync records
 	assert.Len(suite.T(), entry.SyncStatus, 1) // length should b
 	assert.Len(suite.T(), entryAcs.SyncStatus, 1)
-	assert.Equal(suite.T(), "75c22359e6a7aa53b02a9db849e443c343d233d4cb71e0f62dd48e0fc5c5b6d9:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
-	assert.Equal(suite.T(), "c6c269e0644ed0b2b32960f42e6089d70740ff4e82331928c11873a4d1516453:1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
+	assert.Equal(suite.T(), "54dbebdeb257509c0c14a1deb9c089f748a1014d1bd95cdb63934990d9d58d70:"+key1.id, entry.SyncStatus["my-namespace/my-gsk"])
+	assert.Equal(suite.T(), "ac43f2b3c2a67ffdfb7bcdc645a8b77cfec1514f15565a41241bd0dddd91fd6d:1234-1234-1234", entryAcs.SyncStatus["my-namespace/my-acs"])
 }
 
 func (suite *KeySyncSuite) expectGSMReplication(project string, secret string, payload []byte) {

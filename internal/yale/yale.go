@@ -3,6 +3,7 @@ package yale
 import (
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"fmt"
+	"github.com/broadinstitute/yale/internal/yale/keysync/github"
 	"strings"
 	"time"
 
@@ -57,18 +58,21 @@ type Options struct {
 	RotateWindow RotateWindow
 	// DisableVaultReplication if true, Yale will not perform any Vault replications
 	DisableVaultReplication bool
+	// DisableGitHubReplication if true, Yale will not perform any GitHub replications
+	DisableGitHubReplication bool
 }
 
 // NewYale /* Construct a new Yale Manager */
 func NewYale(clients *client.Clients, opts ...func(*Options)) *Yale {
-	return newYaleFromClients(clients.GetK8s(), clients.GetCRDs(), clients.GetIAM(), clients.GetMetrics(), clients.GetVault(), clients.GetGoogleSecretManager(), clients.GetAzure(), opts...)
+	return newYaleFromClients(clients.GetK8s(), clients.GetCRDs(), clients.GetIAM(), clients.GetMetrics(), clients.GetVault(), clients.GetGoogleSecretManager(), clients.GetAzure(), clients.GetGitHub(), opts...)
 }
 
-func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, secretManager *secretmanager.Client, azure *msgraph.ApplicationsClient, opts ...func(*Options)) *Yale {
+func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, secretManager *secretmanager.Client, azure *msgraph.ApplicationsClient, _github github.Client, opts ...func(*Options)) *Yale {
 	options := Options{
-		CacheNamespace:          cache.DefaultCacheNamespace,
-		IgnoreUsageMetrics:      false,
-		DisableVaultReplication: false,
+		CacheNamespace:           cache.DefaultCacheNamespace,
+		IgnoreUsageMetrics:       false,
+		DisableVaultReplication:  false,
+		DisableGitHubReplication: false,
 	}
 	for _, opt := range opts {
 		opt(&options)
@@ -79,8 +83,9 @@ func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, 
 
 	_authmetrics := authmetrics.New(metrics, iam)
 	_cache := cache.New(k8s, options.CacheNamespace)
-	_keysync := keysync.New(k8s, vault, secretManager, _cache, func(opts *keysync.Options) {
+	_keysync := keysync.New(k8s, vault, secretManager, _github, _cache, func(opts *keysync.Options) {
 		opts.DisableVaultReplication = options.DisableVaultReplication
+		opts.DisableGitHubReplication = options.DisableGitHubReplication
 	})
 	_resourcemap := resourcemap.New(crd, _cache)
 	_slack := slack.New(options.SlackWebhookUrl)

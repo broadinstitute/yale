@@ -13,6 +13,7 @@ type AzureClientSecretSpec struct {
 	Secret                          Secret                           `json:"secret"`
 	VaultReplications               []VaultReplication               `json:"vaultReplications"`
 	GoogleSecretManagerReplications []GoogleSecretManagerReplication `json:"googleSecretManagerReplications"`
+	GitHubReplications              []GitHubReplication              `json:"githubReplications"`
 	KeyRotation                     KeyRotation                      `json:"keyRotation"`
 }
 
@@ -91,6 +92,10 @@ func (g AzureClientSecret) VaultReplications() []VaultReplication {
 
 func (g AzureClientSecret) GoogleSecretManagerReplications() []GoogleSecretManagerReplication {
 	return g.Spec.GoogleSecretManagerReplications
+}
+
+func (g AzureClientSecret) GitHubReplications() []GitHubReplication {
+	return g.Spec.GitHubReplications
 }
 
 func (g AzureClientSecret) APIVersion() string {
