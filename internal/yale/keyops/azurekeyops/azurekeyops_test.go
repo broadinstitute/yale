@@ -100,6 +100,20 @@ func Test_isDisabledTrue(t *testing.T) {
 
 }
 
+func Test_disableNonExistentKey(t *testing.T) {
+	keyops := setup(t, func(expect msgraphmock.Expect) {
+		expect.Get(context.Background(), testApplicationID, odata.Query{}).
+			Returns(&msgraph.Application{
+				AppId:               &testApplicationID,
+				PasswordCredentials: &[]msgraph.PasswordCredential{},
+			})
+	})
+
+	_, err := keyops.IsDisabled(testKey)
+	require.ErrorContains(t, err, "error retrieving client secret info for application")
+
+}
+
 func Test_deleteIfDisabled(t *testing.T) {
 	keyops := setup(t, func(expect msgraphmock.Expect) {
 		expect.Get(context.Background(), testApplicationID, odata.Query{}).
