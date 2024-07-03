@@ -60,7 +60,8 @@ func (a *azKeyOps) Create(tenantID string, applicationID string) (keyops.Key, []
 	}, clientSecretData, nil
 }
 
-// Unlike GCP, in Azure there is no concept of a key that exists but is disabled. There is a concept of a key that is expired.
+// Unlike GCP, in Azure there is no concept of a key that exists but is disabled.
+// Instead we just check to see if the key exists and return true if so that yale's internal cache handling can still treat the key as disabled.
 func (a *azKeyOps) IsDisabled(key keyops.Key) (bool, error) {
 	applicationData, statusCode, err := a.applicationsClient.Get(context.TODO(), key.Identifier, odata.Query{})
 	if err != nil {
@@ -78,12 +79,11 @@ func (a *azKeyOps) IsDisabled(key keyops.Key) (bool, error) {
 	// iterate over the passwordCredentials field to find the credential with the matching keyId
 	for _, credential := range *applicationData.PasswordCredentials {
 		if credential.KeyId != nil && *credential.KeyId == key.ID {
-			// if the credential is expired, return true
-			if credential.EndDateTime != nil && credential.EndDateTime.Before(time.Now()) {
-				return true, nil
-			}
-			// otherwise return false
-			return false, nil
+			// Azure does not have the concept of a key that is disabled.
+			// So here we just check to see if the key is a valid key that exists
+			// and return true if so that yale's internal cache handling can appropriately treat the key as
+			// disabled even the concept of a disabled client secret does not exist in Azure.
+			return true, nil
 		}
 	}
 

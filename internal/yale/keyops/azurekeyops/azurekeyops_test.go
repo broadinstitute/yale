@@ -71,32 +71,10 @@ func Test_CreateErrorsIfResponseLacksSecret(t *testing.T) {
 	assert.ErrorContains(t, err, "secretText field was nil")
 }
 
-var notDisabledTime = time.Now().Add(time.Hour * 24)
 var testKey = keyops.Key{
 	Scope:      testTenantID,
 	Identifier: testApplicationID,
 	ID:         testKeyID,
-}
-
-func Test_isDisabledFalse(t *testing.T) {
-	keyops := setup(t, func(expect msgraphmock.Expect) {
-		expect.Get(context.Background(), testApplicationID, odata.Query{}).
-			Returns(&msgraph.Application{
-				AppId: &testApplicationID,
-				PasswordCredentials: &[]msgraph.PasswordCredential{
-					{
-						DisplayName: &testApplicationID,
-						KeyId:       &testKeyID,
-						SecretText:  &testSecret,
-						EndDateTime: &notDisabledTime,
-					},
-				},
-			})
-	})
-
-	disabled, err := keyops.IsDisabled(testKey)
-	require.NoError(t, err)
-	assert.False(t, disabled)
 }
 
 var expiredTime = time.Now().Add(time.Hour * -24)
@@ -122,6 +100,20 @@ func Test_isDisabledTrue(t *testing.T) {
 
 }
 
+func Test_disableNonExistentKey(t *testing.T) {
+	keyops := setup(t, func(expect msgraphmock.Expect) {
+		expect.Get(context.Background(), testApplicationID, odata.Query{}).
+			Returns(&msgraph.Application{
+				AppId:               &testApplicationID,
+				PasswordCredentials: &[]msgraph.PasswordCredential{},
+			})
+	})
+
+	_, err := keyops.IsDisabled(testKey)
+	require.ErrorContains(t, err, "error retrieving client secret info for application")
+
+}
+
 func Test_deleteIfDisabled(t *testing.T) {
 	keyops := setup(t, func(expect msgraphmock.Expect) {
 		expect.Get(context.Background(), testApplicationID, odata.Query{}).
@@ -141,26 +133,6 @@ func Test_deleteIfDisabled(t *testing.T) {
 
 	err := keyops.DeleteIfDisabled(testKey)
 	require.NoError(t, err)
-}
-
-func Test_dontDeleteIfNotDisabled(t *testing.T) {
-	keyops := setup(t, func(expect msgraphmock.Expect) {
-		expect.Get(context.Background(), testApplicationID, odata.Query{}).
-			Returns(&msgraph.Application{
-				AppId: &testApplicationID,
-				PasswordCredentials: &[]msgraph.PasswordCredential{
-					{
-						DisplayName: &testApplicationID,
-						KeyId:       &testKeyID,
-						SecretText:  &testSecret,
-						EndDateTime: &notDisabledTime,
-					},
-				},
-			})
-	})
-
-	err := keyops.DeleteIfDisabled(testKey)
-	require.ErrorContains(t, err, "is not disabled, cannot delete")
 }
 
 func setup(t *testing.T, expectFn func(msgraphmock.Expect)) keyops.KeyOps {
