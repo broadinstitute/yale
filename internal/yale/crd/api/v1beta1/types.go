@@ -57,9 +57,10 @@ type GoogleSecretManagerReplication struct {
 }
 
 type GitHubReplication struct {
-	Secret string            `json:"secret"`
-	Repo   string            `json:"repo"`
-	Format ReplicationFormat `json:"format"`
+	Secret     string            `json:"secret"`
+	Repo       string            `json:"repo"`
+	Format     ReplicationFormat `json:"format"`
+	SecretKind string            `json:"secretKind"`
 }
 
 type ReplicationFormat int64

@@ -127,6 +127,7 @@ func Test_GitHubReplicationSerialization(t *testing.T) {
 		Secret: "MY_SECRET",
 		Repo:   "my-org/my-repo",
 		Format: JSON,
+		Kind:   "dependabot",
 	}
 
 	var err error
