@@ -124,10 +124,10 @@ func Test_GoogleSecretManagerReplicationSerialization(t *testing.T) {
 
 func Test_GitHubReplicationSerialization(t *testing.T) {
 	v := GitHubReplication{
-		Secret: "MY_SECRET",
-		Repo:   "my-org/my-repo",
-		Format: JSON,
-		Kind:   "dependabot",
+		Secret:     "MY_SECRET",
+		Repo:       "my-org/my-repo",
+		Format:     JSON,
+		SecretKind: "dependabot",
 	}
 
 	var err error
