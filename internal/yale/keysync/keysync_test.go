@@ -653,24 +653,28 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsExpectedGoogleSAKeyGitHubReplica
 			},
 			GitHubReplications: []apiv1b1.GitHubReplication{
 				{
-					Repo:   "my-org/my-repo",
-					Secret: "MY_SECRET_JSON",
-					Format: apiv1b1.JSON,
+					Repo:       "my-org/my-repo",
+					Secret:     "MY_SECRET_JSON",
+					Format:     apiv1b1.JSON,
+					SecretKind: "actions",
 				},
 				{
-					Repo:   "my-org/my-repo",
-					Secret: "MY_SECRET_PEM",
-					Format: apiv1b1.PEM,
+					Repo:       "my-org/my-repo",
+					Secret:     "MY_SECRET_PEM",
+					Format:     apiv1b1.PEM,
+					SecretKind: "dependabot",
 				},
 				{
-					Repo:   "my-org/my-repo",
-					Secret: "MY_SECRET_B64",
-					Format: apiv1b1.Base64,
+					Repo:       "my-org/my-repo",
+					Secret:     "MY_SECRET_B64",
+					Format:     apiv1b1.Base64,
+					SecretKind: "actions",
 				},
 				{
-					Repo:   "my-org/my-repo",
-					Secret: "MY_SECRET_PLAIN",
-					Format: apiv1b1.PlainText,
+					Repo:       "my-org/my-repo",
+					Secret:     "MY_SECRET_PLAIN",
+					Format:     apiv1b1.PlainText,
+					SecretKind: "dependabot",
 				},
 			},
 		},
@@ -678,10 +682,10 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsExpectedGoogleSAKeyGitHubReplica
 
 	suite.cache.EXPECT().Save(entry).Return(nil)
 
-	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_JSON", []byte(key1.json)).Return(nil)
-	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_PEM", []byte(key1.pem)).Return(nil)
-	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_B64", []byte(key1.base64)).Return(nil)
-	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_PLAIN", []byte(key1.json)).Return(nil)
+	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_JSON", "actions", []byte(key1.json)).Return(nil)
+	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_PEM", "dependabot", []byte(key1.pem)).Return(nil)
+	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_B64", "actions", []byte(key1.base64)).Return(nil)
+	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_PLAIN", "dependabot", []byte(key1.json)).Return(nil)
 
 	// run a key sync to create the K8s secret and perform the vault replications
 	gsks := []apiv1b1.GcpSaKey{gsk}
@@ -720,14 +724,16 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsExpectedAzureClientSecretGitHubR
 			},
 			GitHubReplications: []apiv1b1.GitHubReplication{
 				{
-					Format: apiv1b1.PlainText,
-					Repo:   "my-org/my-repo",
-					Secret: "MY_SECRET_PLAIN",
+					Format:     apiv1b1.PlainText,
+					Repo:       "my-org/my-repo",
+					Secret:     "MY_SECRET_PLAIN",
+					SecretKind: "actions",
 				},
 				{
-					Format: apiv1b1.Base64,
-					Repo:   "my-org/my-repo",
-					Secret: "MY_SECRET_B64",
+					Format:     apiv1b1.Base64,
+					Repo:       "my-org/my-repo",
+					Secret:     "MY_SECRET_B64",
+					SecretKind: "dependabot",
 				},
 			},
 		},
@@ -735,8 +741,8 @@ func (suite *KeySyncSuite) Test_KeySync_PerformsExpectedAzureClientSecretGitHubR
 
 	suite.cache.EXPECT().Save(entry).Return(nil)
 
-	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_PLAIN", []byte("my-acs-secret")).Return(nil)
-	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_B64", []byte("bXktYWNzLXNlY3JldA==")).Return(nil)
+	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_PLAIN", "actions", []byte("my-acs-secret")).Return(nil)
+	suite.githubClient.EXPECT().WriteSecret("my-org", "my-repo", "MY_SECRET_B64", "dependabot", []byte("bXktYWNzLXNlY3JldA==")).Return(nil)
 
 	acsSecrets := []apiv1b1.AzureClientSecret{acs}
 	require.NoError(suite.T(), suite.keysync.SyncIfNeeded(entry, AzureClientSecretsToSyncable(acsSecrets)))
