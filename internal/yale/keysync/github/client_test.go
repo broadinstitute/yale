@@ -44,5 +44,5 @@ func Test_Client_WritesSecret(t *testing.T) {
 	_client := NewClient(githubClient)
 
 	// write the secret
-	require.NoError(t, _client.WriteSecret(repo, org, secretName, "actions", []byte("some data")))
+	require.NoError(t, _client.WriteSecret(repo, org, secretName, false, []byte("some data")))
 }

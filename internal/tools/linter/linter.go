@@ -39,6 +39,8 @@ type document struct {
 	filename string
 }
 
+// in:#terra-asset-management after:2024-10-11 -cert -zebrafish -events -volumeattachments -customresourcedefinitions
+
 func Run(globs ...string) ([]reference, error) {
 	parser, err := newParser()
 	if err != nil {

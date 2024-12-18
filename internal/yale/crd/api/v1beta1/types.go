@@ -57,10 +57,10 @@ type GoogleSecretManagerReplication struct {
 }
 
 type GitHubReplication struct {
-	Secret     string            `json:"secret"`
-	Repo       string            `json:"repo"`
-	Format     ReplicationFormat `json:"format"`
-	SecretKind string            `json:"secretKind"`
+	Secret               string            `json:"secret"`
+	Repo                 string            `json:"repo"`
+	Format               ReplicationFormat `json:"format"`
+	RequiredByDependabot bool              `json:"requiredByDependabot"` // if supplied, also replicate to Dependabot secrets
 }
 
 type ReplicationFormat int64

@@ -482,9 +482,9 @@ func (k *keysync) replicateKeyToGitHub(entry *cache.Entry, syncable Syncable) er
 			return fmt.Errorf("%s/%s: error formatting secret for %s/%s: %v", syncable.Namespace(), syncable.Name(), org, repo, err)
 		}
 
-		logs.Info.Printf("Writing %s secret for %s/%s to GitHub secret %s in repo %s (format: %s)", r.SecretKind, syncable.Namespace(), syncable.Name(), r.Secret, r.Repo, r.Format)
+		logs.Info.Printf("Writing secret for %s/%s to GitHub secret %s in repo %s (format: %s)", syncable.Namespace(), syncable.Name(), r.Secret, r.Repo, r.Format)
 
-		err = k.github.WriteSecret(org, repo, r.Secret, r.SecretKind, formatted)
+		err = k.github.WriteSecret(org, repo, r.Secret, r.RequiredByDependabot, formatted)
 		if err != nil {
 			return fmt.Errorf("%s/%s: error writing GitHub secret %s in repo %s/%s: %v", syncable.Namespace(), syncable.Name(), r.Secret, org, repo, err)
 		}

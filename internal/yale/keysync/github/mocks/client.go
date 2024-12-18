@@ -17,17 +17,17 @@ func (_m *Client) EXPECT() *Client_Expecter {
 	return &Client_Expecter{mock: &_m.Mock}
 }
 
-// WriteSecret provides a mock function with given fields: owner, repo, secretName, secretType, content
-func (_m *Client) WriteSecret(owner string, repo string, secretName string, secretType string, content []byte) error {
-	ret := _m.Called(owner, repo, secretName, secretType, content)
+// WriteSecret provides a mock function with given fields: owner, repo, secretName, requiredByDependabot, content
+func (_m *Client) WriteSecret(owner string, repo string, secretName string, requiredByDependabot bool, content []byte) error {
+	ret := _m.Called(owner, repo, secretName, requiredByDependabot, content)
 
 	if len(ret) == 0 {
 		panic("no return value specified for WriteSecret")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, string, string, string, []byte) error); ok {
-		r0 = rf(owner, repo, secretName, secretType, content)
+	if rf, ok := ret.Get(0).(func(string, string, string, bool, []byte) error); ok {
+		r0 = rf(owner, repo, secretName, requiredByDependabot, content)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -44,15 +44,15 @@ type Client_WriteSecret_Call struct {
 //   - owner string
 //   - repo string
 //   - secretName string
-//   - secretType string
+//   - requiredByDependabot bool
 //   - content []byte
-func (_e *Client_Expecter) WriteSecret(owner interface{}, repo interface{}, secretName interface{}, secretType interface{}, content interface{}) *Client_WriteSecret_Call {
-	return &Client_WriteSecret_Call{Call: _e.mock.On("WriteSecret", owner, repo, secretName, secretType, content)}
+func (_e *Client_Expecter) WriteSecret(owner interface{}, repo interface{}, secretName interface{}, requiredByDependabot interface{}, content interface{}) *Client_WriteSecret_Call {
+	return &Client_WriteSecret_Call{Call: _e.mock.On("WriteSecret", owner, repo, secretName, requiredByDependabot, content)}
 }
 
-func (_c *Client_WriteSecret_Call) Run(run func(owner string, repo string, secretName string, secretType string, content []byte)) *Client_WriteSecret_Call {
+func (_c *Client_WriteSecret_Call) Run(run func(owner string, repo string, secretName string, requiredByDependabot bool, content []byte)) *Client_WriteSecret_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(string), args[2].(string), args[3].(string), args[4].([]byte))
+		run(args[0].(string), args[1].(string), args[2].(string), args[3].(bool), args[4].([]byte))
 	})
 	return _c
 }
@@ -62,7 +62,7 @@ func (_c *Client_WriteSecret_Call) Return(_a0 error) *Client_WriteSecret_Call {
 	return _c
 }
 
-func (_c *Client_WriteSecret_Call) RunAndReturn(run func(string, string, string, string, []byte) error) *Client_WriteSecret_Call {
+func (_c *Client_WriteSecret_Call) RunAndReturn(run func(string, string, string, bool, []byte) error) *Client_WriteSecret_Call {
 	_c.Call.Return(run)
 	return _c
 }
