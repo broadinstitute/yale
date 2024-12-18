@@ -43,7 +43,7 @@ func (c *client) WriteSecret(owner string, repo string, secretName string, requi
 	}
 
 	if requiredByDependabot {
-		pubkey, _, err = c.github.Actions.GetRepoPublicKey(context.Background(), owner, repo)
+		pubkey, _, err = c.github.Dependabot.GetRepoPublicKey(context.Background(), owner, repo)
 		if err != nil {
 			return fmt.Errorf("error retrieving dependabot public key for %s/%s: %v", owner, repo, err)
 		}
