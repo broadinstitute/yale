@@ -24,12 +24,12 @@ type client struct {
 func (c *client) WriteSecret(owner string, repo string, secretName string, requiredByDependabot bool, content []byte) error {
 	pubkey, _, err := c.github.Actions.GetRepoPublicKey(context.Background(), owner, repo)
 	if err != nil {
-		return fmt.Errorf("error retrieving public key for %s/%s: %v", owner, repo, err)
+		return fmt.Errorf("error retrieving actions public key for %s/%s: %v", owner, repo, err)
 	}
 
 	encryptedSecret, err := Encrypt(*pubkey.Key, string(content))
 	if err != nil {
-		return fmt.Errorf("error encrypting secret for %s/%s: %v", owner, repo, err)
+		return fmt.Errorf("error encrypting actions secret for %s/%s: %v", owner, repo, err)
 	}
 
 	logs.Info.Printf("Writing to GitHub Actions secret %s in repo %s/%s", secretName, owner, repo)
@@ -43,6 +43,16 @@ func (c *client) WriteSecret(owner string, repo string, secretName string, requi
 	}
 
 	if requiredByDependabot {
+		pubkey, _, err = c.github.Actions.GetRepoPublicKey(context.Background(), owner, repo)
+		if err != nil {
+			return fmt.Errorf("error retrieving dependabot public key for %s/%s: %v", owner, repo, err)
+		}
+
+		encryptedSecret, err = Encrypt(*pubkey.Key, string(content))
+		if err != nil {
+			return fmt.Errorf("error encrypting dependabot secret for %s/%s: %v", owner, repo, err)
+		}
+
 		logs.Info.Printf("Writing to GitHub Dependabot secret %s in repo %s/%s", secretName, owner, repo)
 		_, err = c.github.Dependabot.CreateOrUpdateRepoSecret(context.Background(), owner, repo, &github.DependabotEncryptedSecret{
 			Name:           secretName,
