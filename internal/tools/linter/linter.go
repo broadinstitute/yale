@@ -3,6 +3,7 @@ package linter
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"github.com/broadinstitute/yale/internal/yale/crd/api/v1beta1"
 	"github.com/broadinstitute/yale/internal/yale/logs"
@@ -38,6 +39,8 @@ type document struct {
 	filename string
 }
 
+// in:#terra-asset-management after:2024-10-11 -cert -zebrafish -events -volumeattachments -customresourcedefinitions
+
 func Run(globs ...string) ([]reference, error) {
 	parser, err := newParser()
 	if err != nil {
@@ -69,7 +72,7 @@ func Run(globs ...string) ([]reference, error) {
 	for _, m := range matches {
 		msg = msg + "    " + m.summarize() + "\n"
 	}
-	return matches, fmt.Errorf(msg)
+	return matches, errors.New(msg)
 }
 
 func scanDir(parser *parser, dir string) ([]reference, error) {

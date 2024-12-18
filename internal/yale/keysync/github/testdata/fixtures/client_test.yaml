@@ -44,15 +44,15 @@ interactions:
             Content-Type:
                 - application/json; charset=utf-8
             Date:
-                - Fri, 28 Jun 2024 18:30:59 GMT
+                - Wed, 18 Dec 2024 16:16:18 GMT
             Etag:
-                - W/"9abedcb701ca81279dc155e9e1e4c73ec2372a0e316a1aaa611f93a4ddba5429"
+                - W/"e56de75d7b196f007436ffdc20c3d4193e8e5632bf0973b56f4f63be90b8b16f"
             Github-Authentication-Token-Expiration:
-                - 2024-07-05 18:23:27 UTC
+                - 2025-01-17 16:13:34 UTC
             Referrer-Policy:
                 - origin-when-cross-origin, strict-origin-when-cross-origin
             Server:
-                - istio-envoy
+                - github.com
             Strict-Transport-Security:
                 - max-age=31536000; includeSubdomains; preload
             Vary:
@@ -61,8 +61,6 @@ interactions:
                 - ""
             X-Content-Type-Options:
                 - nosniff
-            X-Envoy-Upstream-Service-Time:
-                - "53"
             X-Frame-Options:
                 - deny
             X-Github-Api-Version-Selected:
@@ -70,24 +68,24 @@ interactions:
             X-Github-Media-Type:
                 - github.v3; format=json
             X-Github-Request-Id:
-                - CC84:1A4FE5:C12FAE:1619573:667F0163
+                - E765:1A0A2D:54EB0A4:A83B877:6762F552
             X-Oauth-Scopes:
                 - repo
             X-Ratelimit-Limit:
                 - "5000"
             X-Ratelimit-Remaining:
-                - "4994"
+                - "4989"
             X-Ratelimit-Reset:
-                - "1719602599"
+                - "1734538994"
             X-Ratelimit-Resource:
                 - core
             X-Ratelimit-Used:
-                - "6"
+                - "11"
             X-Xss-Protection:
                 - "0"
         status: 200 OK
         code: 200
-        duration: 150.929917ms
+        duration: 190.217542ms
     - id: 1
       request:
         proto: HTTP/1.1
@@ -100,7 +98,7 @@ interactions:
         remote_addr: ""
         request_uri: ""
         body: |
-            {"key_id":"3380204578043523366","encrypted_value":"bY6XmjboGreI8qvcoiy8n4n57BEfoG2pAsunXlnL03ssZfOPILBP0YiGMZk7g0D3K0HSA/g8kzHM"}
+            {"key_id":"3380204578043523366","encrypted_value":"i7i/K4J0CHR1/dcMMnUxK0Ecs0qm/qmD3/UquaCWR3YZ3RJgQsY1d879IJgjyXv3dR4cveYldYTL"}
         form: {}
         headers:
             Accept:
@@ -130,13 +128,13 @@ interactions:
             Content-Security-Policy:
                 - default-src 'none'
             Date:
-                - Fri, 28 Jun 2024 18:30:59 GMT
+                - Wed, 18 Dec 2024 16:16:19 GMT
             Github-Authentication-Token-Expiration:
-                - 2024-07-05 18:23:27 UTC
+                - 2025-01-17 16:13:34 UTC
             Referrer-Policy:
                 - origin-when-cross-origin, strict-origin-when-cross-origin
             Server:
-                - istio-envoy
+                - github.com
             Strict-Transport-Security:
                 - max-age=31536000; includeSubdomains; preload
             Vary:
@@ -145,8 +143,6 @@ interactions:
                 - ""
             X-Content-Type-Options:
                 - nosniff
-            X-Envoy-Upstream-Service-Time:
-                - "93"
             X-Frame-Options:
                 - deny
             X-Github-Api-Version-Selected:
@@ -154,21 +150,196 @@ interactions:
             X-Github-Media-Type:
                 - github.v3; format=json
             X-Github-Request-Id:
-                - CC84:1A4FE5:C12FF7:16195FA:667F0163
+                - E765:1A0A2D:54EB113:A83B986:6762F552
             X-Oauth-Scopes:
                 - repo
             X-Ratelimit-Limit:
                 - "5000"
             X-Ratelimit-Remaining:
-                - "4993"
+                - "4988"
             X-Ratelimit-Reset:
-                - "1719602599"
+                - "1734538994"
             X-Ratelimit-Resource:
                 - core
             X-Ratelimit-Used:
-                - "7"
+                - "12"
             X-Xss-Protection:
                 - "0"
         status: 204 No Content
         code: 204
-        duration: 118.410875ms
+        duration: 239.606917ms
+    - id: 2
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: ""
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            User-Agent:
+                - go-github/v62.0.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/broadinstitute/yale/dependabot/secrets/public-key
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: -1
+        uncompressed: true
+        body: '{"key_id":"3380217566468950943","key":"ur5MEbtH3evT4d2bIXRh6M59EGMH5etfzpM10he8hBQ="}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Wed, 18 Dec 2024 16:16:19 GMT
+            Etag:
+                - W/"9960b98443f33ed94434f836ae7b0de5919f3049cec1b53db53cb06890f47700"
+            Github-Authentication-Token-Expiration:
+                - 2025-01-17 16:13:34 UTC
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Oauth-Scopes:
+                - ""
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - E765:1A0A2D:54EB208:A83BB35:6762F553
+            X-Oauth-Scopes:
+                - repo
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4987"
+            X-Ratelimit-Reset:
+                - "1734538994"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "13"
+            X-Xss-Protection:
+                - "0"
+        status: 200 OK
+        code: 200
+        duration: 99.278792ms
+    - id: 3
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 130
+        transfer_encoding: []
+        trailer: {}
+        host: api.github.com
+        remote_addr: ""
+        request_uri: ""
+        body: |
+            {"key_id":"3380217566468950943","encrypted_value":"pbGJIKy+8xmnspShrlfIFUYBwLmDeV4mdF86HX9yelPvlNtNAdA+oZ+nYuOOIgVC7xVRvwxc5kNJ"}
+        form: {}
+        headers:
+            Accept:
+                - application/vnd.github.v3+json
+            Content-Type:
+                - application/json
+            User-Agent:
+                - go-github/v62.0.0
+            X-Github-Api-Version:
+                - "2022-11-28"
+        url: https://api.github.com/repos/broadinstitute/yale/dependabot/secrets/MY_TEST_SECRET
+        method: PUT
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        transfer_encoding: []
+        trailer: {}
+        content_length: 2
+        uncompressed: false
+        body: '{}'
+        headers:
+            Access-Control-Allow-Origin:
+                - '*'
+            Access-Control-Expose-Headers:
+                - ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Used, X-RateLimit-Resource, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type, X-GitHub-SSO, X-GitHub-Request-Id, Deprecation, Sunset
+            Cache-Control:
+                - private, max-age=60, s-maxage=60
+            Content-Length:
+                - "2"
+            Content-Security-Policy:
+                - default-src 'none'
+            Content-Type:
+                - application/json; charset=utf-8
+            Date:
+                - Wed, 18 Dec 2024 16:16:19 GMT
+            Etag:
+                - '"9e8c22466548b49c14dbe681e7ae46b950329e191a013303358d64d02a73d605"'
+            Github-Authentication-Token-Expiration:
+                - 2025-01-17 16:13:34 UTC
+            Referrer-Policy:
+                - origin-when-cross-origin, strict-origin-when-cross-origin
+            Server:
+                - github.com
+            Strict-Transport-Security:
+                - max-age=31536000; includeSubdomains; preload
+            Vary:
+                - Accept, Authorization, Cookie, X-GitHub-OTP,Accept-Encoding, Accept, X-Requested-With
+            X-Accepted-Oauth-Scopes:
+                - ""
+            X-Content-Type-Options:
+                - nosniff
+            X-Frame-Options:
+                - deny
+            X-Github-Api-Version-Selected:
+                - "2022-11-28"
+            X-Github-Media-Type:
+                - github.v3; format=json
+            X-Github-Request-Id:
+                - E765:1A0A2D:54EB266:A83BBF3:6762F553
+            X-Oauth-Scopes:
+                - repo
+            X-Ratelimit-Limit:
+                - "5000"
+            X-Ratelimit-Remaining:
+                - "4986"
+            X-Ratelimit-Reset:
+                - "1734538994"
+            X-Ratelimit-Resource:
+                - core
+            X-Ratelimit-Used:
+                - "14"
+            X-Xss-Protection:
+                - "0"
+        status: 201 Created
+        code: 201
+        duration: 187.715375ms

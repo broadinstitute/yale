@@ -22,7 +22,7 @@ func Test_Client_WritesSecret(t *testing.T) {
 
 	r, err := recorder.NewWithOptions(&recorder.Options{
 		CassetteName:       "testdata/fixtures/client_test",
-		Mode:               recorder.ModeRecordOnce, // change or delete fixture to re-record
+		Mode:               recorder.ModeRecordOnce, // delete fixture to re-record
 		SkipRequestLatency: true,
 	})
 	require.NoError(t, err)
@@ -44,5 +44,5 @@ func Test_Client_WritesSecret(t *testing.T) {
 	_client := NewClient(githubClient)
 
 	// write the secret
-	require.NoError(t, _client.WriteSecret(repo, org, secretName, []byte("some data")))
+	require.NoError(t, _client.WriteSecret(repo, org, secretName, true, []byte("some data")))
 }
