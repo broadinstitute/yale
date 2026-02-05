@@ -108,7 +108,7 @@ func (c *Clients) GetGitHub() github.Client {
 
 // Build creates the GCP and k8s clients used by this tool
 // and returns both packaged in a single struct
-func Build(local bool, kubeconfig string) (*Clients, error) {
+func Build(local bool, kubeconfig string, disableVaultReplication bool) (*Clients, error) {
 	conf, err := buildKubeConfig(local, kubeconfig)
 	if err != nil {
 		return nil, fmt.Errorf("error building kube client: %v", err)
@@ -131,9 +131,12 @@ func Build(local bool, kubeconfig string) (*Clients, error) {
 		return nil, fmt.Errorf("error building CRD client: %v", err)
 	}
 
-	vault, err := buildVaultClient()
-	if err != nil {
-		return nil, fmt.Errorf("error building Vault client: %v", err)
+	var vault *vaultapi.Client
+	if !disableVaultReplication {
+		vault, err = buildVaultClient()
+		if err != nil {
+			return nil, fmt.Errorf("error building Vault client: %v", err)
+		}
 	}
 
 	secretManager, err := buildSecretManagerClient()
