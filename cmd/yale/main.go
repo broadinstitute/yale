@@ -33,7 +33,7 @@ func main() {
 	args := parseArgs()
 
 	logs.Info.Printf("Building clients...")
-	clients, err := client.Build(args.local, args.kubeconfig)
+	clients, err := client.Build(args.local, args.kubeconfig, args.disableVaultReplication)
 
 	if err != nil {
 		logs.Error.Fatalf("Error building clients: %v, exiting\n", err)
