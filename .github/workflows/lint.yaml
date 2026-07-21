@@ -17,6 +17,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      # golangci-lint-action has no go-version input of its own and, left unpinned, installs
+      # whatever Go is currently "stable" -- observed installing 1.26.5 against this module's
+      # go.mod-declared `go 1.21`. That skew causes golangci-lint's type-checking-based linters
+      # (govet, staticcheck, gosimple, ...) to blow up to 6GB+ RSS and hang well past their own
+      # --timeout. Pinning Go here to match go.mod resolves it.
+      - uses: actions/setup-go@v4
+        with:
+          go-version: "1.21"
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2
         with:
@@ -32,8 +40,8 @@ jobs:
           # Optional: show only new issues if it's a pull request. The default value is `false`.
           # only-new-issues: true
 
-          # Optional: if set to true then the action will use pre-installed Go.
-          # skip-go-installation: true
+          # Use the Go version pinned above instead of letting the action install its own.
+          skip-go-installation: true
 
           # Optional: if set to true then the action don't cache or restore ~/go/pkg.
           # skip-pkg-cache: true
