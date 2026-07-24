@@ -3,6 +3,7 @@ package client
 import (
 	"testing"
 
+	"github.com/hashicorp/go-azure-sdk/sdk/environments"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -77,4 +78,37 @@ func Test_getYaleAppRegistrationCredentials_NewVarTakesPrecedence(t *testing.T) 
 	assert.Equal(t, []azureAppRegistrationCredential{
 		{TenantID: "new-tenant-id", ClientID: "new-client-id"},
 	}, credentials)
+}
+
+var testEnvironment = *environments.AzurePublic()
+
+// Test_buildAzureCredentials_Local covers the bug this test was written to catch: TenantID
+// must be set even for local (Azure CLI) auth. Left unset, the CLI authorizer falls back to
+// `az account show`'s default tenant/subscription, which fails outright for identity-only
+// tenants (e.g. Azure AD B2C) that have no subscription -- regardless of which tenant `az
+// login` targeted.
+func Test_buildAzureCredentials_Local(t *testing.T) {
+	cred := azureAppRegistrationCredential{TenantID: "b2c-tenant-id", ClientID: "unused-client-id"}
+
+	credentials := buildAzureCredentials(true, cred, "", testEnvironment)
+
+	assert.Equal(t, "b2c-tenant-id", credentials.TenantID)
+	assert.True(t, credentials.EnableAuthenticatingUsingAzureCLI)
+	assert.False(t, credentials.EnableAuthenticationUsingOIDC)
+	assert.Empty(t, credentials.ClientID)
+	assert.Empty(t, credentials.OIDCAssertionToken)
+}
+
+// Test_buildAzureCredentials_Federated covers the in-cluster path: Yale authenticates as its
+// own app registration via a GCP-issued OIDC token exchanged for an Azure token.
+func Test_buildAzureCredentials_Federated(t *testing.T) {
+	cred := azureAppRegistrationCredential{TenantID: "prod-tenant-id", ClientID: "yale-mgmt-client-id"}
+
+	credentials := buildAzureCredentials(false, cred, "fake-oidc-token", testEnvironment)
+
+	assert.Equal(t, "prod-tenant-id", credentials.TenantID)
+	assert.Equal(t, "yale-mgmt-client-id", credentials.ClientID)
+	assert.Equal(t, "fake-oidc-token", credentials.OIDCAssertionToken)
+	assert.True(t, credentials.EnableAuthenticationUsingOIDC)
+	assert.False(t, credentials.EnableAuthenticatingUsingAzureCLI)
 }

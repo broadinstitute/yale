@@ -303,20 +303,6 @@ func buildAzureGraphClients(local bool) (map[string]*msgraph.ApplicationsClient,
 
 	clients := make(map[string]*msgraph.ApplicationsClient, len(credentials))
 
-	if local {
-		// Local dev authenticates via the developer's own `az login` session, which is scoped
-		// to whichever single tenant they're logged into. Reuse that one client for every
-		// configured tenant so tenant-based routing in azurekeyops still works unchanged.
-		localClient, err := buildAzureGraphClient(local, azureAppRegistrationCredential{})
-		if err != nil {
-			return nil, err
-		}
-		for _, cred := range credentials {
-			clients[cred.TenantID] = localClient
-		}
-		return clients, nil
-	}
-
 	for _, cred := range credentials {
 		client, err := buildAzureGraphClient(local, cred)
 		if err != nil {
@@ -331,22 +317,16 @@ func buildAzureGraphClients(local bool) (map[string]*msgraph.ApplicationsClient,
 func buildAzureGraphClient(local bool, cred azureAppRegistrationCredential) (*msgraph.ApplicationsClient, error) {
 	environment := environments.AzurePublic()
 
-	credentials := auth.Credentials{
-		Environment: *environment,
-	}
-
-	if local {
-		credentials.EnableAuthenticatingUsingAzureCLI = true
-	} else {
+	var oidcToken string
+	if !local {
 		token, err := getGoogleIdentityTokenFromMetadataServer(context.Background(), azureFederatedCredentialAudience)
 		if err != nil {
 			return nil, fmt.Errorf("error getting Google identity token from metadata server for federated azure auth: %v", err)
 		}
-		credentials.TenantID = cred.TenantID
-		credentials.ClientID = cred.ClientID
-		credentials.OIDCAssertionToken = token
-		credentials.EnableAuthenticationUsingOIDC = true
+		oidcToken = token
 	}
+
+	credentials := buildAzureCredentials(local, cred, oidcToken, *environment)
 
 	authorizer, err := auth.NewAuthorizerFromCredentials(context.TODO(), credentials, environment.MicrosoftGraph)
 	if err != nil {
@@ -356,6 +336,29 @@ func buildAzureGraphClient(local bool, cred azureAppRegistrationCredential) (*ms
 	client := msgraph.NewApplicationsClient()
 	client.BaseClient.Authorizer = authorizer
 	return client, nil
+}
+
+// buildAzureCredentials assembles the auth.Credentials Yale should authenticate with for one
+// configured tenant: federated GCP-issued OIDC in the cluster, or the developer's own `az login`
+// session when running locally.
+func buildAzureCredentials(local bool, cred azureAppRegistrationCredential, oidcToken string, environment environments.Environment) auth.Credentials {
+	credentials := auth.Credentials{
+		Environment: environment,
+		// Set for both branches below: the Azure CLI authorizer needs this explicitly too --
+		// left blank, it falls back to `az account show`'s default tenant/subscription, which
+		// fails outright for identity-only tenants (e.g. Azure AD B2C) that have no subscription.
+		TenantID: cred.TenantID,
+	}
+
+	if local {
+		credentials.EnableAuthenticatingUsingAzureCLI = true
+	} else {
+		credentials.ClientID = cred.ClientID
+		credentials.OIDCAssertionToken = oidcToken
+		credentials.EnableAuthenticationUsingOIDC = true
+	}
+
+	return credentials
 }
 
 func getGoogleIdentityTokenFromMetadataServer(ctx context.Context, targetAudience string) (string, error) {
