@@ -3,6 +3,8 @@ package azurekeyops
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/broadinstitute/yale/internal/yale/keyops"
@@ -12,14 +14,39 @@ import (
 )
 
 type azKeyOps struct {
-	applicationsClient *msgraph.ApplicationsClient
+	applicationsClients map[string]*msgraph.ApplicationsClient
 }
 
-func New(applicationsClient *msgraph.ApplicationsClient) keyops.KeyOps {
-	return &azKeyOps{applicationsClient: applicationsClient}
+// New constructs a keyops.KeyOps for Azure AD application client secrets, given a Microsoft
+// Graph client per tenant Yale is configured to manage secrets in, keyed by tenant ID.
+func New(applicationsClients map[string]*msgraph.ApplicationsClient) keyops.KeyOps {
+	return &azKeyOps{applicationsClients: applicationsClients}
+}
+
+// clientFor returns the Microsoft Graph client configured for the given tenant, or a loud,
+// specific error if no credential is configured for that tenant -- a misconfigured CRD should
+// fail visibly, not silently rotate against the wrong tenant (or the wrong app entirely).
+func (a *azKeyOps) clientFor(tenantID string) (*msgraph.ApplicationsClient, error) {
+	client, ok := a.applicationsClients[tenantID]
+	if !ok {
+		configured := make([]string, 0, len(a.applicationsClients))
+		for t := range a.applicationsClients {
+			configured = append(configured, t)
+		}
+		sort.Strings(configured)
+		return nil, fmt.Errorf(
+			"no Azure Graph client configured for tenant %q; Yale is configured for tenant(s): %s",
+			tenantID, strings.Join(configured, ", "))
+	}
+	return client, nil
 }
 
 func (a *azKeyOps) Create(tenantID string, applicationID string) (keyops.Key, []byte, error) {
+	client, err := a.clientFor(tenantID)
+	if err != nil {
+		return keyops.Key{}, nil, err
+	}
+
 	createKeyRequest := msgraph.PasswordCredential{
 		DisplayName: &applicationID,
 	}
@@ -30,7 +57,7 @@ func (a *azKeyOps) Create(tenantID string, applicationID string) (keyops.Key, []
 	defer cancel()
 
 	logs.Info.Printf("creating new client secret for application with id %s...", applicationID)
-	createdKey, statusCode, err := a.applicationsClient.AddPassword(ctx, applicationID, createKeyRequest)
+	createdKey, statusCode, err := client.AddPassword(ctx, applicationID, createKeyRequest)
 	if err != nil {
 		return keyops.Key{}, nil, fmt.Errorf(
 			"error %d issuing new client secret for application with id %s: %v",
@@ -63,7 +90,12 @@ func (a *azKeyOps) Create(tenantID string, applicationID string) (keyops.Key, []
 // Unlike GCP, in Azure there is no concept of a key that exists but is disabled.
 // Instead we just check to see if the key exists and return true if so that yale's internal cache handling can still treat the key as disabled.
 func (a *azKeyOps) IsDisabled(key keyops.Key) (bool, error) {
-	applicationData, statusCode, err := a.applicationsClient.Get(context.TODO(), key.Identifier, odata.Query{})
+	client, err := a.clientFor(key.Scope)
+	if err != nil {
+		return false, err
+	}
+
+	applicationData, statusCode, err := client.Get(context.TODO(), key.Identifier, odata.Query{})
 	if err != nil {
 		return false, fmt.Errorf(
 			"error %d retrieving client secret info for application %s failed : %v",
@@ -118,8 +150,13 @@ func (a *azKeyOps) DeleteIfDisabled(key keyops.Key) error {
 		return fmt.Errorf("client secret: %s for application with id %s in tenant %s is not disabled, cannot delete", key.ID, key.Identifier, key.Scope)
 	}
 
+	client, err := a.clientFor(key.Scope)
+	if err != nil {
+		return err
+	}
+
 	logs.Info.Printf("deleting client secret: %s for application with id %s in tenant %s", key.ID, key.Identifier, key.Scope)
-	statusCode, err := a.applicationsClient.RemovePassword(context.TODO(), key.Identifier, key.ID)
+	statusCode, err := client.RemovePassword(context.TODO(), key.Identifier, key.ID)
 	if err != nil {
 		return fmt.Errorf("error %d deleting client secret %s for application with id %s in tenant %s: %v", statusCode, key.ID, key.Identifier, key.Scope, err)
 	}

@@ -67,7 +67,7 @@ func NewYale(clients *client.Clients, opts ...func(*Options)) *Yale {
 	return newYaleFromClients(clients.GetK8s(), clients.GetCRDs(), clients.GetIAM(), clients.GetMetrics(), clients.GetVault(), clients.GetGoogleSecretManager(), clients.GetAzure(), clients.GetGitHub(), opts...)
 }
 
-func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, secretManager *secretmanager.Client, azure *msgraph.ApplicationsClient, _github github.Client, opts ...func(*Options)) *Yale {
+func newYaleFromClients(k8s kubernetes.Interface, crd v1beta1.YaleCRDInterface, iam *iam.Service, metrics *monitoring.MetricClient, vault *vaultapi.Client, secretManager *secretmanager.Client, azure map[string]*msgraph.ApplicationsClient, _github github.Client, opts ...func(*Options)) *Yale {
 	options := Options{
 		CacheNamespace:           cache.DefaultCacheNamespace,
 		IgnoreUsageMetrics:       false,
