@@ -97,25 +97,28 @@ jobs:
       contents: 'read'
       id-token: 'write'
 
-  set-version-in-terra-dev:
-    # Put the new Yale version on the terra-dev cluster and deploy it.
+  set-version-in-sherlock:
+    # Put the new Yale version on each cluster release and deploy it.
     #
     # Yale is a cluster release rather than an app in a Terra environment, so Sherlock's
     # client-set-environment-app-version.yaml reusable workflow can't be used here -- it
     # addresses chart releases as "<environment>/<chart>", and Yale's are named
-    # "<chart>-<cluster>" (i.e. "yale-terra-dev"). This job does the same two things that
-    # workflow does, against that chart release: plan-and-apply an exact-version changeset
+    # "<chart>-<cluster>" (e.g. "yale-terra-dev"). This job does the same two things that
+    # workflow does, against each chart release: plan-and-apply an exact-version changeset
     # in Sherlock, then dispatch terra-github-workflows to sync the release.
     if: github.event_name == 'push'
     needs: [ tag-publish-job, report-to-sherlock ]
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        chart-release-name: [ 'yale-terra-dev', 'yale-terra-qa' ]
     permissions:
       # Use OIDC -> IAP
       id-token: 'write'
     env:
       SHERLOCK_PROD_URL: 'https://sherlock.dsp-devops-prod.broadinstitute.org'
       BEEHIVE_PROD_VANITY_URL: 'https://broad.io/beehive'
-      CHART_RELEASE_NAME: 'yale-terra-dev'
+      CHART_RELEASE_NAME: ${{ matrix.chart-release-name }}
       NEW_VERSION: ${{ needs.tag-publish-job.outputs.tag }}
     steps:
       - name: Write changeset request body
