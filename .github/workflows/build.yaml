@@ -111,7 +111,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        chart-release-name: [ 'yale-terra-dev', 'yale-terra-qa' ]
+        chart-release-name: [ 'yale-terra-dev', 'yale-terra-qa-bees' ]
     permissions:
       # Use OIDC -> IAP
       id-token: 'write'
